@@ -6,6 +6,8 @@ Namespace Utt2Database
     Partial Public Class Player
         Public Property Id As Long
 
+        Public Property Slug As String
+
         Public Property Name As String
 
         Public Property SkinData As String

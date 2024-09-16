@@ -40,6 +40,7 @@ Namespace Utt2Database
         Protected Overrides Sub OnConfiguring(optionsBuilder As DbContextOptionsBuilder)
             Dim connString As String = MySQLDB.makeConnectionStringFromConfigStruct(dbConfig)
             optionsBuilder.UseMySQL(connString)
+            optionsBuilder.LogTo(AddressOf Console.WriteLine)
         End Sub
 
         Protected Overrides Sub OnModelCreating(modelBuilder As ModelBuilder)
@@ -66,6 +67,8 @@ Namespace Utt2Database
 
                     entity.ToTable("players")
 
+                    entity.HasIndex(Function(e) e.Slug, "players_slug_unique").IsUnique()
+
                     entity.Property(Function(e) e.Id).
                         HasColumnType("bigint(20) unsigned").
                         HasColumnName("id")
@@ -81,6 +84,9 @@ Namespace Utt2Database
                         IsRequired().
                         HasMaxLength(255).
                         HasColumnName("skin_data")
+                    entity.Property(Function(e) e.Slug).
+                        IsRequired().
+                        HasColumnName("slug")
                 End Sub)
 
             modelBuilder.Entity(Of PlayerLiveLog)(
@@ -223,27 +229,29 @@ Namespace Utt2Database
 
                     entity.ToTable("servers")
 
+                    entity.HasIndex(Function(e) e.Address, "servers_address_unique").IsUnique()
+
                     entity.Property(Function(e) e.Id).
                         HasColumnType("bigint(20) unsigned").
                         HasColumnName("id")
                     entity.Property(Function(e) e.Address).
                         IsRequired().
-                        HasMaxLength(40).
+                        HasMaxLength(60).
                         HasColumnName("address")
                     entity.Property(Function(e) e.Country).
                         HasMaxLength(3).
-                        HasDefaultValueSql("'NULL'").
+                        HasDefaultValueSql("NULL").
                         HasColumnName("country")
                     entity.Property(Function(e) e.GameName).
                         IsRequired().
                         HasMaxLength(255).
                         HasColumnName("game_name")
                     entity.Property(Function(e) e.LastRankCalculation).
-                        HasDefaultValueSql("'NULL'").
+                        HasDefaultValueSql("NULL").
                         HasColumnType("timestamp").
                         HasColumnName("last_rank_calculation")
                     entity.Property(Function(e) e.LastScan).
-                        HasDefaultValueSql("'NULL'").
+                        HasDefaultValueSql("NULL").
                         HasColumnType("timestamp").
                         HasColumnName("last_scan")
                     entity.Property(Function(e) e.Name).
@@ -255,7 +263,7 @@ Namespace Utt2Database
                         HasColumnName("rf_score")
                     entity.Property(Function(e) e.Rules).
                         IsRequired().
-                        HasDefaultValueSql("'''{}'''").
+                        HasDefaultValueSql("'{{}}'").
                         HasColumnName("rules")
                 End Sub)
 
