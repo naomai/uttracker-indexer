@@ -257,38 +257,17 @@ Public Class ServerScanner
     End Sub
 
     Protected Function getRecentlyScannedServerList(Optional seconds As Integer = 86400, Optional includeAncientServers As Boolean = False) As List(Of String)
-        Static ancientTimes = DateTime.Parse("1.01.2009 0:00:00") ' include servers with invalid last scan date due to bios time reset
-        'Dim recentServersCmd As New MySqlCommand("Select `address`,`rules` from `servers` where `last_scan`>FROM_UNIXTIME(@lastscan)", db.dbh)
-        'If includeAncientServers Then recentServersCmd.CommandText &= " or `last_scan` < FROM_UNIXTIME(@ancientTimes)"
-        'recentServersCmd.CommandType = CommandType.Text
-        'recentServersCmd.Parameters.AddWithValue("@lastscan", unixTime() - seconds)
-        'recentServersCmd.Parameters.AddWithValue("@ancientTimes", ancientTimes)
-        'Dim queryAdapter = New MySqlDataAdapter(recentServersCmd)
-        'Dim table = New DataTable
-        'SyncLock db.dbh
-        'queryAdapter.Fill(table)
-        'End SyncLock
+        Dim ancientTimes As DateTime = DateTime.Parse("1.01.2009 0:00:00") ' include servers with invalid last scan date due to bios time reset
+        Dim scanTimeRange As DateTime = DateTime.Now.AddSeconds(-seconds)
 
-        Dim serverQueryPred As Func(Of Server, Boolean)
-
-        If includeAncientServers Then
-            serverQueryPred =
-                Function(p As Server)
-                    Return p.LastScan > DateTime.Now.AddSeconds(-seconds) Or
-                    p.LastScan < ancientTimes
-                End Function
-        Else
-            serverQueryPred =
-                Function(p As Server)
-                    Return p.LastScan > DateTime.Now.AddSeconds(-seconds)
-                End Function
-        End If
-
-        Dim servers = dbCtx.Servers.Where(serverQueryPred).ToList()
-
+        Dim servers = dbCtx.Servers.Where(
+            Function(p As Server) p.LastScan > scanTimeRange Or
+            p.LastScan < ancientTimes
+        ).Select(
+            Function(s) New With {.Address = s.Address, .Rules = s.Rules}
+        ).ToList()
 
         Dim recentServers = New List(Of String)
-        'Dim json As New System.Web.Script.Serialization.JavaScriptSerializer()
         Dim rules As Hashtable
 
         For Each server In servers
@@ -310,19 +289,14 @@ Public Class ServerScanner
     End Function
 
     Protected Function getServersPendingQueue() As List(Of String)
-        Dim recentServersCmd As New MySqlCommand("Select `address` from `scan_queue_entries`", db.dbh)
-        recentServersCmd.CommandType = CommandType.Text
-        Dim queryAdapter = New MySqlDataAdapter(recentServersCmd)
-        Dim table = New DataTable
-        SyncLock db.dbh
-            queryAdapter.Fill(table)
-        End SyncLock
+        Dim recentServers = dbCtx.ScanQueueEntries.ToList()
+
         Dim queueServers = New List(Of String)
-        If table.Rows.Count > 0 Then
-            Dim queueClearCmd As New MySqlCommand("Delete from `scan_queue_entries` where true", db.dbh)
-            queueClearCmd.ExecuteNonQuery()
-            For Each server As DataRow In table.Rows
-                queueServers.Add(server("address"))
+        If recentServers.Count > 0 Then
+            dbCtx.ScanQueueEntries.ExecuteDelete()
+
+            For Each server In recentServers
+                queueServers.Add(server.Address)
             Next
         End If
         debugWriteLine("getServersPendingQueue: {0}", queueServers.Count)

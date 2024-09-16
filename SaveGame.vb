@@ -2,27 +2,33 @@
 Imports System.Threading
 Imports System.Data
 Imports System.Text.Json
+Imports Naomai.UTT.ScannerV2.Utt2Database
 
 Public Class SaveGame
     Protected scannerSlave As ServerScannerWorker
     Public db As MySQLDB
+    Public dbCtx As Utt2Context
     Dim uttServerId As Int32
     Dim uttGameId As UInt32
     Dim uttServerScanTime As Int64
     Public state As SaveGameWorkerState
     Dim dbLocked As Boolean = False
 
+    Private serverRecord As Server
+
 
 
     Public Sub New(scannerSlave As ServerScannerWorker)
         Me.scannerSlave = scannerSlave
         db = scannerSlave.scannerMaster.db
-        uttServerId = Math.Abs(CRC32(scannerSlave.address))
+        dbCtx = scannerSlave.scannerMaster.dbCtx
+        'uttServerId = Math.Abs(CRC32(scannerSlave.address))
     End Sub
 
     Public Sub tick()
         Dim scannerState = scannerSlave.getState()
         If Not state.done Then
+            If Not state.hasDBRecord Then prepareServerRecord()
             If Not state.savedInfo Then tryUpdateInfo()
             If Not state.savedRules Then tryUpdateRules()
             If Not state.savedGameInfo Then tryUpdateGameInfo()
@@ -35,31 +41,45 @@ Public Class SaveGame
         End If
     End Sub
 
+    Private Sub prepareServerRecord()
+        If Not IsNothing(serverRecord) Then
+            Return
+        End If
+
+        Try
+            serverRecord = dbCtx.Servers.Single(Function(s) s.Address = scannerSlave.address)
+        Catch e As InvalidOperationException
+            serverRecord = New Server() With {
+                .Address = scannerSlave.address
+            }
+        End Try
+        state.hasDBRecord = True
+    End Sub
 
     Private Sub tryUpdateInfo()
         Dim infoUpdateCmd As MySqlCommand
         Dim scannerState = scannerSlave.getState()
-        If scannerState.hasBasic AndAlso scannerState.hasInfo Then
+
+        ' fetch DB record/insert
+
+
+
+        If state.hasDBRecord AndAlso scannerState.hasBasic AndAlso scannerState.hasInfo Then
             uttServerScanTime = unixTime(scannerSlave.infoSentTimeLocal)
 
-            If scannerSlave.dbAddress <> scannerSlave.address Then uttServerId = Math.Abs(CRC32(scannerSlave.dbAddress))
+            'If scannerSlave.dbAddress <> scannerSlave.address Then uttServerId = Math.Abs(CRC32(scannerSlave.dbAddress))
 
-            infoUpdateCmd = New MySqlCommand(
-                "Insert into `servers` (`id`,`address`,`name`,`game_name`) values (@sid,@address,@name,@gamename) " &
-                " On duplicate key Update `name`=@name, `game_name`=@gamename",
-                db.dbh, db.dbtr)
 
-            infoUpdateCmd.CommandType = CommandType.Text
-            With (infoUpdateCmd.Parameters)
-                .AddWithValue("@sid", uttServerId)
-                .AddWithValue("@address", scannerSlave.dbAddress)
-                .AddWithValue("@name", scannerSlave.info("hostname"))
-                '.AddWithValue("@time", uttServerScanTime)
-                .AddWithValue("@gamename", scannerSlave.info("gamename"))
+            With serverRecord
+                .Name = scannerSlave.info("hostname")
+                .GameName = scannerSlave.info("gamename")
             End With
-            SyncLock db.dbh
-                infoUpdateCmd.ExecuteNonQuery()
-            End SyncLock
+
+            dbCtx.Update(serverRecord)
+            dbCtx.SaveChanges()
+
+            uttServerId = serverRecord.Id
+            state.hasServerId = True
 
             state.savedInfo = True
         End If
@@ -71,6 +91,10 @@ Public Class SaveGame
         Dim rulesJson As String
         'Dim json As New System.Web.Script.Serialization.JavaScriptSerializer
         Dim scannerState = scannerSlave.getState()
+
+        If Not state.hasServerId Then
+            Return
+        End If
 
         If Not scannerSlave.caps.supportsRules Then
             state.savedRules = True
@@ -109,6 +133,11 @@ Public Class SaveGame
     Private Sub tryUpdateGameInfo() ' serverhistory
         Dim lastGameInfo As DataRow
         Dim gameInfoUpdateCmd As MySqlCommand
+
+        If Not state.hasServerId Then
+            Return
+        End If
+
         Dim scannerState = scannerSlave.getState()
         'If scannerState.hasInfo AndAlso Not (scannerSlave.caps.hasPropertyInterface AndAlso Not scannerSlave.caps.timeTestPassed) Then
         If scannerState.hasInfo Then
@@ -132,7 +161,7 @@ Public Class SaveGame
 
             If scannerSlave.caps.timeTestPassed AndAlso scannerSlave.info.ContainsKey("elapsedtime") AndAlso Not scannerSlave.caps.fakePlayers Then
                 'timeGameStart = scannerSlave.info("__uttgamestart")
-                If IsNumeric(scannerSlave.info("elapsedtime")) AndAlso ( _
+                If IsNumeric(scannerSlave.info("elapsedtime")) AndAlso (
                         scannerSlave.info("elapsedtime") > 0 OrElse (scannerSlave.info("timelimit") * 60) - scannerSlave.info("remainingtime") < 60) Then
                     timeGameStart = unixTime(scannerSlave.firstTimeTestLocal) - scannerSlave.info("elapsedtime")
                 ElseIf IsNumeric(scannerSlave.info("timelimit")) AndAlso scannerSlave.info("timelimit") > 0 AndAlso (scannerSlave.info("timelimit") * 60) - scannerSlave.info("remainingtime") > 60 Then ' elapsed time not implemented in gamemode?
@@ -190,8 +219,8 @@ Public Class SaveGame
 
         If scannerState.hasPlayers AndAlso state.savedGameInfo Then
             For Each player In scannerSlave.players
-                Dim uttPlayerId As Integer = getPlayerId(player)
-                player("uttPlayerId") = uttPlayerId
+                Dim uttPlayerSlug As String = getPlayerSlug(player)
+                player("uttPlayerSlug") = uttPlayerSlug
 
                 updatePlayerInfoEntry(player)
                 updatePlayerHistoryEntry(player)
@@ -204,17 +233,20 @@ Public Class SaveGame
         Dim playerInfoUpdateCmd As MySqlCommand
         Dim countryString As String = ""
         Try
-            playerInfoUpdateCmd = New MySqlCommand("Insert into `players` (`id`,`name`,`skin_data`,`country`) values(@id,@name,@skindata,@country)", db.dbh, db.dbtr)
+            playerInfoUpdateCmd = New MySqlCommand("Insert into `players` (`slug`,`name`,`skin_data`,`country`) values(@slug,@name,@skindata,@country)", db.dbh, db.dbtr)
             playerInfoUpdateCmd.CommandType = CommandType.Text
             With playerInfoUpdateCmd.Parameters
-                .AddWithValue("@id", player("uttPlayerId"))
+                .AddWithValue("@slug", player("uttPlayerSlug"))
                 .AddWithValue("@name", player("name"))
                 .AddWithValue("@skindata", player("mesh") & "|" & player("skin") & "|" & player("face"))
-                If scannerSlave.caps.hasXSQ Then countryString = player("countryc")
+                If scannerSlave.caps.hasXSQ And player("countryc") <> "none" Then
+                    countryString = player("countryc")
+                End If
                 .AddWithValue("@country", countryString)
             End With
             SyncLock db.dbh
                 playerInfoUpdateCmd.ExecuteNonQuery()
+                player("uttPlayerId") = playerInfoUpdateCmd.LastInsertedId
             End SyncLock
             playerInfoUpdateCmd.Dispose()
         Catch e As MySqlException When e.Number = 1062
@@ -235,6 +267,11 @@ Public Class SaveGame
 
     Private Sub updatePlayerHistoryEntry(player As Hashtable) ' `playerhistory` table
         Dim playerInfoUpdateCmd As MySqlCommand, playerTimeOffset As Integer = 0
+
+        If Not state.hasServerId Then
+            Return
+        End If
+
         If state.isNewGame AndAlso player.ContainsKey("time") Then
             playerTimeOffset = -player("time")
         End If
@@ -267,6 +304,10 @@ Public Class SaveGame
     End Sub
 
     Private Sub tryUpdateCumulativePlayersStats() ' update `playerstats` and move old records from `playerhistorythin` to `playerhistory`
+        If Not state.hasServerId Then
+            Return
+        End If
+
         If state.savedPlayers AndAlso state.savedGameInfo Then
             'Try
             Dim oldPlayerRecordsCmd As New MySqlCommand("Select * from `player_live_logs` Where `server_id`=@serverid and `match_id` <> @gameid", db.dbh, db.dbtr)
@@ -340,6 +381,10 @@ Public Class SaveGame
     End Sub
 
     Private Sub updateCurrentScanInfo()
+        If Not state.hasServerId Then
+            Return
+        End If
+
         If state.savedCumulativeStats OrElse (state.savedInfo AndAlso scannerSlave.info("numplayers") = 0) Then
             Dim serverInfoScanUpdate As New MySqlCommand("Update `servers` set `last_scan`=FROM_UNIXTIME(@lastscan) where `id`=@serverid", db.dbh, db.dbtr)
             serverInfoScanUpdate.CommandType = CommandType.Text
@@ -396,10 +441,22 @@ Public Class SaveGame
 
 
     Private Shared Function getPlayerId(playerInfo As Hashtable) As Int32
+        Throw New Exception("Use getPlayerSlug instead")
         If (nameIsComplicated(playerInfo("name"))) Then
             getPlayerId = Math.Abs(CRC32(LCase(playerInfo("name") & "|3456")))
         Else
             getPlayerId = Math.Abs(CRC32(LCase(playerInfo("name") & "|" & playerInfo("mesh"))))
+        End If
+    End Function
+
+    Private Shared Function getPlayerSlug(playerInfo As Hashtable) As String
+        ' For a rare events of two players having the same name, to tell them apart
+        ' we append player skin name to the slug.
+        ' The more complex names do not need this
+        If (nameIsComplicated(playerInfo("name"))) Then
+            getPlayerSlug = LCase(playerInfo("name"))
+        Else
+            getPlayerSlug = LCase(playerInfo("name") & "|" & playerInfo("mesh"))
         End If
     End Function
 
@@ -410,6 +467,8 @@ End Class
 
 
 Public Structure SaveGameWorkerState
+    Dim hasDBRecord As Boolean
+    Dim hasServerId As Boolean
     Dim savedInfo As Boolean
     Dim savedRules As Boolean
     Dim savedGameInfo As Boolean
