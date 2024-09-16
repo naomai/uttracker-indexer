@@ -100,8 +100,8 @@ Module ScannerApp
         Do
             log.WriteLine("Update in progress...")
             nextscan = Date.UtcNow + TimeSpan.FromSeconds(scanner.scanInterval)
-            Try
-                scanner.performScan()
+            'Try
+            scanner.performScan()
                 log.WriteLine("Scanned {0}, online: {1}; next: {2}s", scanner.serversCountTotal, scanner.serversCountOnline, Math.Round((nextscan - Date.UtcNow).TotalSeconds))
                 Do While (nextscan - Date.UtcNow).TotalSeconds > 0 AndAlso (nextscan - Date.UtcNow).TotalSeconds <= scanner.scanInterval
                     Threading.Thread.Sleep(50)
@@ -113,24 +113,24 @@ Module ScannerApp
                     log.WriteLine("Correct your system time and press ENTER")
                     Console.ReadLine()
                 End If
-            Catch e As Exception When e.Source = "MySql.Data"
-                log.WriteLine(e.Message)
-                Try
-                    Threading.Thread.Sleep(1000)
-                    If Not (db.dbh.State.HasFlag(ConnectionState.Open)) Then
-                        log.WriteLine("Lost connection to database server. Reconnecting...")
-                        db.Reconnect()
-                    Else
-                        log.WriteLine("Invalid operation on database server. Restarting db connection...")
-                        db.Reconnect()
+                'Catch e As Exception When e.Source = "MySql.Data"
+            '    log.WriteLine(e.Message)
+            '    Try
+            '        Threading.Thread.Sleep(1000)
+            '        If Not (db.dbh.State.HasFlag(ConnectionState.Open)) Then
+            '            log.WriteLine("Lost connection to database server. Reconnecting...")
+            '            db.Reconnect()
+            '        Else
+            '            log.WriteLine("Invalid operation on database server. Restarting db connection...")
+            '            db.Reconnect()
 
-                    End If
-                Catch e2 As Exception
-                    Threading.Thread.Sleep(1000)
-                    db.Reconnect()
-                End Try
+            '        End If
+            '    Catch e2 As Exception
+            '        Threading.Thread.Sleep(1000)
+            '        db.Reconnect()
+            '    End Try
 
-            End Try
+            'End Try
         Loop
     End Sub
 
