@@ -13,5 +13,9 @@ Namespace Utt2Database
         Public Property SkinData As String
 
         Public Property Country As String
+
+        Public Overridable Property PlayerLogs As ICollection(Of PlayerLog) = New List(Of PlayerLog)()
+
+        Public Overridable Property PlayerStats As ICollection(Of PlayerStat) = New List(Of PlayerStat)()
     End Class
 End Namespace

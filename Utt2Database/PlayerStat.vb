@@ -4,9 +4,11 @@ Imports Microsoft.VisualBasic
 
 Namespace Utt2Database
     Partial Public Class PlayerStat
-        Public Property PlayerId As Integer
+        Public Property Id As Long
 
-        Public Property ServerId As Integer
+        Public Property PlayerId As Long
+
+        Public Property ServerId As Long
 
         Public Property GameTime As Integer
 
@@ -14,6 +16,12 @@ Namespace Utt2Database
 
         Public Property Deaths As Integer
 
-        Public Property LastMatchId As Integer
+        Public Property LastMatchId As Long
+
+        Public Overridable Property LastMatch As ServerMatch
+
+        Public Overridable Property Player As Player
+
+        Public Overridable Property Server As Server
     End Class
 End Namespace

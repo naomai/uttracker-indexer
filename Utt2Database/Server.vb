@@ -21,5 +21,11 @@ Namespace Utt2Database
         Public Property Country As String
 
         Public Property GameName As String
+
+        Public Overridable Property PlayerLogs As ICollection(Of PlayerLog) = New List(Of PlayerLog)()
+
+        Public Overridable Property PlayerStats As ICollection(Of PlayerStat) = New List(Of PlayerStat)()
+
+        Public Overridable Property ServerMatches As ICollection(Of ServerMatch) = New List(Of ServerMatch)()
     End Class
 End Namespace
