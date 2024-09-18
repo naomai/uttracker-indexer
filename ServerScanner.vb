@@ -57,10 +57,6 @@ Public Class ServerScanner
             masterServerQuery = .masterServerManager
         End With
 
-
-
-        prepareDB()
-
         debugWriteLine("ServerScanner ready")
 
     End Sub
@@ -147,7 +143,7 @@ Public Class ServerScanner
 
 
     Public Sub packetHandler(packet() As Byte, source As IPEndPoint) Handles socketMaster.PacketReceived
-        Dim info As Hashtable, fullPacket As String = "", target As ServerScannerWorker, ipString As String
+        Dim fullPacket As String = "", target As ServerScannerWorker, ipString As String
 
         Dim packetString As String
         ipString = source.ToString
@@ -162,7 +158,6 @@ Public Class ServerScanner
 
             fullPacket = fragmentedPackets(ipString) & packetString
 
-            'info = parseQuery(fullPacket)
             target.incomingPacketObj = New UTQueryPacket(fullPacket)
 
             target.incomingPacket = target.incomingPacketObj.convertToHashtablePacket()
@@ -243,10 +238,6 @@ Public Class ServerScanner
 
     Protected Sub updateScanInfo()
         dynconfigSet("net.reaper.lastupdate", unixTime())
-        'With My.Application.Info
-        'dynconfigSet("net.reaper.scannerversion", .AssemblyName & "-" & .Version.Major & "." & .Version.Minor & "." & .Version.Build)
-        'dynconfigSet("net.reaper.scannerapptitle", .Title)
-        'End With
         dynconfigSet("net.reaper.scaninfo.serversscanned", serversCountTotal)
         dynconfigSet("net.reaper.scaninfo.serversonline", serversCountOnline)
         dynconfigSet("net.reaper.scaninfo.scantime", (scanEnd - scanStart).TotalSeconds)
@@ -387,7 +378,7 @@ Public Class ServerScanner
     Private Sub masterServerQuery_OnMasterServerQuery(serverInfo As MasterServerInfo) Handles masterServerQuery.OnMasterServerQuery
         logWriteLine("MasterQuery ( " & serverInfo.serverClassName & " , " & serverInfo.serverIp & ":" & serverInfo.serverPort & " ) ")
         dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".checked", unixTime())
-        dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".info", _
+        dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".info",
             serverInfo.serverIp & ":" & serverInfo.serverPort)
     End Sub
 
@@ -411,25 +402,11 @@ Public Class ServerScanner
     End Sub
 #Region "Dynconfig"
     Public Function dynconfigGet(key As String)
-        'Dim dynconfigCmd As New MySqlCommand("Select `data` from `utt_info` where `key`=@key", db.dbh)
-        'dynconfigCmd.Parameters.AddWithValue("@key", key)
-        'SyncLock db.dbh)
-        'dynconfigGet = dynconfigCmd.ExecuteScalar()
-        'End SyncLock db.dbh)
-        'dynconfigCmd.Dispose()
         Return dyncfg.getProperty(key)
     End Function
 
     Public Sub dynconfigSet(key As String, data As String, Optional priv As Boolean = False)
         dyncfg.setProperty(key, data, priv)
-        'Dim dynconfigCmd As New MySqlCommand("Replace into `utt_info`(`key`,`data`,`private`) values(@key,@data,@private)", db.dbh)
-        'dynconfigCmd.Parameters.AddWithValue("@key", key)
-        'dynconfigCmd.Parameters.AddWithValue("@data", data)
-        'dynconfigCmd.Parameters.AddWithValue("@private", priv)
-        'SyncLock db.dbh)
-        'dynconfigCmd.ExecuteNonQuery()
-        'End SyncLock db.dbh)
-        'dynconfigCmd.Dispose()
     End Sub
 
 #End Region
@@ -456,119 +433,6 @@ Public Class ServerScanner
         disposed = True
     End Sub
 #End Region
-
-
-#Region "Database stuff"
-
-    Protected Sub prepareDB()
-
-
-        maybeCreateTables()
-    End Sub
-
-
-    Public Sub maybeCreateTables()
-        SyncLock db.dbh
-            'db.execCmd("CREATE TABLE IF NOT EXISTS `playerinfo` (" & _
-            '    " `id` int(11) NOT NULL," & _
-            '    " `name` text," & _
-            '    " `skindata` text," & _
-            '    " `country` varchar(3) DEFAULT NULL," & _
-            '    " PRIMARY KEY (`id`)" & _
-            '    ") ENGINE=InnoDB DEFAULT CHARSET=latin1")
-
-            'db.execCmd("CREATE TABLE IF NOT EXISTS `playerhistory` (" & _
-            '    " `recordid` int(11) NOT NULL," & _
-            '    " `id` int(11) DEFAULT NULL," & _
-            '    " `serverid` int(11) DEFAULT NULL," & _
-            '    " `gameid` int(11) DEFAULT NULL," & _
-            '    " `numupdates` smallint(6) DEFAULT NULL," & _
-            '    " `lastupdate` int(11) DEFAULT NULL," & _
-            '    " `enterdate` int(11) DEFAULT NULL," & _
-            '    " `scorethismatch` int(11) DEFAULT NULL," & _
-            '    " `pingsum` int(11) DEFAULT NULL," & _
-            '    " `deathsthismatch` smallint(6) DEFAULT NULL," & _
-            '    " `team` tinyint(4) DEFAULT NULL," & _
-            '    " `flags` int(11) NOT NULL DEFAULT '0'," & _
-            '    " PRIMARY KEY (`recordid`)," & _
-            '    " KEY `ph_gid_idx` (`gameid`) USING HASH," & _
-            '    " KEY `ph_pid_idx` (`id`) USING HASH," & _
-            '    " KEY `ph_sid_idx` (`serverid`) USING HASH," & _
-            '    " KEY `ph_lup_idx` (`lastupdate`) USING BTREE," & _
-            '    " KEY `ph_pidsid_idx` (`serverid`,`id`)" & _
-            '    ") ENGINE=InnoDB DEFAULT CHARSET=latin1")
-
-            'db.execCmd("CREATE TABLE IF NOT EXISTS `playerhistorythin` (" & _
-            '    " `recordid` int(11) NOT NULL," & _
-            '    " `id` int(11) DEFAULT NULL," & _
-            '    " `serverid` int(11) DEFAULT NULL," & _
-            '    " `gameid` int(11) DEFAULT NULL," & _
-            '    " `numupdates` smallint(6) DEFAULT NULL," & _
-            '    " `lastupdate` int(11) DEFAULT NULL," & _
-            '    " `enterdate` int(11) DEFAULT NULL," & _
-            '    " `scorethismatch` int(11) DEFAULT NULL," & _
-            '    " `pingsum` int(11) DEFAULT NULL," & _
-            '    " `deathsthismatch` smallint(6) DEFAULT NULL," & _
-            '    " `team` tinyint(4) DEFAULT NULL," & _
-            '    " `flags` int(11) NOT NULL DEFAULT '0'," & _
-            '    " PRIMARY KEY (`recordid`)," & _
-            '    " KEY `phthin_gid_idx` (`gameid`) USING HASH," & _
-            '    " KEY `phthin_pid_idx` (`id`) USING HASH," & _
-            '    " KEY `phthin_sid_idx` (`serverid`) USING HASH," & _
-            '    " KEY `phthin_lup_idx` (`lastupdate`) USING BTREE" & _
-            '    ") ENGINE=InnoDB DEFAULT CHARSET=latin1")
-
-            'db.execCmd("CREATE TABLE IF NOT EXISTS `serverinfo` (" & _
-            '    " `serverid` int(11) NOT NULL," & _
-            '    " `address` text," & _
-            '    " `name` text," & _
-            '    " `rules` text," & _
-            '    " `lastscan` int(11) NOT NULL," & _
-            '    " `lastrfupdate` int(11) NOT NULL," & _
-            '    " `rfscore` int(11) NOT NULL," & _
-            '    " `uplayers` int(11) NOT NULL," & _
-            '    " `country` varchar(3) NOT NULL," & _
-            '    " `gamename` varchar(20) NOT NULL," & _
-            '    " PRIMARY KEY (`serverid`)" & _
-            '    ") ENGINE=InnoDB DEFAULT CHARSET=latin1")
-
-            'db.execCmd("CREATE TABLE IF NOT EXISTS `serverhistory` (" & _
-            '    " `gameid` int(11) NOT NULL AUTO_INCREMENT," & _
-            '    " `serverid` int(11) DEFAULT NULL," & _
-            '    " `date` int(11) DEFAULT NULL," & _
-            '    " `mapname` text," & _
-            '    " PRIMARY KEY (`gameid`)," & _
-            '    " KEY `sh_sid_idx` (`serverid`) USING HASH," & _
-            '    " KEY `sh_dat_idx` (`date`) USING BTREE," & _
-            '    " KEY `sh_map_idx` (`mapname`(40))" & _
-            '    ") ENGINE=InnoDB DEFAULT CHARSET=latin1")
-
-            'db.execCmd("CREATE TABLE IF NOT EXISTS `playerstats` (" & _
-            '    " `playerid` int(11) NOT NULL," & _
-            '    " `serverid` int(11) NOT NULL," & _
-            '    " `time` int(11) NOT NULL," & _
-            '    " `numupdates` int(11) NOT NULL," & _
-            '    " `deaths` int(11) NOT NULL," & _
-            '    " `score` bigint(20) NOT NULL," & _
-            '    " `lastgame` int(11) NOT NULL," & _
-            '    " PRIMARY KEY (`serverid`,`playerid`)," & _
-            '    " KEY `ps_sid_idx` (`serverid`)," & _
-            '    " KEY `ps_pid_idx` (`playerid`)" & _
-            '    ") ENGINE=InnoDB DEFAULT CHARSET=latin1")
-
-            'db.execCmd("CREATE TABLE IF NOT EXISTS `utt_info` (" & _
-            '    " `key` varchar(48) NOT NULL," & _
-            '    " `data` text," & _
-            '    " `private` boolean," & _
-            '    " PRIMARY KEY (`key`)," & _
-            '    " UNIQUE KEY `key` (`key`)" & _
-            '    ") ENGINE=InnoDB DEFAULT CHARSET=latin1")
-        End SyncLock
-    End Sub
-
-#End Region
-
-
 
 End Class
 
@@ -624,19 +488,11 @@ Public Class ServerScannerWorker
                 If Not IsNothing(incomingPacket) Then ' we received a full response from server
                     packetReceived()
                     sendRequest()
-                    'resendAttempts = 0
                 Else ' haven't got anything, just checking for timeouts
                     If (Date.UtcNow - lastActivity).TotalSeconds > 10 AndAlso (Date.UtcNow - scannerMaster.scanLastTouchAll).TotalSeconds < 5 Then
-                        'If (resendAttempts >= 1) Then 'packet re-sending feature is not working as intended, we're aborting the scan after detecting the first timeout
                         If Not skipStepIfOptional() Then
-                            'logDbg("NonOptionalStepFailed")
                             abortScan()
                         End If
-                        'Else
-                        '    resendAttempts += 1
-                        '    sendRequest()
-                        'End If
-
                     End If
                 End If
             End If
@@ -688,10 +544,6 @@ Public Class ServerScannerWorker
                            & otherAdditionalRequests _
                            & gamemodeAdditionalRequests)
                 .requestingInfoExtended = True
-                'ElseIf Not .hasTimeTest AndAlso caps.hasPropertyInterface Then
-                '    secondTimeTestLocal = Date.UtcNow
-                '    serverSend("\level_property\TimeSeconds\\echo\TimeTestWillBeRemovedSoon\")
-                '    .requestingTimeTest = True
             ElseIf Not .hasPlayers AndAlso info("numplayers") <> 0 AndAlso Not caps.fakePlayers Then
                 serverSend("\players\" & IIf(caps.hasXSQ, xsqSuffix, ""))
                 .requestingPlayers = True
@@ -730,8 +582,6 @@ Public Class ServerScannerWorker
                 parsePlayers()
             ElseIf .requestingRules Then
                 parseRules()
-                'ElseIf .requestingTimeTest Then
-                '    parseTimeTest()
             Else
                 'Debugger.Break()
             End If
@@ -743,13 +593,6 @@ Public Class ServerScannerWorker
     End Sub
 
     Private Sub parseBasic()
-
-        'If Not incomingPacket.ContainsKey("gamename") OrElse Not ( _
-        '    incomingPacket.ContainsKey("echo") OrElse incomingPacket.ContainsKey("echo_reply") OrElse _
-        '    incomingPacket.ContainsKey("echo_replay") OrElse incomingPacket.ContainsKey("echoresponse") OrElse _
-        '    incomingPacket.ContainsKey("ignore") OrElse incomingPacket.ContainsKey("reply") OrElse _
-        '    incomingPacket.ContainsKey("ignoring")) Then
-
         If Not incomingPacket.ContainsKey("gamename") Then
             logDbg("NoGamename: " & incomingPacketObj.ToString)
             abortScan()
@@ -764,7 +607,6 @@ Public Class ServerScannerWorker
             Else
                 Dim expectedResponse = gsenc(challenge, MasterServerManager.gamespyKeys(incomingPacket("gamename")).encKey)
                 validServer = (expectedResponse = incomingPacket("validate"))
-                'If Not validServer Then Debugger.Break()
             End If
 
             If Not validServer Then
@@ -828,8 +670,6 @@ Public Class ServerScannerWorker
             If caps.gameSpeed = 0 Then
                 Throw New Exception("Incorrect extended info (gamespeed=0)")
             Else
-                'Single.TryParse(incomingPacket("timeseconds"), firstTimeTest)
-                'info("__uttfirsttimetest") = firstTimeTest
                 state.hasInfoExtended = True
                 state.hasTimeTest = True
                 caps.timeTestPassed = True
@@ -839,15 +679,12 @@ Public Class ServerScannerWorker
                 End If
             End If
             If caps.gamemodeExtendedInfo Then
-                'gameinfo = New Hashtable
                 gamemodeQuery.parseInfoPacket(incomingPacket)
             End If
         Catch e As Exception
-            'firstTimeTest = -1
             state.hasTimeTest = True
             caps.timeTestPassed = False
             caps.hasPropertyInterface = False
-            'logDbg(e.GetType.FullName & ": " & e.Message)
         End Try
     End Sub
 
@@ -879,7 +716,6 @@ Public Class ServerScannerWorker
                     Else
                         playerinfo("time") = incomingPacket("time" & suffix) * 60
                     End If
-                    'playerinfo("health") = incomingPacket("health" & suffix)
                 End If
                 players.Add(playerinfo)
                 playerid += 1
@@ -888,7 +724,6 @@ Public Class ServerScannerWorker
                 abortScan()
             End If
         Catch e As Exception
-            'Debugger.Break()
             logDbg("ParsePlayersExc: " & e.Message)
         End Try
         state.hasPlayers = True
@@ -901,30 +736,6 @@ Public Class ServerScannerWorker
         info("__utttimetestpassed") = caps.timeTestPassed
 
         state.hasRules = True
-    End Sub
-
-    ' time test is a special kind of check which determines 
-    ' if we can trust the LevelInfo.TimeSeconds property 
-    ' to get the match start time
-    ' NO LONGER USED AS OF 24 JUL '15
-    Private Sub parseTimeTest()
-        Try
-            Single.TryParse(incomingPacket("timeseconds"), secondTimeTest)
-
-            caps.timeTestPassed = (firstTimeTest <> 0 AndAlso secondTimeTest <> 0 AndAlso secondTimeTest > firstTimeTest AndAlso _
-                                   (secondTimeTest - firstTimeTest) / caps.gameSpeed < (secondTimeTestLocal - firstTimeTestLocal).TotalSeconds * 1.2)
-
-            If caps.timeTestPassed Then
-                info("__uttgamestart") = unixTime(secondTimeTestLocal) - Math.Round(secondTimeTest / caps.gameSpeed)
-                info("__utttimetestdelta") = secondTimeTest - firstTimeTest
-                info("__utttimetestdeltalocal") = (secondTimeTestLocal - firstTimeTestLocal).TotalSeconds
-            Else
-                'Console.WriteLine("{0} : {1} ", (secondTimeTest - firstTimeTest) / caps.gameSpeed, (secondTimeTestLocal - firstTimeTestLocal).TotalSeconds * 1.2)
-            End If
-        Catch e As Exception
-            caps.timeTestPassed = False
-        End Try
-        state.hasTimeTest = True
     End Sub
 
     Private Function skipStepIfOptional()
@@ -951,8 +762,6 @@ Public Class ServerScannerWorker
                 sendRequest()
                 Return True
             End If
-
-            'If Not .requestingBasic Then Debugger.Break()
         End With
 
         Return False
