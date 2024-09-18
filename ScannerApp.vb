@@ -1,6 +1,5 @@
 ﻿Imports System.Data
 Imports System.Net
-Imports MySql.Data.MySqlClient
 Imports Naomai.UTT.ScannerV2.Utt2Database
 
 Module ScannerApp
@@ -10,7 +9,6 @@ Module ScannerApp
     Dim masterManager As MasterServerManager
     Dim ini As N14INI
     Dim log As DeVlog
-    'Dim db As MySQLDB
     Dim dbCtx As Utt2Context
     Dim dyncfg As DynConfig
 
@@ -47,13 +45,7 @@ Module ScannerApp
 
         CRC32_Init()
 
-        'db = New MySQLDB(dbconfig)
         dbCtx = New Utt2Context(dbconfig)
-
-        'If Not db.ready Then
-        'Throw New Exception("Database error")
-
-        ' End If
 
         masterManager = New MasterServerManager(ini.getProperty("MasterServer.Cache", ".\server_list.txt"), ini.getProperty("MasterServer.GSListCFGLoc", ".\gslist.cfg"))
         ' masterManager.log = log
@@ -102,37 +94,19 @@ Module ScannerApp
         Do
             log.WriteLine("Update in progress...")
             nextscan = Date.UtcNow + TimeSpan.FromSeconds(scanner.scanInterval)
-            'Try
             scanner.performScan()
-                log.WriteLine("Scanned {0}, online: {1}; next: {2}s", scanner.serversCountTotal, scanner.serversCountOnline, Math.Round((nextscan - Date.UtcNow).TotalSeconds))
-                Do While (nextscan - Date.UtcNow).TotalSeconds > 0 AndAlso (nextscan - Date.UtcNow).TotalSeconds <= scanner.scanInterval
-                    Threading.Thread.Sleep(50)
-                Loop
-                If (nextscan - Date.UtcNow).TotalSeconds < -7200 Then
-                    log.WriteLine("Time travel detected ({0} seconds)", Math.Round(-(nextscan - Date.UtcNow).TotalSeconds))
-                ElseIf (nextscan - Date.UtcNow).TotalSeconds > 7200 Then
-                    log.WriteLine("Time travel detected, bios time was reset? Next scan schedule: {0}, offset: {1} seconds.", nextscan, Math.Round((nextscan - Date.UtcNow).TotalSeconds))
-                    log.WriteLine("Correct your system time and press ENTER")
-                    Console.ReadLine()
-                End If
-                'Catch e As Exception When e.Source = "MySql.Data"
-            '    log.WriteLine(e.Message)
-            '    Try
-            '        Threading.Thread.Sleep(1000)
-            '        If Not (db.dbh.State.HasFlag(ConnectionState.Open)) Then
-            '            log.WriteLine("Lost connection to database server. Reconnecting...")
-            '            db.Reconnect()
-            '        Else
-            '            log.WriteLine("Invalid operation on database server. Restarting db connection...")
-            '            db.Reconnect()
+            log.WriteLine("Scanned {0}, online: {1}; next: {2}s", scanner.serversCountTotal, scanner.serversCountOnline, Math.Round((nextscan - Date.UtcNow).TotalSeconds))
+            Do While (nextscan - Date.UtcNow).TotalSeconds > 0 AndAlso (nextscan - Date.UtcNow).TotalSeconds <= scanner.scanInterval
+                Threading.Thread.Sleep(50)
+            Loop
+            If (nextscan - Date.UtcNow).TotalSeconds < -7200 Then
+                log.WriteLine("Time travel detected ({0} seconds)", Math.Round(-(nextscan - Date.UtcNow).TotalSeconds))
+            ElseIf (nextscan - Date.UtcNow).TotalSeconds > 7200 Then
+                log.WriteLine("Time travel detected, bios time was reset? Next scan schedule: {0}, offset: {1} seconds.", nextscan, Math.Round((nextscan - Date.UtcNow).TotalSeconds))
+                log.WriteLine("Correct your system time and press ENTER")
+                Console.ReadLine()
+            End If
 
-            '        End If
-            '    Catch e2 As Exception
-            '        Threading.Thread.Sleep(1000)
-            '        db.Reconnect()
-            '    End Try
-
-            'End Try
         Loop
     End Sub
 

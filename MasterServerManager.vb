@@ -270,7 +270,6 @@ Class MasterListGSpyFact
         lol = New JulkinNet
         lol.timeout = 2500
         Dim myResponse = New UTQueryPacket(UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
-        'Try
 
         lol.connect(server.serverAddress)
         packet = lol.sreadNext()
@@ -284,32 +283,15 @@ Class MasterListGSpyFact
         myResponse.Add("location", region)
         If serverResponse("secure") <> "" AndAlso serverResponse("secure") <> "wookie" Then ' challenge!
             chal = serverResponse("secure")
-            'myResponse.Add("about", "") ' detect 333net
-            'lol.swrite(myResponse)
-            'packet = ""
-            'Do
-            '    packet &= lol.sreadNext()
-            'Loop While GetTickCount - tx < 7000 AndAlso InStr(packet, "\final\") = 0
-            'is333 = Len(packet) > 10
-            'myResponse.Clear()
             challengeResponse = gsenc(chal, gameInfo.encKey)
             myResponse.Add("validate", challengeResponse)
         End If
 
 
 
-
-        'If is333 Then
-        'myResponse.Add("sync", "all") '15 JAN: todo 123wetnorx sync mechanism
-        'Else
-
         myResponse.Add("list", "")
-        'End if
         lol.swrite(myResponse)
 
-        'Catch ' lazyErrorHandlingTODO
-        '    Throw New Exception("Master server query failed.")
-        'End Try
         getRawList = ""
         tx = GetTickCount
         Do

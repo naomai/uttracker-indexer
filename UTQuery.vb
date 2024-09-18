@@ -1,13 +1,9 @@
 ﻿' UT query protocol things
 ' might be also usable for other gamespy-based games
 
-Imports System
 Imports System.Threading
-Imports System.Text.RegularExpressions
 Imports System.Text.Encoding
 Imports System.Security.Cryptography
-
-
 
 Class UTQueryPacket
     Inherits System.Collections.CollectionBase
@@ -50,7 +46,6 @@ Class UTQueryPacket
         convertHashtablePacketToListPacket = New List(Of UTQueryKeyValuePair)
         Dim packetId As Integer
         For Each key In packetHT.Keys
-            'If packetHT(key).GetType.IsSubclassOf(GetType(CollectionBase)) Then
             If packetHT(key).GetType Is GetType(List(Of String)) Then
                 For Each valueSub As String In packetHT(key)
                     packetId = 1 + Math.Floor(convertHashtablePacketToListPacket.Count / 10)
@@ -250,8 +245,6 @@ Class UTQueryPacket
                     receivedCount += 1
                     If isFinalPacket Then
                         If queryPacketId = 0 Then 'empty (but complete and valid) response
-                            'info("queryid") = queryResponseId
-                            'Return info
                             For Each var In info.Keys
                                 currentVariable.key = var
                                 currentVariable.value = info(var)
@@ -279,7 +272,6 @@ Class UTQueryPacket
                 End If
             Next
             If queryPacketId = 0 AndAlso isFinalPacket Then 'no queryid, packet from master server?
-                'Return info
                 For Each var In info.Keys
                     If info(var).GetType = GetType(List(Of String)) Then
                         For Each variableIndex As String In info(var)
@@ -294,15 +286,13 @@ Class UTQueryPacket
                         currentVariable.sourcePacketId = 1
                         packet.Add(currentVariable)
                     End If
-                   
+
                 Next
                 Return packet
             End If
-            'info.Clear()
             If packetCount = 0 OrElse receivedCount <> packetCount Then
                 If Not IsNothing(queryarr(queryPacketId)) AndAlso queryarr(queryPacketId).Count = 0 Then
                     info("queryid") = queryResponseId
-                    'Return info
                     For Each var In info.Keys
                         currentVariable.key = var
                         currentVariable.value = info(var)
@@ -313,7 +303,6 @@ Class UTQueryPacket
                 ElseIf queryPacketId <> 0 Then
                     Throw New UTQueryResponseIncompleteException()
                 Else
-                    'If masterServer Then
                     If isMasterServer Then
                         Throw New UTQueryResponseIncompleteException()
                     Else
@@ -322,13 +311,11 @@ Class UTQueryPacket
                 End If
             End If
             ' put all the pieces in correct order
-            'For Each queryin In queryarr
             Dim hasQueryId = False
             For packetId = LBound(queryarr) To UBound(queryarr)
                 queryin = queryarr(packetId)
                 If Not IsNothing(queryin) AndAlso queryin.Count > 0 Then
                     For Each qui In queryin
-                        'info(Trim(qui.Key)) = Trim(qui.Value)
                         If qui.Key = "queryid" Then
                             If Not hasQueryId Then
                                 hasQueryId = True
@@ -349,8 +336,7 @@ Class UTQueryPacket
         Catch ex As NullReferenceException
             Debugger.Break()
         End Try
-        'info("queryid") = queryResponseId
-        'Return info
+
         Return packet
     End Function
 
@@ -423,15 +409,7 @@ Public Structure UTQueryKeyValuePair
     Dim value As String ' this comment is not needed temporarily, don't read;                it can be either String or List(Of String)
     Dim sourcePacketId As Integer
     Public Overrides Function ToString() As String
-        'If value.GetType.Name = "String" Then
         Return "\" & UTQueryPacket.escapeGsString(Me.key) & "\" & UTQueryPacket.escapeGsString(Me.value)
-        'Else
-        '    ToString = ""
-        '    For Each valueSub As String In value
-        '        ToString &= "\" & escapeGsString(Me.key) & "\" & escapeGsString(valueSub)
-        '    Next
-        'End If
-
     End Function
 End Structure
 
@@ -451,7 +429,6 @@ Module UTQuery
         globalSock.timeout = 1000
         globalSock.setProto(JulkinNet.jnProt.jnUDP)
         globalSock.bind()
-        'utServerQuery2("94.23.167.108:6500", "") 'testing
     End Sub
 
     Public Sub UTQueryFinalize()
@@ -780,45 +757,6 @@ Module UTQuery
                 ar.Add(ipEntry.value)
             End If
         Next
-
-        ' UTTSS2 way:
-        'Dim chunks() As String
-        ''ar.Clear()
-        'chunks = Split(list, "\")
-        'For i = 1 To chunks.Count Step 2
-        '    If chunks(i) = "ip" Then
-        '        ar.Add(chunks(i + 1))
-        '    ElseIf chunks(i) = "final" Then
-        '        Return
-        '    End If
-        'Next
-
-        ' UTTSS1 (VB6) way:
-        'Dim ptr As Integer
-        'Dim tmp As String
-        'Dim fetchIp As Boolean
-        'fetchIp = False
-        'tmp = ""
-        'ptr = 0
-        'For i = 1 To Len(list)
-        '    If fetchIp Then
-        '        If Mid(list, i, 1) = "\" Then
-        '            'ar(ptr) = tmp
-        '            ar.Add(tmp)
-        '            ptr = ptr + 1
-        '            tmp = ""
-        '            fetchIp = False
-        '        Else
-        '            tmp = tmp & Mid(list, i, 1)
-        '        End If
-        '    End If
-        '    If Mid(list, i, 4) = "\ip\" Then
-        '        fetchIp = True
-        '        i = i + 3
-        '    Else
-
-        '    End If
-        'Next i
     End Sub
 
 
@@ -861,7 +799,6 @@ Module UTQuery
         dataSize = BitConverter.ToUInt32(bytes, 0)
         Do
             strLen = bytes(pos)
-            'result.Add(BitConverter.ToString(bytes, pos + 1, strLen - 1))
             result.Add(ASCII.GetString(bytes, pos + 1, strLen - 1))
             pos += strLen + 1
         Loop While pos < bytes.Length
@@ -872,7 +809,6 @@ Module UTQuery
         Dim dataSize As UInt32
         Dim pos As Integer = 4
         Dim result As New List(Of String)
-        'Dim strLen As UInt16
         dataSize = BitConverter.ToUInt32(bytes, 0)
         decodeUT2PacketArray = Nothing
     End Function

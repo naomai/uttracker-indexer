@@ -1,5 +1,4 @@
-﻿Imports MySql.Data.MySqlClient
-Imports System.Threading
+﻿Imports System.Threading
 Imports System.Data
 Imports System.Text.Json
 Imports Naomai.UTT.ScannerV2.Utt2Database
@@ -16,7 +15,6 @@ Public Class SaveGame
     Public Sub New(scannerSlave As ServerScannerWorker)
         Me.scannerSlave = scannerSlave
         dbCtx = scannerSlave.scannerMaster.dbCtx
-        'uttServerId = Math.Abs(CRC32(scannerSlave.address))
     End Sub
 
     Public Sub tick()
@@ -56,7 +54,6 @@ Public Class SaveGame
         If state.hasDBRecord AndAlso scannerState.hasBasic AndAlso scannerState.hasInfo Then
             uttServerScanTime = scannerSlave.infoSentTimeLocal
 
-            'If scannerSlave.dbAddress <> scannerSlave.address Then uttServerId = Math.Abs(CRC32(scannerSlave.dbAddress))
             With serverRecord
                 .Name = scannerSlave.info("hostname")
                 .GameName = scannerSlave.info("gamename")
@@ -75,7 +72,6 @@ Public Class SaveGame
     Private Sub tryUpdateRules()
         Dim rulesJoined As Hashtable
         Dim rulesJson As String
-        'Dim json As New System.Web.Script.Serialization.JavaScriptSerializer
         Dim scannerState = scannerSlave.getState()
 
         If Not state.hasServerId Then
@@ -100,7 +96,6 @@ Public Class SaveGame
                 rulesJoined("__uttxserverquery") = "true"
             End If
 
-            'rulesJson = JsonSerialize.jsonSerialize(rulesJoined)
             rulesJson = JsonSerializer.Serialize(rulesJoined)
 
             serverRecord.Rules = rulesJson

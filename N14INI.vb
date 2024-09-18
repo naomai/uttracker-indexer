@@ -11,7 +11,6 @@
 ' loosely based on N14\INI class from UTT PHP
 ' maybe todo: CONFIG_LOCK
 
-Imports System.Runtime.InteropServices
 Imports System.Text
 Imports System.IO
 

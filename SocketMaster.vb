@@ -1,13 +1,10 @@
 ﻿Imports System.Net
-Imports System.Net.Sockets
-Imports System.Threading
 
 Public Class SocketMaster
     Dim julkin As New JulkinNet()
 
     Dim ipQueue As New Hashtable
     Dim lastProcessed As Date
-    'Dim eventCallback As SocketEventHandler
 
     Dim incomingEventsPerTick As Integer = 100
 
@@ -21,10 +18,6 @@ Public Class SocketMaster
         julkin.bind()
         lastProcessed = Date.UtcNow
     End Sub
-
-    'Public Sub setEventHandler(ByRef callback As SocketEventHandler)
-    '    eventCallback = callback
-    'End Sub
 
     Public Sub sendTo(endpoint As IPEndPoint, packet As String)
         julkin.swriteTo(packet, endpoint)
@@ -44,8 +37,7 @@ Public Class SocketMaster
 
     Private Sub enqueueIncomingPackets()
         Dim packet() As Byte, source As New IPEndPoint(IPAddress.Any, 0), sourceIp As String
-        ' Dim events As Integer = incomingEventsPerTick
-        Do While julkin.Available > 0 'And events > 0
+        Do While julkin.Available > 0
             Try
                 packet = julkin.recvfrom(source)
                 sourceIp = source.ToString
@@ -59,7 +51,6 @@ Public Class SocketMaster
             Catch e As Exception
 
             End Try
-            'events -= 1
         Loop
     End Sub
 
@@ -82,20 +73,6 @@ Public Class SocketMaster
             ipQueue.Add(source, New Queue(Of Byte()))
         End If
     End Sub
-
-    'Public Sub tick()
-    '    Dim packet As String, source As New IPEndPoint(IPAddress.Any, 0)
-    '    Try
-    '        packet = julkin.recvfrom(source)
-    '        If packet <> "" Then
-    '            RaiseEvent PacketReceived(packet, source)
-    '        End If
-    '    Catch e As Exception
-
-    '    End Try
-    'End Sub
-
-    'Public Delegate Sub SocketEventHandler(packet As String, source As IPEndPoint)
 
     Public Sub addIgnoredIp(ip As EndPoint)
         addIgnoredIp(ip.ToString)
