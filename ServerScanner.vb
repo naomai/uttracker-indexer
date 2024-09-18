@@ -1,9 +1,5 @@
 ﻿Imports System.Net
-Imports utt_updater3.SocketMaster
-Imports System.Threading
-Imports MySql.Data.MySqlClient
 Imports System.Text
-Imports System.Text.Encoding
 Imports System.Text.Json
 Imports System.Data
 Imports Naomai.UTT.ScannerV2.Utt2Database
@@ -151,7 +147,6 @@ Public Class ServerScanner
             If target.getState().done Then Return ' prevent processing the packets from targets in "done" state
             If packet.Length = 0 Then Return
 
-            'packetString = Unicode.GetString(Encoding.Convert(Encoding.GetEncoding(1252), Encoding.Unicode, packet))
             packetString = Encoding.Unicode.GetString(Encoding.Convert(Encoding.UTF8, Encoding.Unicode, packet))
 
             fullPacket = fragmentedPackets(ipString) & packetString
@@ -163,9 +158,6 @@ Public Class ServerScanner
 
             scanLastActivity = Date.UtcNow
             fragmentedPackets(ipString) = ""
-            'If target.isDone Then
-            '    Console.WriteLine("Done: {0}", ipString)
-            'End If
 
         Catch ex As UTQueryResponseIncompleteException
             fragmentedPackets(source.ToString) = fullPacket
@@ -181,7 +173,6 @@ Public Class ServerScanner
 
     Protected Sub initSockets()
         socketMaster = New SocketMaster
-        'AddHandler socketMaster.PacketReceived, AddressOf packetHandler
     End Sub
     Protected Sub disposeSockets()
         socketMaster.clearIgnoredIps()
@@ -222,10 +213,6 @@ Public Class ServerScanner
         SyncLock targetsCollectionLock
             For Each t As ServerScannerWorker In targets.Values
                 Dim s = t.getState()
-                If s.hasBasic AndAlso Not s.hasRules Then
-                    'Debugger.Break()
-                End If
-
             Next
             targets.Clear()
         End SyncLock
@@ -307,7 +294,6 @@ Public Class ServerScanner
                     End If
                 Next
             Else
-                'debugWriteLine("touchAll CHECK MODE")
                 For Each target As ServerScannerWorker In targets.Values
                     target.tick()
                 Next
@@ -438,7 +424,6 @@ Public Class ServerScannerWorker
     Public info As Hashtable
     Public players As List(Of Hashtable)
     Public rules As Hashtable
-    'Public gameinfo As Hashtable 'gamemode-specific info
 
     Public firstTimeTest, secondTimeTest As Single
     Public firstTimeTestLocal, secondTimeTestLocal, infoSentTimeLocal As DateTime
@@ -820,9 +805,6 @@ End Class
 Public Structure ServerScannerConfig
     Dim scanInterval As Integer
     Dim masterServerUpdateInterval As Integer
-    'Dim masterServerCacheFile As String
-    'Dim masterServerGSListFile As String
-    'Dim masterServerList As List(Of String)
     Dim masterServerManager As MasterServerManager
     Dim log As DeVlog
     Dim dbCtx As Utt2Context

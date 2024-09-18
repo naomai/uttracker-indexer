@@ -70,8 +70,8 @@ Class UTQueryPacket
     End Function
 
     Public Sub setReadyToSend(Optional rtsFlag As Boolean = True)
-        packetFlags = IIf(rtsFlag, _
-                          packetFlags Or UTQueryPacketFlags.UTQP_ReadyToSend, _
+        packetFlags = IIf(rtsFlag,
+                          packetFlags Or UTQueryPacketFlags.UTQP_ReadyToSend,
                           packetFlags And (Not UTQueryPacketFlags.UTQP_ReadyToSend))
     End Sub
 
@@ -94,7 +94,7 @@ Class UTQueryPacket
     Public Sub AddIndexed(key As String, value As String, Optional index As Integer = -1)
         If index = -1 Then
             index = 0
-            While containsKey(key & "_" & index)
+            While ContainsKey(key & "_" & index)
                 index += 1
             End While
 

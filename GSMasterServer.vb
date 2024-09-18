@@ -250,8 +250,6 @@ Public Class GSMasterServerConnection
             state.expectingChallenge = False
             state.expectingRequest = True
         Else
-            'challengeString = generateChallenge() ' retry
-            'sendChallenge()
             Throw New GSMSValidationFailedException(expectedResponse, packet("validate"))
         End If
     End Sub
