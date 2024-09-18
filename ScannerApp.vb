@@ -66,7 +66,8 @@ Module ScannerApp
             End If
         Next
 
-        dyncfg = New DynConfig(dbCtx)
+        dyncfg = New DynConfig(dbCtx, "utt.reaper")
+        dyncfg.setProperty("configsrc", ini.iniName, True)
 
         Dim scannerConfig As ServerScannerConfig
         With scannerConfig
@@ -134,7 +135,7 @@ Module ScannerApp
     End Sub
 
     Private Sub master_ClientConnected(client As System.Net.IPEndPoint) Handles master.ClientConnected
-        dyncfg.setProperty("net.gsmasterserver.lastevent", unixTime())
+        dyncfg.setProperty("gsmasterserver.lastevent", unixTime())
     End Sub
 
     Private Sub master_ClientDisconnected(client As IPEndPoint, reason As GSClosingReason, relatedException As Exception) Handles master.ClientDisconnected

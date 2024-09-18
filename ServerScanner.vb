@@ -7,6 +7,7 @@ Imports System.Text.Encoding
 Imports System.Text.Json
 Imports System.Data
 Imports Naomai.UTT.ScannerV2.Utt2Database
+Imports Microsoft.EntityFrameworkCore.Storage
 
 Public Class ServerScanner
     Implements IDisposable
@@ -35,7 +36,7 @@ Public Class ServerScanner
     Protected targetsCollectionLock As New Object 'prevent 'For Each mess when collection is modified'
 
     Protected tickCounter As Integer = 0
-    Private transaction As IDbTransaction
+    Private transaction As RelationalTransaction
 
 
     Event OnScanBegin(serverCount As Integer)
@@ -50,8 +51,7 @@ Public Class ServerScanner
             masterServerUpdateInterval = .masterServerUpdateInterval
             log = .log
             dbCtx = .dbCtx
-            dyncfg = New DynConfig(dbCtx)
-            dyncfg.setProperty("net.reaper.configsrc", .iniFile, True)
+            dyncfg = New DynConfig(dbCtx, "utt.reaper.scanner")
             masterServerQuery = .masterServerManager
         End With
 
@@ -235,14 +235,14 @@ Public Class ServerScanner
     End Sub
 
     Protected Sub updateScanInfo()
-        dynconfigSet("net.reaper.lastupdate", unixTime())
-        dynconfigSet("net.reaper.scaninfo.serversscanned", serversCountTotal)
-        dynconfigSet("net.reaper.scaninfo.serversonline", serversCountOnline)
-        dynconfigSet("net.reaper.scaninfo.scantime", (scanEnd - scanStart).TotalSeconds)
-        dynconfigSet("net.reaper.scaninfo.netticks", tickCounter)
-        dynconfigSet("net.reaper.scaninterval", scanInterval)
-        dynconfigSet("net.reaper.masterservermanager.lastupdate", unixTime(masterServerLastUpdate))
-        dynconfigSet("net.reaper.masterservermanager.numservers", masterServerQuery.Count)
+        dynconfigSet("lastupdate", unixTime())
+        dynconfigSet("scaninfo.serversscanned", serversCountTotal)
+        dynconfigSet("scaninfo.serversonline", serversCountOnline)
+        dynconfigSet("scaninfo.scantime", (scanEnd - scanStart).TotalSeconds)
+        dynconfigSet("scaninfo.netticks", tickCounter)
+        dynconfigSet("scaninterval", scanInterval)
+        dynconfigSet("masterservers.lastupdate", unixTime(masterServerLastUpdate))
+        dynconfigSet("masterservers.numservers", masterServerQuery.Count)
         debugWriteLine("ScanInfoUpdated")
     End Sub
 
@@ -362,8 +362,8 @@ Public Class ServerScanner
 
     Private Sub masterServerQuery_OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo)) Handles masterServerQuery.OnMasterServerManagerRequest
         logWriteLine("Master server query...")
-        dyncfg.setProperty("net.reaper.masterservermanager.nummasters", masterServers.Count)
-        dyncfg.unsetProperty("net.reaper.masterservermanager.server")
+        dyncfg.setProperty("masterservers.nummasters", masterServers.Count)
+        dyncfg.unsetProperty("masterservers.server")
 
     End Sub
 
@@ -373,16 +373,16 @@ Public Class ServerScanner
 
     Private Sub masterServerQuery_OnMasterServerQuery(serverInfo As MasterServerInfo) Handles masterServerQuery.OnMasterServerQuery
         logWriteLine("MasterQuery ( " & serverInfo.serverClassName & " , " & serverInfo.serverIp & ":" & serverInfo.serverPort & " ) ")
-        dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".checked", unixTime())
-        dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".info",
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", unixTime())
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".info",
             serverInfo.serverIp & ":" & serverInfo.serverPort)
     End Sub
 
 
     Private Sub masterServerQuery_OnMasterServerQueryParsed(serverInfo As MasterServerInfo, serverList As System.Collections.Generic.List(Of String)) Handles masterServerQuery.OnMasterServerQueryListReceived
-        dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".lastseen", unixTime())
-        dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".lastsync", unixTime())
-        dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".serversnum", serverList.Count)
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", unixTime())
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastsync", unixTime())
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".serversnum", serverList.Count)
         logWriteLine("Got {0} servers.", serverList.Count)
     End Sub
     Private Sub masterServerQuery_OnMasterServerQueryFailure(serverInfo As MasterServerInfo, thrownException As System.Exception) Handles masterServerQuery.OnMasterServerQueryFailure
@@ -391,9 +391,9 @@ Public Class ServerScanner
 
     Private Sub masterServerQuery_OnMasterServerPing(serverInfo As MasterServerInfo, online As Boolean) Handles masterServerQuery.OnMasterServerPing
         debugWriteLine("PingingRemoteMasterServer: {0}", serverInfo.serverAddress)
-        dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".checked", unixTime())
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", unixTime())
         If online Then
-            dyncfg.setProperty("net.reaper.masterservermanager.server." & serverInfo.serverId & ".lastseen", unixTime())
+            dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", unixTime())
         End If
     End Sub
 #Region "Dynconfig"

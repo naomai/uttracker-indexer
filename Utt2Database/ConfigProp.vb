@@ -8,7 +8,7 @@ Namespace Utt2Database
 
         Public Property Data As String
 
-        Public Property [Private] As Boolean
+        Public Property IsPrivate As Boolean
 
         Public Overrides Function ToString() As String
             Return Me.Key

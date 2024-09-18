@@ -57,7 +57,7 @@ Namespace Utt2Database
                         HasMaxLength(255).
                         HasDefaultValueSql("''''''").
                         HasColumnName("data")
-                    entity.Property(Function(e) e.[Private]).HasColumnName("private")
+                    entity.Property(Function(e) e.IsPrivate).HasColumnName("is_private")
                 End Sub)
 
             modelBuilder.Entity(Of Player)(
