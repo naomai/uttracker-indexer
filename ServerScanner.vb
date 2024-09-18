@@ -350,18 +350,18 @@ Public Class ServerScanner
     End Sub
 
     Private Sub masterServerQuery_OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo)) Handles masterServerQuery.OnMasterServerManagerRequest
-        logWriteLine("Master server query...")
+        log.WriteLine("Master server query...")
         dyncfg.setProperty("masterservers.nummasters", masterServers.Count)
         dyncfg.unsetProperty("masterservers.server")
 
     End Sub
 
     Private Sub masterServerQuery_OnMasterServerManagerRequestComplete(serverList As System.Collections.Generic.List(Of String)) Handles masterServerQuery.OnMasterServerManagerRequestComplete
-        logWriteLine("Received {0} servers, performing scan...", serverList.Count)
+        log.WriteLine("Received {0} servers, performing scan...", serverList.Count)
     End Sub
 
     Private Sub masterServerQuery_OnMasterServerQuery(serverInfo As MasterServerInfo) Handles masterServerQuery.OnMasterServerQuery
-        logWriteLine("MasterQuery ( " & serverInfo.serverClassName & " , " & serverInfo.serverIp & ":" & serverInfo.serverPort & " ) ")
+        log.WriteLine("MasterQuery ( " & serverInfo.serverClassName & " , " & serverInfo.serverIp & ":" & serverInfo.serverPort & " ) ")
         dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", unixTime())
         dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".info",
             serverInfo.serverIp & ":" & serverInfo.serverPort)
@@ -372,14 +372,14 @@ Public Class ServerScanner
         dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", unixTime())
         dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastsync", unixTime())
         dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".serversnum", serverList.Count)
-        logWriteLine("Got {0} servers.", serverList.Count)
+        log.WriteLine("Got {0} servers.", serverList.Count)
     End Sub
     Private Sub masterServerQuery_OnMasterServerQueryFailure(serverInfo As MasterServerInfo, thrownException As System.Exception) Handles masterServerQuery.OnMasterServerQueryFailure
-        logWriteLine("Query failed for ( {0}:{1} ) : {2}", serverInfo.serverIp, serverInfo.serverPort, thrownException.Message)
+        log.WriteLine("Query failed for ( {0}:{1} ) : {2}", serverInfo.serverIp, serverInfo.serverPort, thrownException.Message)
     End Sub
 
     Private Sub masterServerQuery_OnMasterServerPing(serverInfo As MasterServerInfo, online As Boolean) Handles masterServerQuery.OnMasterServerPing
-        debugWriteLine("PingingRemoteMasterServer: {0}", serverInfo.serverAddress)
+        log.DebugWriteLine("PingingRemoteMasterServer: {0}", serverInfo.serverAddress)
         dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", unixTime())
         If online Then
             dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", unixTime())
