@@ -45,6 +45,10 @@ Public Class DynConfig
         dbCtx.SaveChanges()
     End Sub
 
+    Public Function Ns(subNs As String) As DynConfig
+        Return New DynConfig(dbCtx, GetFullyQualifiedName(subNs))
+    End Function
+
     Protected Function GetFullyQualifiedName(key As String) As String
         If nsName = "" Then
             Return key
