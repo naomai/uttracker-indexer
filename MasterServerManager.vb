@@ -4,7 +4,6 @@ Imports System.IO
 Public Class MasterServerManager
     Public cacheFile As String
     Public gslistFile As String
-    'Public log As DeVlog
 
     Public Event OnMasterServerQuery(serverInfo As MasterServerInfo)
     Public Event OnMasterServerQueryListReceived(serverInfo As MasterServerInfo, serverList As List(Of String))
@@ -27,7 +26,7 @@ Public Class MasterServerManager
         Dim regexMatches As MatchCollection, masterServersNewItem As MasterServerInfo
         Static serverNum As Integer = 0
         regexMatches = Regex.Matches(configString, ",([^=]+)=([^,]*)")
-        masterServersNewItem = Nothing ' get rid of warning
+        masterServersNewItem = Nothing
         masterServersNewItem.iniVariables = New Hashtable
         masterServersNewItem.serverClassName = Regex.Match(configString, "^([^\.]*\.[^\,]*),").Groups(1).Value
         With masterServersNewItem
@@ -53,34 +52,28 @@ Public Class MasterServerManager
     End Sub
 
     Public Sub refreshServerList()
-        Dim rawList As String = "", e As Exception ', fn As Integer
+        Dim rawList As String = "", e As Exception
         Dim tempList As New List(Of String)
         Dim fact As MasterListFactory
 
         serverList = New List(Of String)
 
-        'logWrite("Master server query...")
         RaiseEvent OnMasterServerManagerRequest(masterServers)
 
         For Each masterServer As MasterServerInfo In masterServers
             If masterServer.serverIp = Nothing Then Continue For
-            'logWrite("GSQuery ( " & masterServer.gameName & " , " & masterServer.serverIp & ":" & masterServer.serverPort & " ) ")
             Try
                 RaiseEvent OnMasterServerQuery(masterServer)
-                '''''!!!!!!!
+
                 fact = MasterListFactory.createFactoryForMasterServer(masterServer)
                 tempList = fact.query()
 
                 RaiseEvent OnMasterServerQueryListReceived(masterServer, tempList)
                 For Each server As String In tempList
-                    If InStr(server, ":") = 0 Then Continue For
-                    'If (masterServer.gameName = "ut2" OrElse masterServer.gameName = "ut2004") AndAlso Not serverList.Contains(server) Then ' those games also support old gamespy protocol, at QUERYPORT+9
-                    '    ip = getIp(server)
-                    '    port = getPort(server)
-                    '    serverList.Add(ip & ":" & (port + 9))
-                    'Else
+                    If InStr(server, ":") = 0 Then
+                        Continue For
+                    End If
                     serverList.Add(server)
-                    'End If
                 Next
             Catch e
                 RaiseEvent OnMasterServerQueryFailure(masterServer, e)
@@ -143,21 +136,6 @@ Public Class MasterServerManager
         Return gsList
 
     End Function
-
-
-    'Protected Sub logWrite(msg As String)
-    '    If Not IsNothing(log) Then
-    '        log.WriteLine(msg)
-    '    End If
-    'End Sub
-
-    'Protected Sub logWrite(ByVal format As String, ByVal ParamArray arg As Object())
-    '    If Not IsNothing(log) Then
-    '        log.WriteLine(format, arg)
-    '    End If
-    'End Sub
-
-
 End Class
 
 Public Structure MasterServerInfo
@@ -179,19 +157,10 @@ Public Structure MasterServerInfo
             End If
         End Set
     End Property
-    'Dim region As UInt16
-    'Property gameName As String
-    '    Set(value As String)
-    '        gameInfo.gameName = value
-    '    End Set
-    '    Get
-    '        Return gameInfo.gameName
-    '    End Get
-    'End Property
+
     Public Overrides Function ToString() As String
         Return serverAddress
     End Function
-    'Dim gameInfo As GamespyGameInfo
 
     Friend iniVariables As Hashtable
     Dim serverId As Integer
