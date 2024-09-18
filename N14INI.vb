@@ -51,7 +51,8 @@ Public Class N14INI
     Public Function getProperty(prop As String, Optional defaultVal As String = "")
         Dim temp As New StringBuilder(255), val As String
         Dim propSplitted = Split(prop, ".", 2)
-        Dim i As Integer = GetPrivateProfileString(propSplitted(0), propSplitted(1), Nothing, temp, 255, Me.iniName)
+        Dim section = propSplitted(0).Replace("|", ".")
+        Dim i As Integer = GetPrivateProfileString(section, propSplitted(1), Nothing, temp, 255, Me.iniName)
         val = temp.ToString()
         If val = "" AndAlso defaultVal <> "" Then
             setProperty(prop, defaultVal)
@@ -62,8 +63,18 @@ Public Class N14INI
 
     Public Sub setProperty(prop As String, value As String)
         Dim propSplitted = Split(prop, ".", 2)
-        WritePrivateProfileString(propSplitted(0), propSplitted(1), value, Me.iniName)
+        Dim section = propSplitted(0).Replace("|", ".")
+        WritePrivateProfileString(section, propSplitted(1), value, Me.iniName)
     End Sub
+
+    Public Function propertyExists(prop As String) As Boolean
+        Dim temp As New StringBuilder(255), val As String
+        Dim propSplitted = Split(prop, ".", 2)
+        Dim section = propSplitted(0).Replace("|", ".")
+        Dim i As Integer = GetPrivateProfileString(section, propSplitted(1), "__UTTNONEXISTINGIDX__", temp, 255, Me.iniName)
+        val = temp.ToString()
+        Return val <> "__UTTNONEXISTINGIDX__"
+    End Function
 
 End Class
 
