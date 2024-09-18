@@ -178,7 +178,7 @@ Public MustInherit Class MasterListFactory
 
     Public Shared Function createFactoryForMasterServer(serverInfo As MasterServerInfo) As MasterListFactory
         Select Case serverInfo.serverClassName
-            Case "UBrowser.UBrowserGSpyFact"
+            Case "UBrowser.UBrowserGSpyFact", "XBrowser.XBrowserFactInternet"
                 Dim gameInfo As GamespyGameInfo = Nothing
                 If serverInfo.iniVariables.ContainsKey("GameName") Then
                     gameInfo = MasterServerManager.gamespyKeys(serverInfo.iniVariables("GameName"))

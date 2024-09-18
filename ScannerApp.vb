@@ -48,13 +48,25 @@ Module ScannerApp
         masterManager = New MasterServerManager(ini.getProperty("MasterServer.Cache", ".\server_list.txt"), ini.getProperty("MasterServer.GSListCFGLoc", ".\gslist.cfg"))
         ' masterManager.log = log
 
-        Dim numMasterServers As Integer = ini.getProperty("MasterServer.MasterServersNum", "0"), masterServerString As String
-        For i = 0 To numMasterServers
-            masterServerString = ini.getProperty("UBrowserAll.ListFactories[" & i & "]")
+        Dim msIdx As Integer = 0
+        Dim masterServerString As String
+        Do While ini.propertyExists("UBrowserAll.ListFactories[" & msIdx & "]")
+            masterServerString = ini.getProperty("UBrowserAll.ListFactories[" & msIdx & "]")
             If masterServerString <> "" Then
                 masterManager.addMasterServer(masterServerString)
             End If
-        Next
+            msIdx += 1
+        Loop
+
+        msIdx = 0
+        Do While ini.propertyExists("XBrowser|XBrowserTabInternet.MasterServer[" & msIdx & "]")
+            masterServerString = ini.getProperty("XBrowser|XBrowserTabInternet.MasterServer[" & msIdx & "]")
+            If masterServerString <> "" Then
+                masterManager.addMasterServer(masterServerString)
+            End If
+            msIdx += 1
+        Loop
+
         Dim dyncfgDbCtx = New Utt2Context(dbconfig)
         dyncfg = New DynConfig(dyncfgDbCtx, "utt.reaper")
         dyncfg.setProperty("configsrc", ini.iniName, True)
