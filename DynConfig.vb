@@ -20,13 +20,17 @@ Public Class DynConfig
 
         If IsNothing(prop) Then
             prop = New ConfigProp With {
-                .Key = keyFull
+                .Key = keyFull,
+                .Data = data,
+                .IsPrivate = priv
             }
+            dbCtx.ConfigProps.Add(prop)
+        Else
+            prop.Data = data
+            prop.IsPrivate = priv
+            dbCtx.ConfigProps.Update(prop)
         End If
 
-        prop.Data = data
-        prop.Private = priv
-        dbCtx.ConfigProps.Update(prop)
         dbCtx.SaveChanges()
     End Sub
 
@@ -41,7 +45,7 @@ Public Class DynConfig
         dbCtx.SaveChanges()
     End Sub
 
-    Protected Function GetFullyQualifiedName(key As String)
+    Protected Function GetFullyQualifiedName(key As String) As String
         If nsName = "" Then
             Return key
         End If
