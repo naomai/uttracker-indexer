@@ -10,7 +10,7 @@ Module ScannerApp
     Dim masterManager As MasterServerManager
     Dim ini As N14INI
     Dim log As DeVlog
-    Dim db As MySQLDB
+    'Dim db As MySQLDB
     Dim dbCtx As Utt2Context
     Dim dyncfg As DynConfig
 
@@ -47,13 +47,13 @@ Module ScannerApp
 
         CRC32_Init()
 
-        db = New MySQLDB(dbconfig)
+        'db = New MySQLDB(dbconfig)
         dbCtx = New Utt2Context(dbconfig)
 
-        If Not db.ready Then
-            'Throw New Exception("Database error")
+        'If Not db.ready Then
+        'Throw New Exception("Database error")
 
-        End If
+        ' End If
 
         masterManager = New MasterServerManager(ini.getProperty("MasterServer.Cache", ".\server_list.txt"), ini.getProperty("MasterServer.GSListCFGLoc", ".\gslist.cfg"))
         ' masterManager.log = log
@@ -65,14 +65,15 @@ Module ScannerApp
                 masterManager.addMasterServer(masterServerString)
             End If
         Next
-
-        dyncfg = New DynConfig(dbCtx, "utt.reaper")
+        Dim dyncfgDbCtx = New Utt2Context(dbconfig)
+        dyncfg = New DynConfig(dyncfgDbCtx, "utt.reaper")
         dyncfg.setProperty("configsrc", ini.iniName, True)
 
         Dim scannerConfig As ServerScannerConfig
         With scannerConfig
             .log = log
             .dbCtx = dbCtx
+            .dyncfg = dyncfg.Ns("scanner")
             .masterServerUpdateInterval = ini.getProperty("MasterServer.RefreshIntervalMins", "120") * 60
             .scanInterval = ini.getProperty("General.IntervalMins", "2") * 60
             .iniFile = ini.iniName
@@ -89,8 +90,9 @@ Module ScannerApp
         If ini.getProperty("GSMasterServer.Enabled", "0") = 1 Then
             log.WriteLine("Enabling GameSpy Master Server...")
             Dim msPort As Integer = ini.getProperty("GSMasterServer.Port", "28900")
+            Dim msDbCtx = New Utt2Context(dbconfig)
             master = New GSMasterServer(msPort)
-            masterBridge = New GSMasterServerBridge(db.dbh)
+            masterBridge = New GSMasterServerBridge(msDbCtx)
             master.setServerListProvider(masterBridge)
             master.loadGSListFromDict(MasterServerManager.gamespyKeys)
             master.startServer()

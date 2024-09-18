@@ -51,7 +51,7 @@ Public Class ServerScanner
             masterServerUpdateInterval = .masterServerUpdateInterval
             log = .log
             dbCtx = .dbCtx
-            dyncfg = New DynConfig(dbCtx, "utt.reaper.scanner")
+            dyncfg = .dyncfg
             masterServerQuery = .masterServerManager
         End With
 
@@ -826,6 +826,7 @@ Public Structure ServerScannerConfig
     Dim masterServerManager As MasterServerManager
     Dim log As DeVlog
     Dim dbCtx As Utt2Context
+    Dim dyncfg As DynConfig
     Dim iniFile As String
 End Structure
 
