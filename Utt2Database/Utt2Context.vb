@@ -17,6 +17,7 @@ Namespace Utt2Database
         End Sub
 
         Public Sub New(connectionConfig As MySQLDBConfig)
+            MyBase.New()
             dbConfig = connectionConfig
 
         End Sub
@@ -24,8 +25,6 @@ Namespace Utt2Database
         Public Overridable Property ConfigProps As DbSet(Of ConfigProp)
 
         Public Overridable Property Players As DbSet(Of Player)
-
-        Public Overridable Property PlayerLiveLogs As DbSet(Of PlayerLiveLog)
 
         Public Overridable Property PlayerLogs As DbSet(Of PlayerLog)
 
@@ -40,7 +39,7 @@ Namespace Utt2Database
         Protected Overrides Sub OnConfiguring(optionsBuilder As DbContextOptionsBuilder)
             Dim connString As String = MySQLDB.makeConnectionStringFromConfigStruct(dbConfig)
             optionsBuilder.UseMySQL(connString)
-            optionsBuilder.LogTo(AddressOf Console.WriteLine)
+            'optionsBuilder.LogTo(AddressOf Console.WriteLine)
         End Sub
 
         Protected Overrides Sub OnModelCreating(modelBuilder As ModelBuilder)
@@ -86,51 +85,8 @@ Namespace Utt2Database
                         HasColumnName("skin_data")
                     entity.Property(Function(e) e.Slug).
                         IsRequired().
+                        HasMaxLength(80).
                         HasColumnName("slug")
-                End Sub)
-
-            modelBuilder.Entity(Of PlayerLiveLog)(
-                Sub(entity)
-                    entity.HasKey(Function(e) e.Id).HasName("PRIMARY")
-
-                    entity.ToTable("player_live_logs")
-
-                    entity.Property(Function(e) e.Id).
-                        HasColumnType("bigint(20) unsigned").
-                        HasColumnName("id")
-                    entity.Property(Function(e) e.DeathsThisMatch).
-                        HasDefaultValueSql("'NULL'").
-                        HasColumnType("int(11)").
-                        HasColumnName("deaths_this_match")
-                    entity.Property(Function(e) e.FirstSeenTime).
-                        HasDefaultValueSql("'current_timestamp()'").
-                        HasColumnType("timestamp").
-                        HasColumnName("first_seen_time")
-                    entity.Property(Function(e) e.LastSeenTime).
-                        HasDefaultValueSql("'current_timestamp()'").
-                        HasColumnType("timestamp").
-                        HasColumnName("last_seen_time")
-                    entity.Property(Function(e) e.MatchId).
-                        HasColumnType("int(11)").
-                        HasColumnName("match_id")
-                    entity.Property(Function(e) e.PingSum).
-                        HasColumnType("int(11)").
-                        HasColumnName("ping_sum")
-                    entity.Property(Function(e) e.PlayerId).
-                        HasColumnType("int(11)").
-                        HasColumnName("player_id")
-                    entity.Property(Function(e) e.ScoreThisMatch).
-                        HasColumnType("bigint(20)").
-                        HasColumnName("score_this_match")
-                    entity.Property(Function(e) e.SeenCount).
-                        HasColumnType("int(11)").
-                        HasColumnName("seen_count")
-                    entity.Property(Function(e) e.ServerId).
-                        HasColumnType("int(11)").
-                        HasColumnName("server_id")
-                    entity.Property(Function(e) e.Team).
-                        HasColumnType("int(11)").
-                        HasColumnName("team")
                 End Sub)
 
             modelBuilder.Entity(Of PlayerLog)(
@@ -139,6 +95,12 @@ Namespace Utt2Database
 
                     entity.ToTable("player_logs")
 
+                    entity.HasIndex(Function(e) e.MatchId, "player_logs_match_id_foreign")
+
+                    entity.HasIndex(Function(e) e.PlayerId, "player_logs_player_id_foreign")
+
+                    entity.HasIndex(Function(e) e.ServerId, "player_logs_server_id_foreign")
+
                     entity.Property(Function(e) e.Id).
                         HasColumnType("bigint(20) unsigned").
                         HasColumnName("id")
@@ -155,13 +117,13 @@ Namespace Utt2Database
                         HasColumnType("timestamp").
                         HasColumnName("last_seen_time")
                     entity.Property(Function(e) e.MatchId).
-                        HasColumnType("int(11)").
+                        HasColumnType("bigint(20) unsigned").
                         HasColumnName("match_id")
                     entity.Property(Function(e) e.PingSum).
                         HasColumnType("int(11)").
                         HasColumnName("ping_sum")
                     entity.Property(Function(e) e.PlayerId).
-                        HasColumnType("int(11)").
+                        HasColumnType("bigint(20) unsigned").
                         HasColumnName("player_id")
                     entity.Property(Function(e) e.ScoreThisMatch).
                         HasColumnType("bigint(20)").
@@ -170,21 +132,46 @@ Namespace Utt2Database
                         HasColumnType("int(11)").
                         HasColumnName("seen_count")
                     entity.Property(Function(e) e.ServerId).
-                        HasColumnType("int(11)").
+                        HasColumnType("bigint(20) unsigned").
                         HasColumnName("server_id")
                     entity.Property(Function(e) e.Team).
                         HasColumnType("int(11)").
                         HasColumnName("team")
+                    entity.Property(Function(e) e.Finished).
+                        HasColumnType("tinyint(1)").
+                        HasColumnName("finished")
+
+                    entity.HasOne(Function(d) d.Match).WithMany(Function(p) p.PlayerLogs).
+                        HasForeignKey(Function(d) d.MatchId).
+                        OnDelete(DeleteBehavior.Restrict).
+                        HasConstraintName("player_logs_match_id_foreign")
+
+                    entity.HasOne(Function(d) d.Player).WithMany(Function(p) p.PlayerLogs).
+                        HasForeignKey(Function(d) d.PlayerId).
+                        OnDelete(DeleteBehavior.Restrict).
+                        HasConstraintName("player_logs_player_id_foreign")
+
+                    entity.HasOne(Function(d) d.Server).WithMany(Function(p) p.PlayerLogs).
+                        HasForeignKey(Function(d) d.ServerId).
+                        OnDelete(DeleteBehavior.Restrict).
+                        HasConstraintName("player_logs_server_id_foreign")
                 End Sub)
 
             modelBuilder.Entity(Of PlayerStat)(
                 Sub(entity)
-                    entity.
-                    HasNoKey().
-                    ToTable("player_stats")
+                    entity.HasKey(Function(e) e.Id).HasName("PRIMARY")
+
+                    entity.ToTable("player_stats")
+
+                    entity.HasIndex(Function(e) e.LastMatchId, "player_stats_last_match_id_foreign")
 
                     entity.HasIndex(Function(e) New With {e.PlayerId, e.ServerId}, "player_stats_player_id_server_id_unique").IsUnique()
 
+                    entity.HasIndex(Function(e) e.ServerId, "player_stats_server_id_foreign")
+
+                    entity.Property(Function(e) e.Id).
+                        HasColumnType("bigint(20) unsigned").
+                        HasColumnName("id")
                     entity.Property(Function(e) e.Deaths).
                         HasColumnType("int(11)").
                         HasColumnName("deaths")
@@ -192,17 +179,32 @@ Namespace Utt2Database
                         HasColumnType("int(11)").
                         HasColumnName("game_time")
                     entity.Property(Function(e) e.LastMatchId).
-                        HasColumnType("int(11)").
+                        HasColumnType("bigint(20) unsigned").
                         HasColumnName("last_match_id")
                     entity.Property(Function(e) e.PlayerId).
-                        HasColumnType("int(11)").
+                        HasColumnType("bigint(20) unsigned").
                         HasColumnName("player_id")
                     entity.Property(Function(e) e.Score).
                         HasColumnType("bigint(20)").
                         HasColumnName("score")
                     entity.Property(Function(e) e.ServerId).
-                        HasColumnType("int(11)").
+                        HasColumnType("bigint(20) unsigned").
                         HasColumnName("server_id")
+
+                    entity.HasOne(Function(d) d.LastMatch).WithMany(Function(p) p.PlayerStats).
+                        HasForeignKey(Function(d) d.LastMatchId).
+                        OnDelete(DeleteBehavior.Restrict).
+                        HasConstraintName("player_stats_last_match_id_foreign")
+
+                    entity.HasOne(Function(d) d.Player).WithMany(Function(p) p.PlayerStats).
+                        HasForeignKey(Function(d) d.PlayerId).
+                        OnDelete(DeleteBehavior.Restrict).
+                        HasConstraintName("player_stats_player_id_foreign")
+
+                    entity.HasOne(Function(d) d.Server).WithMany(Function(p) p.PlayerStats).
+                        HasForeignKey(Function(d) d.ServerId).
+                        OnDelete(DeleteBehavior.Restrict).
+                        HasConstraintName("player_stats_server_id_foreign")
                 End Sub)
 
             modelBuilder.Entity(Of ScanQueueEntry)(
@@ -240,18 +242,18 @@ Namespace Utt2Database
                         HasColumnName("address")
                     entity.Property(Function(e) e.Country).
                         HasMaxLength(3).
-                        HasDefaultValueSql("NULL").
+                        HasDefaultValueSql("'NULL'").
                         HasColumnName("country")
                     entity.Property(Function(e) e.GameName).
                         IsRequired().
                         HasMaxLength(255).
                         HasColumnName("game_name")
                     entity.Property(Function(e) e.LastRankCalculation).
-                        HasDefaultValueSql("NULL").
+                        HasDefaultValueSql("'NULL'").
                         HasColumnType("timestamp").
                         HasColumnName("last_rank_calculation")
                     entity.Property(Function(e) e.LastScan).
-                        HasDefaultValueSql("NULL").
+                        HasDefaultValueSql("'NULL'").
                         HasColumnType("timestamp").
                         HasColumnName("last_scan")
                     entity.Property(Function(e) e.Name).
@@ -263,7 +265,7 @@ Namespace Utt2Database
                         HasColumnName("rf_score")
                     entity.Property(Function(e) e.Rules).
                         IsRequired().
-                        HasDefaultValueSql("'{{}}'").
+                        HasDefaultValueSql("'''{}'''").
                         HasColumnName("rules")
                 End Sub)
 
@@ -272,6 +274,8 @@ Namespace Utt2Database
                     entity.HasKey(Function(e) e.Id).HasName("PRIMARY")
 
                     entity.ToTable("server_matches")
+
+                    entity.HasIndex(Function(e) e.ServerId, "server_matches_server_id_foreign")
 
                     entity.Property(Function(e) e.Id).
                         HasColumnType("bigint(20) unsigned").
@@ -285,13 +289,18 @@ Namespace Utt2Database
                         HasMaxLength(255).
                         HasColumnName("map_name")
                     entity.Property(Function(e) e.ServerId).
-                        HasColumnType("int(11)").
+                        HasColumnType("bigint(20) unsigned").
                         HasColumnName("server_id")
                     entity.Property(Function(e) e.StartTime).
                         ValueGeneratedOnAddOrUpdate().
                         HasDefaultValueSql("'current_timestamp()'").
                         HasColumnType("timestamp").
                         HasColumnName("start_time")
+
+                    entity.HasOne(Function(d) d.Server).WithMany(Function(p) p.ServerMatches).
+                        HasForeignKey(Function(d) d.ServerId).
+                        OnDelete(DeleteBehavior.Restrict).
+                        HasConstraintName("server_matches_server_id_foreign")
                 End Sub)
 
             OnModelCreatingPartial(modelBuilder)
