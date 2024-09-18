@@ -7,13 +7,7 @@ Imports System.Text.RegularExpressions
 Imports System.Text.Encoding
 Imports System.Security.Cryptography
 
-Class UTQuery2
-    Public Sub New()
 
-    End Sub
-
-
-End Class
 
 Class UTQueryPacket
     Inherits System.Collections.CollectionBase
