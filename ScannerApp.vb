@@ -43,8 +43,6 @@ Module ScannerApp
             Throw New Exception("Please configure the scanner first (" & ini.iniName & ")")
         End If
 
-        CRC32_Init()
-
         dbCtx = New Utt2Context(dbconfig)
 
         masterManager = New MasterServerManager(ini.getProperty("MasterServer.Cache", ".\server_list.txt"), ini.getProperty("MasterServer.GSListCFGLoc", ".\gslist.cfg"))
