@@ -157,7 +157,8 @@ Public Class ServerScanner
             If target.getState().done Then Return ' prevent processing the packets from targets in "done" state
             If packet.Length = 0 Then Return
 
-            packetString = Unicode.GetString(Encoding.Convert(Encoding.GetEncoding(1252), Encoding.Unicode, packet))
+            'packetString = Unicode.GetString(Encoding.Convert(Encoding.GetEncoding(1252), Encoding.Unicode, packet))
+            packetString = Encoding.Unicode.GetString(Encoding.Convert(Encoding.UTF8, Encoding.Unicode, packet))
 
             fullPacket = fragmentedPackets(ipString) & packetString
 
@@ -258,7 +259,7 @@ Public Class ServerScanner
 
     Protected Function getRecentlyScannedServerList(Optional seconds As Integer = 86400, Optional includeAncientServers As Boolean = False) As List(Of String)
         Dim ancientTimes As DateTime = DateTime.Parse("1.01.2009 0:00:00") ' include servers with invalid last scan date due to bios time reset
-        Dim scanTimeRange As DateTime = DateTime.Now.AddSeconds(-seconds)
+        Dim scanTimeRange As DateTime = DateTime.UtcNow.AddSeconds(-seconds)
 
         Dim servers = dbCtx.Servers.Where(
             Function(p As Server) p.LastScan > scanTimeRange Or
