@@ -12,7 +12,7 @@ Public Class DeVlog
     Implements IDisposable
 
     Private progName As String = System.Reflection.Assembly.GetEntryAssembly.GetName.Name
-    Private fs As Integer
+    Dim fileHandle As FileStream
     Public errorStream As TextWriter = Console.Error
     Public coutStream As TextWriter = Console.Out
     Protected disposed As Boolean = False
@@ -21,6 +21,7 @@ Public Class DeVlog
     Protected lastLogItemTime As DateTime
 
     Public printToFile As Boolean = True
+    Public autoFlush As Boolean = True
     Public fileLoggingLevel As Integer = (DeVlogLoggingLevel.out Or DeVlogLoggingLevel.err)
     Public consoleLoggingLevel As Integer = (DeVlogLoggingLevel.out Or DeVlogLoggingLevel.err)
 
@@ -28,14 +29,16 @@ Public Class DeVlog
 
     Public Sub New(Optional ByVal logname As String = "")
         If (logname = "") Then logname = progName & ".log"
-        fs = fopen(logname, "w")
+        fileHandle = File.Open(logname, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read)
+        fileHandle.SetLength(0)
         logfile = logname
     End Sub
 
     Protected Overridable Sub Dispose(ByVal disposing As Boolean)
         If Not Me.disposed Then
             If disposing Then
-                fclose(fs)
+                fileHandle.Flush()
+                fileHandle.Close()
                 errorStream.Dispose()
                 coutStream.Dispose()
             End If
@@ -81,9 +84,8 @@ Public Class DeVlog
         dWrite(String.Format(format, arg) & vbNewLine, DeVlogLoggingLevel.out)
     End Sub
 
-    Public Sub LogWriteToFile()
-        fclose(fs)
-        fs = fopen(logfile, "a")
+    Public Sub Flush()
+        fileHandle.Flush()
     End Sub
 #End Region
 
@@ -102,7 +104,10 @@ Public Class DeVlog
 
         Dim logmessage As String = String.Format("[{0}] {1}", dateNow, value)
         If (fileLoggingLevel And level) <> 0 Then
-            fwrite(fs, logmessage)
+            fileHandle.Write(System.Text.Encoding.ASCII.GetBytes(logmessage), 0, Len(logmessage))
+            If autoFlush Then
+                fileHandle.Flush()
+            End If
         End If
         Dim con_m = consoleLoggingLevel And level
         If con_m <> 0 Then

@@ -81,6 +81,8 @@ Public Class ServerScanner
             serversToScan.Add(server)
         Next
 
+        log.autoFlush = False
+
         debugWriteLine("Scanning using settings: recentServersTimeRange={0},includeAncient={1}", recentServersTimeRange, includeAncient)
 
         serversToScan = serversToScan.Distinct().ToList
@@ -128,6 +130,7 @@ Public Class ServerScanner
         updateScanInfo()
 
         RaiseEvent OnScanComplete(serversCountTotal, serversCountOnline, scanEnd - scanStart)
+        log.autoFlush = True
         debugWriteLine("Scan done in {0} seconds, {1} network ticks.", Math.Round((scanEnd - scanStart).TotalSeconds), tickCounter)
         debugShowStates()
         disposeTargets()
