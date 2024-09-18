@@ -25,7 +25,6 @@ Public Class ServerScanner
 
     Protected Friend log As DeVlog
     Protected Friend ini As N14INI
-    Protected Friend db As MySQLDB
     Protected Friend dbCtx As Utt2Context
     Protected Friend dyncfg As DynConfig
 
@@ -36,7 +35,7 @@ Public Class ServerScanner
     Protected targetsCollectionLock As New Object 'prevent 'For Each mess when collection is modified'
 
     Protected tickCounter As Integer = 0
-    Private transaction As MySqlTransaction
+    Private transaction As IDbTransaction
 
 
     Event OnScanBegin(serverCount As Integer)
@@ -50,9 +49,8 @@ Public Class ServerScanner
             scanInterval = .scanInterval
             masterServerUpdateInterval = .masterServerUpdateInterval
             log = .log
-            db = .db
             dbCtx = .dbCtx
-            dyncfg = New DynConfig(db.dbh)
+            dyncfg = New DynConfig(dbCtx)
             dyncfg.setProperty("net.reaper.configsrc", .iniFile, True)
             masterServerQuery = .masterServerManager
         End With
@@ -352,8 +350,7 @@ Public Class ServerScanner
     End Sub
 
     Private Sub ServerScanner_OnScanBegin(serverCount As Integer) Handles Me.OnScanBegin
-        transaction = db.dbh.BeginTransaction()
-        db.dbtr = transaction
+        transaction = dbCtx.Database.BeginTransaction()
     End Sub
 
 
@@ -361,7 +358,6 @@ Public Class ServerScanner
         transaction.Commit()
         transaction.Dispose()
         transaction = Nothing
-        db.dbtr = transaction
     End Sub
 
     Private Sub masterServerQuery_OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo)) Handles masterServerQuery.OnMasterServerManagerRequest
@@ -428,7 +424,6 @@ Public Class ServerScanner
             transaction.Rollback()
             transaction.Dispose()
             transaction = Nothing
-            db.dbtr = transaction
         End If
         disposed = True
     End Sub
@@ -830,7 +825,6 @@ Public Structure ServerScannerConfig
     'Dim masterServerList As List(Of String)
     Dim masterServerManager As MasterServerManager
     Dim log As DeVlog
-    Dim db As MySQLDB
     Dim dbCtx As Utt2Context
     Dim iniFile As String
 End Structure

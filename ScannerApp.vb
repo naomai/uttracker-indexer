@@ -66,12 +66,11 @@ Module ScannerApp
             End If
         Next
 
-        dyncfg = New DynConfig(db.dbh)
+        dyncfg = New DynConfig(dbCtx)
 
         Dim scannerConfig As ServerScannerConfig
         With scannerConfig
             .log = log
-            .db = db
             .dbCtx = dbCtx
             .masterServerUpdateInterval = ini.getProperty("MasterServer.RefreshIntervalMins", "120") * 60
             .scanInterval = ini.getProperty("General.IntervalMins", "2") * 60
