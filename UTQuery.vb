@@ -214,9 +214,9 @@ Class UTQueryPacket
         Dim keyName As String = "", value As String
 
         If q = "" Then
-            Throw New UTQueryResponseIncompleteException
+            Throw New UTQueryResponseIncompleteException("Empty response")
         ElseIf q(0) <> "\"c Then
-            Throw New UTQueryInvalidResponseException
+            Throw New UTQueryInvalidResponseException("Response should start with backslash, got: '" & Asc(q(0)) & "'")
         End If
 
         Try
@@ -301,12 +301,12 @@ Class UTQueryPacket
                     Next
                     Return packet
                 ElseIf queryPacketId <> 0 Then
-                    Throw New UTQueryResponseIncompleteException()
+                    Throw New UTQueryResponseIncompleteException("Missing packets in response")
                 Else
                     If isMasterServer Then
-                        Throw New UTQueryResponseIncompleteException()
+                        Throw New UTQueryResponseIncompleteException("Missing packets in response")
                     Else
-                        Throw New UTQueryInvalidResponseException()
+                        Throw New UTQueryInvalidResponseException("Packet is missing QueryID")
                     End If
                 End If
             End If
@@ -406,7 +406,7 @@ End Class
 
 Public Structure UTQueryKeyValuePair
     Dim key As String
-    Dim value As String ' this comment is not needed temporarily, don't read;                it can be either String or List(Of String)
+    Dim value As String
     Dim sourcePacketId As Integer
     Public Overrides Function ToString() As String
         Return "\" & UTQueryPacket.escapeGsString(Me.key) & "\" & UTQueryPacket.escapeGsString(Me.value)
@@ -416,327 +416,6 @@ End Structure
 #Region "Legacy code"
 
 Module UTQuery
-    Public Structure utKey
-        Dim name As String
-        Dim value As String
-    End Structure
-    Private Declare Function GetTickCount Lib "kernel32" () As Long
-    Private Declare Sub Sleep Lib "kernel32.dll" (ByVal Milliseconds As Integer)
-    Public globalSock As New JulkinNet
-    Public lastUtQueryState As Boolean
-
-    Public Sub UTQueryInit()
-        globalSock.timeout = 1000
-        globalSock.setProto(JulkinNet.jnProt.jnUDP)
-        globalSock.bind()
-    End Sub
-
-    Public Sub UTQueryFinalize()
-        globalSock.Dispose()
-        globalSock = Nothing
-        globalSock = New JulkinNet
-    End Sub
-
-
-    Public Function getRawServerListProt2(gamename As String, cdkey As String, gametype As String, Optional version As Integer = 2206, Optional ByVal address As String = "master0.gamespy.com:28900") As String
-        ' with some of help from: http://aluigi.altervista.org/papers/gskey-auth.txt
-        ' this one's a bit different
-        ' no CLIENT_TOKEN here, the second hash is just [CDKEY][SERVER_TOKEN]
-
-        Dim lol As JulkinNet, serverToken As String, tx As Long, packet() As Byte, e As Exception
-        Dim tempMd5() As Byte, cdkeyMd5 As String = "", cdkeyWithServerToken As String = ""
-        Dim stringsBin As List(Of String)
-        Dim md5prov = New MD5CryptoServiceProvider()
-        lol = New JulkinNet
-        lol.timeout = 5000
-        Try
-
-            lol.connect(address)
-            packet = lol.sreadNextBytes()
-
-            If packet.Length = 0 Then Throw New Exception("No response from " & address)
-            serverToken = decodeUT2Packet(packet).Item(0)
-            tempMd5 = md5prov.ComputeHash(ASCII.GetBytes(cdkey))
-            For Each keyByte In tempMd5
-                cdkeyMd5 &= LCase(Hex(keyByte).PadLeft(2, "0"))
-
-            Next
-
-            tempMd5 = md5prov.ComputeHash(ASCII.GetBytes(cdkey & serverToken))
-            For Each keyByte In tempMd5
-                cdkeyWithServerToken &= LCase(Hex(keyByte).PadLeft(2, "0"))
-            Next
-            stringsBin = New List(Of String)
-            stringsBin.Add(cdkeyMd5)
-            stringsBin.Add(cdkeyWithServerToken)
-            stringsBin.Add("CLIENT")
-            stringsBin.Add("INTINTINT" & version)
-            stringsBin.Add("BYTBYTBYT5")
-            stringsBin.Add("int")
-            packet = encodeUT2PacketStrings(stringsBin)
-
-            lol.swrite(packet)
-
-            packet = lol.sreadNextBytes()
-
-            If decodeUT2Packet(packet).Item(0) <> "APPROVED" Then Throw New Exception("Auth failed from server " & address)
-
-            stringsBin.Clear()
-
-            stringsBin.Add("BYTBYTBYT0")
-            stringsBin.Add("BYTBYTBYT2")
-            stringsBin.Add("gametype")
-            stringsBin.Add(gametype)
-            stringsBin.Add("BYTBYTBYT0")
-            stringsBin.Add("password")
-            stringsBin.Add("false")
-            stringsBin.Add("BYTBYTBYT0")
-        Catch e ' lazyErrorHandlingTODO
-
-        End Try
-        getRawServerListProt2 = ""
-        tx = GetTickCount
-        Do
-            getRawServerListProt2 &= lol.sreadNext()
-        Loop While GetTickCount - tx < 7000 AndAlso InStr(getRawServerListProt2, "\final\") = 0
-        lol.disconnect()
-
-
-    End Function
-
-    Public Function getServerInfoRaw(ByVal ip) As String
-        Dim qstr As String = "", start As Integer
-
-        globalSock.swriteTo("\info\xserverquery", ip)
-        start = GetTickCount
-        Do
-            qstr &= globalSock.sreadFrom(ip)
-            Sleep(20)
-        Loop While GetTickCount - start < 3000 AndAlso InStrRev(qstr, "\final\") = 0
-
-        getServerInfoRaw = qstr
-
-    End Function
-    Public Function getServerPlayers(ByVal ip) As Hashtable
-        Dim qstr As String = "", start As Integer
-
-        Dim info As Hashtable
-
-        globalSock.swriteTo("\players\xserverquery", ip)
-        start = GetTickCount
-        Do
-            qstr &= globalSock.sreadFrom(ip)
-            Sleep(50)
-        Loop While GetTickCount - start < 3000 AndAlso InStrRev(qstr, "\final\") = 0
-        info = parseQuery(qstr)
-
-        getServerPlayers = info
-    End Function
-
-    'uttracker v4 will have ut3 superpowers
-    Public Function utServerQuery2(ByVal ip As String, ByVal query As String) As Hashtable
-        Dim qstr As String, start As Integer, challengeNum As Int32
-        Dim request() As Byte
-
-        Dim info As Hashtable
-        qstr = ""
-        ReDim request(6)
-        request(0) = &HFE
-        request(1) = &HFD
-        request(2) = &H9
-        request(3) = Asc("U")
-        request(4) = Asc("T")
-        request(5) = Asc("R")
-        request(6) = Asc("K")
-        globalSock.swriteTo(request, ip)
-
-        start = GetTickCount
-        Do
-            qstr &= globalSock.sreadFrom(ip)
-            Thread.Sleep(10)
-        Loop While GetTickCount - start < 3000 AndAlso Len(qstr) = 0
-        If qstr = "" OrElse qstr(0) <> Chr(9) Then
-            Return New Hashtable
-        End If
-        challengeNum = Mid(qstr, 6)
-        ReDim request(14)
-        qstr = ""
-        request(0) = &HFE
-        request(1) = &HFD
-        request(2) = &H0
-        request(3) = Asc("U")
-        request(4) = Asc("T")
-        request(5) = Asc("R")
-        request(6) = Asc("2")
-        request(7) = (challengeNum >> 24) And &HFF
-        request(8) = (challengeNum >> 16) And &HFF
-        request(9) = (challengeNum >> 8) And &HFF
-        request(10) = challengeNum And &HFF
-        request(11) = &HFF
-        request(12) = &HFF
-        request(13) = &HFF
-        request(14) = &H1
-
-        globalSock.swriteTo(request, ip)
-
-        start = GetTickCount
-        Do
-            qstr &= globalSock.sreadFrom(ip)
-            Thread.Sleep(10)
-        Loop While GetTickCount - start < 3000 AndAlso Len(qstr) = 0
-
-        info = parseQuery2(Mid(qstr, 17))
-        lastUtQueryState = (qstr <> "")
-
-        Return info
-    End Function
-
-    Public Function utServerQuery(ByVal ip As String, ByVal query As String) As Hashtable
-        Dim qstr As String = "", start As Integer
-
-        Dim info As Hashtable
-
-        globalSock.swriteTo(query, ip)
-
-        start = GetTickCount
-        Do
-            qstr &= globalSock.sreadFrom(ip)
-            Thread.Sleep(50)
-        Loop While GetTickCount - start < 1500 AndAlso InStrRev(qstr, "\final\") = 0
-
-
-
-        info = parseQuery(qstr)
-        lastUtQueryState = (qstr <> "")
-
-        Return info
-    End Function
-
-    Public Function utQ(ByRef ar As Hashtable, ByVal key As String, Optional ByVal index As Long = -1) As String
-        If index <> -1 Then key &= "_" & index
-        If Not ar.ContainsKey(LCase(key)) Then Return ""
-        Return ar(LCase(key))
-    End Function
-
-    Function utGetServerProperty(ip As String, type As String, propname As String, Optional returnType As String = "s", Optional defaultVal As String = "")
-        Dim res = Nothing
-        Dim plx = utServerQuery(ip, "\" & type & "_property\" & propname & "\")
-        utGetServerProperty = utQ(plx, propname)
-        If returnType = "s" Then
-            Exit Function
-        ElseIf returnType = "i" AndAlso Long.TryParse(utGetServerProperty, res) Then
-            Return res
-        ElseIf returnType = "f" AndAlso Single.TryParse(utGetServerProperty, res) Then
-            Return res
-        End If
-        utGetServerProperty = defaultVal
-
-    End Function
-
-    ''' <summary>
-    ''' Reassemble and parse Gamespy protocol response into a Hashtable object
-    ''' </summary>
-    ''' <param name="q">Response received from server</param>
-    ''' <remarks></remarks>
-    Function parseQuery(ByVal q As String, Optional masterServer As Boolean = False) As Hashtable
-        Dim info As New Hashtable() ' temporary array of values from currently processed packet
-        Dim chunks() As String
-        Dim queryarr(30) As Hashtable ' used to merge all packets into a full response
-        Dim queryid As Integer, queridMajor As Integer, sqw As String()
-        Dim queryin As Hashtable, qui As DictionaryEntry
-        Dim errors As Integer = 0
-        Dim packetCount As Integer = 0
-        Dim receivedCount As Integer = 0
-        Dim isFinalPacket = False
-        If q = "" Then
-            Throw New UTQueryResponseIncompleteException
-        ElseIf q(0) <> "\"c Then
-            Throw New UTQueryInvalidResponseException
-        End If
-
-        Try
-            chunks = Split(q, "\")
-
-            For i = 1 To chunks.Count - 2 Step 2
-                If chunks(i) = "final" OrElse chunks(i) = "wookie" Then
-                    If i >= 2 AndAlso chunks(i - 2) = "queryid" Then
-                        packetCount = queryid
-                    Else
-                        isFinalPacket = True
-                    End If
-                    Continue For ' we're not finished! there might be some more content from packet that might have arrived late
-                ElseIf i < chunks.Count - 1 AndAlso chunks(i) = "secure" AndAlso chunks(i + 1) = "wookie" Then ' special case for master-server response
-                    info(LCase(chunks(i))) = chunks(i + 1)
-                    isFinalPacket = True
-                    Continue For
-                End If
-                If (LCase(chunks(i))) = "queryid" Then ' we just bumped into the packet end, let's put it in correct place of queryarr
-
-                    sqw = chunks(i + 1).Split(".")
-                    If Not IsNumeric(sqw(1)) Then ' ugly workaround for a bug in JulkinNet which in rare cases spits strings like: \queryid\60.1dfdsf\fd
-                        queryid = 18 + errors
-                        errors += 1
-                    Else
-                        queryid = sqw(1)
-                        queridMajor = sqw(0)
-                    End If
-                    queryarr(queryid) = info.Clone()
-                    receivedCount += 1
-                    info.Clear()
-                    If isFinalPacket Then
-                        If queryid = 0 Then 'empty (but complete and valid) response
-                            info("queryid") = queridMajor
-                            Return info
-                        End If
-                        packetCount = queryid
-                        isFinalPacket = False
-                    End If
-                Else
-                    info(LCase(chunks(i))) = chunks(i + 1)
-                End If
-            Next
-            If queryid = 0 AndAlso isFinalPacket Then 'no queryid, packet from master server?
-                Return info
-            End If
-            info.Clear()
-            If packetCount = 0 OrElse receivedCount <> packetCount Then
-                If Not IsNothing(queryarr(queryid)) AndAlso queryarr(queryid).Count = 0 Then
-                    info("queryid") = queridMajor
-                    Return info
-                ElseIf queryid <> 0 Then
-                    Throw New UTQueryResponseIncompleteException()
-                Else
-                    If masterServer Then
-                        Throw New UTQueryResponseIncompleteException()
-                    Else
-                        Throw New UTQueryInvalidResponseException()
-                    End If
-                End If
-            End If
-            ' put all the pieces in correct order
-            For Each queryin In queryarr
-                If Not IsNothing(queryin) AndAlso queryin.Count > 0 Then
-                    For Each qui In queryin
-                        info(Trim(qui.Key)) = Trim(qui.Value)
-
-                    Next
-                End If
-            Next
-        Catch ex As IndexOutOfRangeException
-            Throw New UTQueryResponseIncompleteException
-        Catch ex As NullReferenceException
-            Debugger.Break()
-        End Try
-        info("queryid") = queridMajor
-        Return info
-    End Function
-
-    'STUB; same as above, but for ut3... 
-    Function parseQuery2(ByVal q As String) As Hashtable
-
-        Return Nothing
-    End Function
-
     Public Function getIp(ByVal addr As String)
         Dim tmpx() As String
         tmpx = Split(addr, ":", 2)
@@ -749,124 +428,6 @@ Module UTQuery
         getPort = tmpx(1)
     End Function
 
-    Public Sub parseUTMasterList(ByRef ar As List(Of String), ByRef list As String)
-        ' UTQueryPacket way:
-        Dim packet = New UTQueryPacket(list, UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServerIpList)
-        For Each ipEntry As UTQueryKeyValuePair In packet
-            If ipEntry.key = "ip" Then
-                ar.Add(ipEntry.value)
-            End If
-        Next
-    End Sub
-
-
-    Public Function serializename(ByVal nm)
-        Dim news As String = ""
-        Dim cx As Byte
-        For i = 1 To Len(nm)
-            cx = cn(nm, i)
-            If (cx >= 48 And cx <= 57) Or (cx >= 65 And cx <= 90) Or (cx >= 97 And cx <= 122) Or cx = 61 Or cx = 91 Or cx = 93 Or cx = 95 Or cx = 123 Or cx = 125 Or cx = 40 Or cx = 41 Or (cx >= 43 And cx <= 46) Or cx = 32 Or cx = 33 Or cx = 36 Or cx = 38 Or cx = 39 Then
-                news = news & Chr(cx)
-            Else
-                news = news & "%" & Hex(cx)
-            End If
-        Next i
-        serializename = news
-    End Function
-
-    Function cn(ByVal s, ByVal n)
-        cn = Asc(Mid(s, n, 1))
-    End Function
-
-    Function gint32(s)
-        gint32 = (Asc(s(4)) << 24) Or (Asc(s(3)) << 16) Or (Asc(s(2)) << 8) Or (Asc(s(1)))
-    End Function
-
-    Function encodeUT2String(str As String) As Byte()
-        Dim result(0 To Len(str) + 2) As Byte
-
-        BitConverter.GetBytes(UInt16.Parse(Len(str) + 1)).CopyTo(result, 0)
-        ASCII.GetBytes(str).CopyTo(result, 2)
-        result(Len(str) + 3) = 0
-        Return result
-    End Function
-
-    Function decodeUT2Packet(bytes() As Byte) As List(Of String)
-        Dim dataSize As UInt32
-        Dim pos As Integer = 4
-        Dim result As New List(Of String)
-        Dim strLen As UInt16
-        dataSize = BitConverter.ToUInt32(bytes, 0)
-        Do
-            strLen = bytes(pos)
-            result.Add(ASCII.GetString(bytes, pos + 1, strLen - 1))
-            pos += strLen + 1
-        Loop While pos < bytes.Length
-        Return result
-    End Function
-
-    Function decodeUT2PacketArray(bytes() As Byte) As Dictionary(Of String, String)
-        Dim dataSize As UInt32
-        Dim pos As Integer = 4
-        Dim result As New List(Of String)
-        dataSize = BitConverter.ToUInt32(bytes, 0)
-        decodeUT2PacketArray = Nothing
-    End Function
-
-    Function encodeUT2Packet(pkt() As Byte) As Byte()
-        Dim result() As Byte
-        Dim dataSize As UInt32 = pkt.Length
-
-        ReDim result(dataSize + 3)
-
-        BitConverter.GetBytes(dataSize).CopyTo(result, 0)
-        pkt.CopyTo(result, 4)
-
-        Return result
-    End Function
-
-    Function encodeUT2PacketStrings(strings As List(Of String)) As Byte()
-        Dim result() As Byte
-        Dim dataSize As UInt32 = 0
-        Dim pos As Integer = 4
-        For Each s In strings
-            If InStr(s, "INTINTINT") = 1 Then
-                dataSize += 4
-            ElseIf InStr(s, "BYTBYTBYT") = 1 Then
-                dataSize += 1
-            Else
-                dataSize += Len(s) + 2
-            End If
-        Next
-        ReDim result(dataSize + 3)
-
-        BitConverter.GetBytes(dataSize).CopyTo(result, 0)
-
-        For Each s In strings
-            If InStr(s, "INTINTINT") = 1 Then
-                BitConverter.GetBytes(CLng(Mid(s, 10))).CopyTo(result, pos)
-                pos += 4
-            ElseIf InStr(s, "BYTBYTBYT") = 1 Then
-                result(pos) = CByte(Mid(s, 10))
-                pos += 1
-            Else
-                result(pos) = Len(s) + 1
-                ASCII.GetBytes(s).CopyTo(result, pos + 1)
-                result(pos + Len(s) + 1) = 0
-                pos += Len(s) + 2
-            End If
-        Next
-
-        Return result
-    End Function
-
-    Private Function swapByteOrder(ByVal v As Int32)
-        Dim byteArr As Byte()
-
-        byteArr = BitConverter.GetBytes(v)
-        Array.Reverse(byteArr)
-        Return BitConverter.ToInt32(byteArr, 0)
-    End Function
 
 
 #Region "GSMSALG"
@@ -984,9 +545,23 @@ End Module
 Public Class UTQueryResponseIncompleteException
     Inherits Exception
 
+    Sub New()
+        MyBase.New("Missing packets in response")
+    End Sub
+
+    Sub New(message As String)
+        MyBase.New(message)
+    End Sub
 End Class
 
 Public Class UTQueryInvalidResponseException
     Inherits Exception
 
+    Sub New()
+        MyBase.New("Malformed response")
+    End Sub
+
+    Sub New(message As String)
+        MyBase.New(message)
+    End Sub
 End Class
