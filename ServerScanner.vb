@@ -4,6 +4,7 @@ Imports System.Text.Json
 Imports System.Data
 Imports Naomai.UTT.ScannerV2.Utt2Database
 Imports Microsoft.EntityFrameworkCore.Storage
+Imports System.Globalization
 
 Public Class ServerScanner
     Implements IDisposable
@@ -446,6 +447,8 @@ Public Class ServerScannerWorker
     Protected saver As SaveGame
     Protected gamemodeQuery As GamemodeSpecificQuery
 
+    Private formatProvider = New CultureInfo("en-US")
+
     Public Sub New(master As ServerScanner, serverAddress As String)
         address = serverAddress
         dbAddress = serverAddress
@@ -523,7 +526,9 @@ Public Class ServerScannerWorker
                 End If
 
                 serverSend("\game_property\NumPlayers\\game_property\NumSpectators\" _
-                           & "\game_property\GameSpeed\\game_property\CurrentID\\game_property\bGameEnded\\game_property\bOvertime\\game_property\ElapsedTime\\game_property\RemainingTime\" _
+                           & "\game_property\GameSpeed\\game_property\CurrentID\" _
+                           & "\game_property\bGameEnded\\game_property\bOvertime\" _
+                           & "\game_property\ElapsedTime\\game_property\RemainingTime\" _
                            & otherAdditionalRequests _
                            & gamemodeAdditionalRequests)
                 .requestingInfoExtended = True
@@ -626,7 +631,7 @@ Public Class ServerScannerWorker
             End If
             If info.ContainsKey("xserverquery") Then
                 caps.hasXSQ = True
-                Integer.TryParse(Replace(info("xserverquery"), ".", ""), caps.XSQVersion)
+                Integer.TryParse(Replace(info("xserverquery"), ".", ""), formatProvider, caps.XSQVersion)
                 caps.hasPropertyInterface = False
                 caps.timeTestPassed = False
             End If
@@ -639,6 +644,10 @@ Public Class ServerScannerWorker
             If Not incomingPacket.ContainsKey("gamespeed") OrElse incomingPacket("numplayers") = "*Private*" Then
                 Throw New Exception("Incorrect extended info (gamespeed/numplayers)")
             End If
+            Single.TryParse(incomingPacket("gamespeed"), formatProvider, caps.gameSpeed)
+            If caps.gameSpeed = 0 Then
+                Throw New Exception("Incorrect extended info (gamespeed=0)")
+            End If
 
             info("__uttrealplayers") = incomingPacket("numplayers")
             info("__uttspectators") = incomingPacket("numspectators")
@@ -648,19 +657,19 @@ Public Class ServerScannerWorker
             info("bovertime") = incomingPacket("bovertime")
             info("elapsedtime") = incomingPacket("elapsedtime")
             info("remainingtime") = incomingPacket("remainingtime")
-            If incomingPacket.ContainsKey("timelimit") Then info("timelimit") = incomingPacket("timelimit")
-            Single.TryParse(incomingPacket("gamespeed"), caps.gameSpeed)
-            If caps.gameSpeed = 0 Then
-                Throw New Exception("Incorrect extended info (gamespeed=0)")
-            Else
-                state.hasInfoExtended = True
-                state.hasTimeTest = True
-                caps.timeTestPassed = True
-                ' fake players detection
-                If info("numplayers") > incomingPacket("numplayers") + incomingPacket("numspectators") Then
-                    caps.fakePlayers = True
-                End If
+            If incomingPacket.ContainsKey("timelimit") Then
+                info("timelimit") = incomingPacket("timelimit")
             End If
+
+            state.hasInfoExtended = True
+            state.hasTimeTest = True
+            caps.timeTestPassed = True
+
+            ' fake players detection
+            If info("numplayers") > incomingPacket("numplayers") + incomingPacket("numspectators") Then
+                caps.fakePlayers = True
+            End If
+
             If caps.gamemodeExtendedInfo Then
                 gamemodeQuery.parseInfoPacket(incomingPacket)
             End If
@@ -680,14 +689,22 @@ Public Class ServerScannerWorker
                 suffix = "_" & playerid
                 playerinfo = New Hashtable
                 playerinfo("name") = incomingPacket("player" & suffix)
-                playerinfo("ping") = incomingPacket("ping" & suffix)
                 playerinfo("frags") = incomingPacket("frags" & suffix)
                 playerinfo("mesh") = incomingPacket("mesh" & suffix)
                 playerinfo("skin") = incomingPacket("skin" & suffix)
                 playerinfo("face") = incomingPacket("face" & suffix)
                 playerinfo("team") = incomingPacket("team" & suffix)
 
-                If (Integer.Parse(playerinfo("ping")) > 100000) Then
+                Dim ping As Integer
+                Dim pingString As String = incomingPacket("ping" & suffix)
+
+                If IsNothing(pingString) OrElse Not Integer.TryParse(pingString, ping) Then
+                    ping = 0
+                End If
+
+                playerinfo("ping") = ping
+
+                If (ping > 100000) Then
                     buggedPingCount += 1
                 End If
 

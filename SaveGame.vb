@@ -18,55 +18,52 @@ Public Class SaveGame
     End Sub
 
     Public Sub tick()
-        Dim scannerState = scannerSlave.getState()
-        If Not state.done Then
-            If Not state.hasDBRecord Then prepareServerRecord()
-            If Not state.savedInfo Then tryUpdateInfo()
-            If Not state.savedRules Then tryUpdateRules()
-            If Not state.savedGameInfo Then tryUpdateGameInfo()
-            If Not state.savedPlayers Then tryUpdatePlayerInfo()
-            If Not state.savedCumulativeStats Then tryUpdateCumulativePlayersStats()
-            If Not state.savedScanInfo Then updateCurrentScanInfo()
-            If state.savedInfo AndAlso state.savedRules AndAlso state.savedGameInfo And state.savedPlayers And state.savedCumulativeStats And state.savedScanInfo Then
-                state.done = True
-            End If
+        If state.done Then
+            Return
+        End If
+        If Not state.hasDBRecord Then prepareServerRecord()
+        If Not state.savedInfo Then tryUpdateInfo()
+        If Not state.savedRules Then tryUpdateRules()
+        If Not state.savedGameInfo Then TryUpdateMatchInfo()
+        If Not state.savedPlayers Then tryUpdatePlayerInfo()
+        If Not state.savedCumulativeStats Then tryUpdateCumulativePlayersStats()
+        If Not state.savedScanInfo Then updateCurrentScanInfo()
+        If state.savedInfo AndAlso state.savedRules AndAlso state.savedGameInfo And state.savedPlayers And state.savedCumulativeStats And state.savedScanInfo Then
+            state.done = True
         End If
     End Sub
 
-    Private Sub prepareServerRecord()
-        If Not IsNothing(serverRecord) Then
-            Return
-        End If
 
-        Try
-            serverRecord = dbCtx.Servers.Single(Function(s) s.Address = scannerSlave.address)
-        Catch e As InvalidOperationException
+    Private Sub prepareServerRecord()
+        serverRecord = dbCtx.Servers.SingleOrDefault(Function(s) s.Address = scannerSlave.address)
+        If IsNothing(serverRecord) Then
             serverRecord = New Server() With {
                 .Address = scannerSlave.address
             }
-        End Try
+        End If
         state.hasDBRecord = True
     End Sub
 
     Private Sub tryUpdateInfo()
         Dim scannerState = scannerSlave.getState()
 
-        If state.hasDBRecord AndAlso scannerState.hasBasic AndAlso scannerState.hasInfo Then
-            uttServerScanTime = scannerSlave.infoSentTimeLocal
-
-            With serverRecord
-                .Name = scannerSlave.info("hostname")
-                .GameName = scannerSlave.info("gamename")
-            End With
-
-            dbCtx.Servers.Update(serverRecord)
-            dbCtx.SaveChanges()
-
-            uttServerId = serverRecord.Id
-            state.hasServerId = True
-
-            state.savedInfo = True
+        If Not (state.hasDBRecord AndAlso scannerState.hasBasic AndAlso scannerState.hasInfo) Then
+            Return
         End If
+
+        With serverRecord
+            .Name = scannerSlave.info("hostname")
+            .GameName = scannerSlave.info("gamename")
+        End With
+
+        dbCtx.Servers.Update(serverRecord)
+        dbCtx.SaveChanges()
+
+        uttServerId = serverRecord.Id
+        uttServerScanTime = scannerSlave.infoSentTimeLocal
+
+        state.hasServerId = True
+        state.savedInfo = True
     End Sub
 
     Private Sub tryUpdateRules()
@@ -74,135 +71,158 @@ Public Class SaveGame
         Dim rulesJson As String
         Dim scannerState = scannerSlave.getState()
 
-        If Not state.hasServerId Then
-            Return
-        End If
-
         If Not scannerSlave.caps.supportsRules Then
             state.savedRules = True
             Return
         End If
 
-        If scannerState.hasRules Then
-            rulesJoined = scannerSlave.rules.Clone()
-            For Each infoItem In scannerSlave.info.Keys
-                rulesJoined(infoItem) = scannerSlave.info(infoItem)
-            Next
-
-            'utt haxes:
-            rulesJoined("__uttlastupdate") = unixTime(uttServerScanTime)
-            rulesJoined("queryport") = Split(scannerSlave.address, ":").Last
-            If scannerSlave.caps.hasXSQ Then
-                rulesJoined("__uttxserverquery") = "true"
-            End If
-
-            rulesJson = JsonSerializer.Serialize(rulesJoined)
-
-            serverRecord.Rules = rulesJson
-            dbCtx.Servers.Update(serverRecord)
-            dbCtx.SaveChanges()
-
-            state.savedRules = True
-        End If
-    End Sub
-
-    Private Sub tryUpdateGameInfo() ' serverhistory
-        Dim lastGameRecord As ServerMatch
-
-        If Not state.hasServerId Then
+        If Not (state.hasServerId AndAlso scannerState.hasRules) Then
             Return
         End If
 
-        Dim scannerState = scannerSlave.getState()
-        If scannerState.hasInfo Then
-            lastGameRecord = getLastGameInfo()
+        rulesJoined = scannerSlave.rules.Clone()
+        For Each infoItem In scannerSlave.info.Keys
+            rulesJoined(infoItem) = scannerSlave.info(infoItem)
+        Next
 
-            Dim timeGameStart As DateTime, thisGameCurrentID As Int32, lastGameCurrentID As Int32
-            If IsNothing(lastGameRecord) Then
-                state.isNewGame = True
-            Else
-                lastGameCurrentID = lastGameRecord.InternalMatchId
-                If scannerState.hasInfoExtended Then
-                    thisGameCurrentID = scannerSlave.info("__uttgamecurrentid")
-                Else
-                    thisGameCurrentID = -1
-                End If
-
-                state.isNewGame =
-                    state.isNewGame OrElse
-                    (
-                        scannerSlave.info("numplayers") > 0 AndAlso
-                        lastGameCurrentID <> -1 AndAlso
-                        thisGameCurrentID <> -1 AndAlso
-                        thisGameCurrentID < lastGameCurrentID AndAlso
-                        lastGameRecord.MapName = scannerSlave.info("mapname")
-                    )
-            End If
-
-
-            If scannerSlave.caps.timeTestPassed AndAlso scannerSlave.info.ContainsKey("elapsedtime") AndAlso Not scannerSlave.caps.fakePlayers Then
-                'timeGameStart = scannerSlave.info("__uttgamestart")
-                If IsNumeric(scannerSlave.info("elapsedtime")) AndAlso
-                    (
-                        scannerSlave.info("elapsedtime") > 0 OrElse
-                        (scannerSlave.info("timelimit") * 60) - scannerSlave.info("remainingtime") < 60
-                    ) Then
-                    timeGameStart = scannerSlave.firstTimeTestLocal.AddSeconds(-scannerSlave.info("elapsedtime"))
-                ElseIf IsNumeric(scannerSlave.info("timelimit")) AndAlso
-                    scannerSlave.info("timelimit") > 0 AndAlso
-                    (scannerSlave.info("timelimit") * 60) - scannerSlave.info("remainingtime") > 60 Then ' elapsed time not implemented in gamemode?
-                    timeGameStart = scannerSlave.firstTimeTestLocal.AddSeconds(-((scannerSlave.info("timelimit") * 60) - scannerSlave.info("remainingtime")))
-                Else
-                    timeGameStart = Nothing
-                End If
-                state.isNewGame = state.isNewGame OrElse
-                    (
-                        scannerSlave.info("numplayers") > 0 AndAlso
-                        Not IsNothing(timeGameStart) AndAlso
-                        lastGameRecord.StartTime < timeGameStart AndAlso
-                        Math.Abs((lastGameRecord.StartTime - timeGameStart).TotalSeconds) > 240
-                    ) OrElse
-                    lastGameRecord.MapName <> scannerSlave.info("mapname")
-            Else
-                state.isNewGame = state.isNewGame OrElse
-                    (
-                        scannerSlave.info("numplayers") > 0 AndAlso
-                        (scannerSlave.infoSentTimeLocal - lastGameRecord.StartTime).TotalSeconds > 3600 * 4
-                    ) OrElse
-                    lastGameRecord.MapName <> scannerSlave.info("mapname")
-
-                If state.isNewGame Then
-                    timeGameStart = scannerSlave.infoSentTimeLocal
-                Else
-                    timeGameStart = lastGameRecord.StartTime
-                End If
-            End If
-
-            Dim matchRecord As ServerMatch
-
-            If state.isNewGame Then
-                If timeGameStart = Nothing Then timeGameStart = Date.UtcNow
-
-                matchRecord = New ServerMatch With {
-                    .ServerId = uttServerId,
-                    .StartTime = timeGameStart,
-                    .MapName = scannerSlave.info("mapname"),
-                    .InternalMatchId = thisGameCurrentID
-                }
-                dbCtx.ServerMatches.Add(matchRecord)
-                dbCtx.SaveChanges()
-                uttGameId = matchRecord.Id
-            Else
-                If thisGameCurrentID <> -1 AndAlso thisGameCurrentID > lastGameCurrentID Then
-                    matchRecord = dbCtx.ServerMatches.Single(Function(g) g.Id = thisGameCurrentID)
-
-                    matchRecord.InternalMatchId = thisGameCurrentID
-                    dbCtx.SaveChanges()
-                End If
-                uttGameId = lastGameRecord.Id
-            End If
-            state.savedGameInfo = True
+        'utt haxes:
+        rulesJoined("__uttlastupdate") = unixTime(uttServerScanTime)
+        rulesJoined("queryport") = Split(scannerSlave.address, ":").Last
+        If scannerSlave.caps.hasXSQ Then
+            rulesJoined("__uttxserverquery") = "true"
         End If
+
+        rulesJson = JsonSerializer.Serialize(rulesJoined)
+
+        serverRecord.Rules = rulesJson
+        dbCtx.Servers.Update(serverRecord)
+        dbCtx.SaveChanges()
+
+        state.savedRules = True
+
+    End Sub
+
+    Private Sub TryUpdateMatchInfo() ' serverhistory
+        Dim previousMatchRecord As ServerMatch
+        Dim scannerState = scannerSlave.getState()
+        Dim timeMatchStart As DateTime = Nothing
+
+
+        If Not (state.hasServerId AndAlso scannerState.hasInfo) OrElse
+            (scannerSlave.caps.hasPropertyInterface AndAlso Not scannerState.hasInfoExtended) Then
+            Return
+        End If
+
+        previousMatchRecord = GetLastMatchInfo()
+
+
+
+        ' GameInfo.CurrentID
+        ' As per UnrealWiki:
+        '   used to assign unique PlayerIDs to each PlayerReplicationInfo
+        ' This value is reset to 0 when a new match is started
+        ' We can leverage this to detect new matches on one-map servers
+
+        Dim thisMatchCurrentID As Int32 = -1, lastMatchCurrentID As Int32
+        Dim newMatchByCurrentIDChange As Boolean = False
+
+        If IsNothing(previousMatchRecord) Then
+            state.isNewMatch = True
+        Else
+            lastMatchCurrentID = previousMatchRecord.InternalMatchId
+            If scannerState.hasInfoExtended Then
+                thisMatchCurrentID = scannerSlave.info("__uttgamecurrentid")
+                newMatchByCurrentIDChange =
+                    scannerSlave.info("numplayers") > 0 AndAlso
+                    lastMatchCurrentID <> -1 AndAlso
+                    thisMatchCurrentID <> -1 AndAlso
+                    thisMatchCurrentID < lastMatchCurrentID AndAlso
+                    previousMatchRecord.MapName = scannerSlave.info("mapname")
+
+            End If
+
+            state.isNewMatch = state.isNewMatch OrElse newMatchByCurrentIDChange
+        End If
+
+        Dim trustingPlayerList =
+            scannerSlave.caps.timeTestPassed AndAlso
+            scannerSlave.info.ContainsKey("elapsedtime") AndAlso
+            Not scannerSlave.caps.fakePlayers
+
+
+        If trustingPlayerList Then
+            'timeGameStart = scannerSlave.info("__uttgamestart")
+            Dim correctElapsedTime = IsNumeric(scannerSlave.info("elapsedtime")) AndAlso
+                scannerSlave.info("elapsedtime") > 0
+
+            Dim correctTimeLimit = IsNumeric(scannerSlave.info("timelimit")) AndAlso
+                scannerSlave.info("timelimit") > 0 AndAlso
+                (scannerSlave.info("timelimit") * 60) - scannerSlave.info("remainingtime") > 60
+
+            Dim secondsElapsed As Integer = Nothing
+
+
+            If correctElapsedTime Then
+                secondsElapsed = scannerSlave.info("elapsedtime")
+            ElseIf correctTimeLimit Then
+                secondsElapsed = scannerSlave.info("timelimit") * 60 - scannerSlave.info("remainingtime")
+            Else
+                secondsElapsed = Nothing
+            End If
+
+            If Not IsNothing(secondsElapsed) Then
+                timeMatchStart = scannerSlave.firstTimeTestLocal.AddSeconds(-secondsElapsed)
+            End If
+
+
+            state.isNewMatch = state.isNewMatch OrElse
+            (
+                scannerSlave.info("numplayers") > 0 AndAlso
+                Not IsNothing(timeMatchStart) AndAlso
+                previousMatchRecord.StartTime < timeMatchStart AndAlso
+                Math.Abs((previousMatchRecord.StartTime - timeMatchStart).TotalSeconds) > 240
+            ) OrElse
+            previousMatchRecord.MapName <> scannerSlave.info("mapname")
+        Else
+            state.isNewMatch = state.isNewMatch OrElse
+            (
+                scannerSlave.info("numplayers") > 0 AndAlso
+                (scannerSlave.infoSentTimeLocal - previousMatchRecord.StartTime).TotalSeconds > 3600 * 4
+            ) OrElse
+            previousMatchRecord.MapName <> scannerSlave.info("mapname")
+
+            If state.isNewMatch Then
+                timeMatchStart = scannerSlave.infoSentTimeLocal
+            Else
+                timeMatchStart = previousMatchRecord.StartTime
+            End If
+        End If
+
+        Dim matchRecord As ServerMatch
+
+        If state.isNewMatch Then
+            If timeMatchStart = Nothing Then timeMatchStart = Date.UtcNow
+
+            matchRecord = New ServerMatch With {
+            .ServerId = uttServerId,
+            .StartTime = timeMatchStart,
+            .MapName = scannerSlave.info("mapname"),
+            .InternalMatchId = thisMatchCurrentID
+        }
+            dbCtx.ServerMatches.Add(matchRecord)
+            dbCtx.SaveChanges()
+            uttGameId = matchRecord.Id
+        Else
+            If thisMatchCurrentID <> -1 AndAlso thisMatchCurrentID > lastMatchCurrentID Then
+                matchRecord = dbCtx.ServerMatches.Single(Function(g) g.Id = thisMatchCurrentID)
+
+                matchRecord.InternalMatchId = thisMatchCurrentID
+                dbCtx.SaveChanges()
+            End If
+            uttGameId = previousMatchRecord.Id
+        End If
+        state.savedGameInfo = True
+
     End Sub
 
     Private Sub tryUpdatePlayerInfo()
@@ -258,7 +278,7 @@ Public Class SaveGame
             Return
         End If
 
-        If state.isNewGame AndAlso player.ContainsKey("time") Then
+        If state.isNewMatch AndAlso player.ContainsKey("time") Then
             playerTimeOffset = -player("time")
         End If
 
@@ -352,7 +372,7 @@ Public Class SaveGame
         End If
     End Sub
 
-    Private Function getLastGameInfo() As ServerMatch
+    Private Function GetLastMatchInfo() As ServerMatch
         Return dbCtx.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault(
             Function(m) m.ServerId = uttServerId)
     End Function
@@ -383,6 +403,6 @@ Public Structure SaveGameWorkerState
     Dim savedPlayers As Boolean
     Dim savedCumulativeStats As Boolean
     Dim savedScanInfo As Boolean
-    Dim isNewGame As Boolean
+    Dim isNewMatch As Boolean
     Dim done As Boolean
 End Structure
