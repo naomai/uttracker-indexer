@@ -1,29 +1,29 @@
 ﻿' DeVlog - VBNET logging class
 ' 2014 Namonaki14
 Imports System.IO
+Imports System.Environment
 
-Public Enum DeVlogLoggingLevel
+Public Enum LoggerLevel
     out = 1
     err = 2
     debug = 4
 End Enum
 
-Public Class DeVlog
+Public Class Logger
     Implements IDisposable
 
     Private progName As String = System.Reflection.Assembly.GetEntryAssembly.GetName.Name
-    Dim fileHandle As FileStream
+    Protected fileHandle As FileStream
     Public errorStream As TextWriter = Console.Error
     Public coutStream As TextWriter = Console.Out
     Protected disposed As Boolean = False
-    Private logfile As String
     Private benchStartTime As DateTime
     Protected lastLogItemTime As DateTime
 
     Public printToFile As Boolean = True
     Public autoFlush As Boolean = True
-    Public fileLoggingLevel As Integer = (DeVlogLoggingLevel.out Or DeVlogLoggingLevel.err)
-    Public consoleLoggingLevel As Integer = (DeVlogLoggingLevel.out Or DeVlogLoggingLevel.err)
+    Public fileLoggingLevel As Integer = (LoggerLevel.out Or LoggerLevel.err)
+    Public consoleLoggingLevel As Integer = (LoggerLevel.out Or LoggerLevel.err)
 
 #Region "constructor"
 
@@ -50,38 +50,38 @@ Public Class DeVlog
 
 #Region "writing functions"
     Public Sub Write(ByVal value As String)
-        dWrite(value, DeVlogLoggingLevel.out)
+        ProcessLogMessage(value, LoggerLevel.out)
     End Sub
 
     Public Sub Write(ByVal format As String, ByVal ParamArray arg As Object())
-        dWrite(String.Format(format, arg), DeVlogLoggingLevel.out)
+        ProcessLogMessage(String.Format(format, arg), LoggerLevel.out)
     End Sub
 
-    Public Sub Write(ByVal value As String, ByVal level As DeVlogLoggingLevel)
-        dWrite(value, level)
+    Public Sub Write(ByVal value As String, ByVal level As LoggerLevel)
+        ProcessLogMessage(value, level)
     End Sub
 
     Public Sub ErrorWriteLine(ByVal value As String)
-        dWrite(value & vbNewLine, DeVlogLoggingLevel.err)
+        ProcessLogMessage(value & NewLine, LoggerLevel.err)
     End Sub
 
     Public Sub ErrorWriteLine(ByVal format As String, ByVal ParamArray arg As Object())
-        dWrite(String.Format(format, arg) & vbNewLine, DeVlogLoggingLevel.err)
+        ProcessLogMessage(String.Format(format, arg) & NewLine, LoggerLevel.err)
     End Sub
 
     Public Sub DebugWriteLine(ByVal value As String)
-        dWrite(value & vbNewLine, DeVlogLoggingLevel.debug)
+        ProcessLogMessage(value & NewLine, LoggerLevel.debug)
     End Sub
 
     Public Sub DebugWriteLine(ByVal format As String, ByVal ParamArray arg As Object())
-        dWrite(String.Format(format, arg) & vbNewLine, DeVlogLoggingLevel.debug)
+        ProcessLogMessage(String.Format(format, arg) & NewLine, LoggerLevel.debug)
     End Sub
     Public Sub WriteLine(ByVal value As String)
-        dWrite(value & vbNewLine, DeVlogLoggingLevel.out)
+        ProcessLogMessage(value & NewLine, LoggerLevel.out)
     End Sub
 
     Public Sub WriteLine(ByVal format As String, ByVal ParamArray arg As Object())
-        dWrite(String.Format(format, arg) & vbNewLine, DeVlogLoggingLevel.out)
+        ProcessLogMessage(String.Format(format, arg) & NewLine, LoggerLevel.out)
     End Sub
 
     Public Sub Flush()
@@ -90,7 +90,7 @@ Public Class DeVlog
 #End Region
 
 #Region "private functions"
-    Private Sub dWrite(ByVal value As String, ByVal level As DeVlogLoggingLevel)
+    Private Sub ProcessLogMessage(ByVal value As String, ByVal level As LoggerLevel)
         Static beginning As DateTime = DateTime.Parse("1.01.1990 00:00:00")
         Dim logLastDay = Math.Floor((lastLogItemTime - beginning).TotalDays)
 
@@ -112,9 +112,9 @@ Public Class DeVlog
         Dim con_m = consoleLoggingLevel And level
         If con_m <> 0 Then
             Select Case con_m
-                Case DeVlogLoggingLevel.debug, DeVlogLoggingLevel.out
+                Case LoggerLevel.debug, LoggerLevel.out
                     coutStream.Write(logmessage)
-                Case DeVlogLoggingLevel.err
+                Case LoggerLevel.err
                     errorStream.Write(logmessage)
             End Select
         End If

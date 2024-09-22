@@ -8,18 +8,18 @@ Module ScannerApp
     Dim masterBridge As GSMasterServerBridge
     Dim masterManager As MasterServerManager
     Dim ini As IniFile
-    Dim log As DeVlog
+    Dim log As Logger
     Dim dbCtx As Utt2Context
     Dim dyncfg As DynConfig
 
     Sub Main()
         Dim appName = System.Reflection.Assembly.GetEntryAssembly.GetName.Name
         ini = New IniFile()
-        log = New DeVlog()
+        log = New Logger()
 
-        log.consoleLoggingLevel = (DeVlogLoggingLevel.err Or DeVlogLoggingLevel.out)
+        log.consoleLoggingLevel = (LoggerLevel.err Or LoggerLevel.out)
         If ini.GetProperty("General.LogToFile", 0) Then
-            log.fileLoggingLevel = (DeVlogLoggingLevel.err Or DeVlogLoggingLevel.out Or DeVlogLoggingLevel.debug)
+            log.fileLoggingLevel = (LoggerLevel.err Or LoggerLevel.out Or LoggerLevel.debug)
         Else
             log.fileLoggingLevel = 0
         End If

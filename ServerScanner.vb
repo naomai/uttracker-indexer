@@ -20,7 +20,7 @@ Public Class ServerScanner
     Public serversCountTotal As Integer
     Public serversCountOnline As Integer
 
-    Protected Friend log As DeVlog
+    Protected Friend log As Logger
     Protected Friend ini As IniFile
     Protected Friend dbCtx As Utt2Context
     Protected Friend dyncfg As DynConfig
@@ -423,7 +423,7 @@ Public Structure ServerScannerConfig
     Dim scanInterval As Integer
     Dim masterServerUpdateInterval As Integer
     Dim masterServerManager As MasterServerManager
-    Dim log As DeVlog
+    Dim log As Logger
     Dim dbCtx As Utt2Context
     Dim dyncfg As DynConfig
     Dim iniFile As String
