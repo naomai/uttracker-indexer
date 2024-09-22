@@ -1,5 +1,7 @@
 ﻿Imports System.Text.RegularExpressions
 Imports System.IO
+Imports Microsoft.Extensions.FileProviders
+Imports System.Reflection
 
 Public Class MasterServerManager
     Public cacheFile As String
@@ -16,10 +18,9 @@ Public Class MasterServerManager
     Public Shared gamespyKeys As Dictionary(Of String, GamespyGameInfo)
     Dim serverList As List(Of String)
 
-    Public Sub New(cacheFile As String, gslistFile As String)
+    Public Sub New(cacheFile As String)
         Me.cacheFile = cacheFile
-        Me.gslistFile = gslistFile
-        MasterServerManager.gamespyKeys = staticLoadGSList(gslistFile)
+        MasterServerManager.gamespyKeys = staticLoadGSList()
     End Sub
 
     Public Sub addMasterServer(configString As String)
@@ -107,14 +108,14 @@ Public Class MasterServerManager
         End Set
     End Property
 
-    Private Shared Function staticLoadGSList(fileName As String) As Dictionary(Of String, GamespyGameInfo)
+    Private Shared Function staticLoadGSList() As Dictionary(Of String, GamespyGameInfo)
         Dim line As String, fn As StreamReader
 
-        If Not File.Exists(fileName) Then
-            Throw New ApplicationException("Gamespy's gslist.cfg Not Found")
-        End If
 
-        fn = New StreamReader(fileName)
+        Dim gslistProvider = New EmbeddedFileProvider(Assembly.GetExecutingAssembly(), "Naomai.UTT.ScannerV2")
+        Dim gslistFile = gslistProvider.GetFileInfo("gslist.cfg").CreateReadStream()
+
+        fn = New StreamReader(gslistFile)
 
         Dim gsList As New Dictionary(Of String, GamespyGameInfo)
         Dim gsNewItem As GamespyGameInfo
@@ -208,7 +209,7 @@ Class MasterListGSpyFact
     Public Overrides Function ping() As Boolean
         Try
             Using connection = New JulkinNet
-                connection.connect(server.serverAddress)
+                connection.Connect(server.serverAddress)
                 Dim packet = connection.ReadNext()
 
                 Dim packetObj = New UTQueryPacket(packet, UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
@@ -266,7 +267,7 @@ Class MasterListGSpyFact
         Do
             getRawList &= lol.ReadNext()
         Loop While GetTickCount - tx < 7000 AndAlso InStr(getRawList, "\final\") = 0
-        lol.disconnect()
+        lol.Disconnect()
         If Len(getRawList) < 5 Then
             Throw New Exception("Master server query failed, no response to request")
         End If

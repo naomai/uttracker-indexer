@@ -45,7 +45,7 @@ Module ScannerApp
 
         dbCtx = New Utt2Context(dbconfig)
 
-        masterManager = New MasterServerManager(ini.GetProperty("MasterServer.Cache", ".\server_list.txt"), ini.GetProperty("MasterServer.GSListCFGLoc", ".\gslist.cfg"))
+        masterManager = New MasterServerManager(ini.GetProperty("MasterServer.Cache", ".\server_list.txt"))
         ' masterManager.log = log
 
         Dim msIdx As Integer = 0
