@@ -209,11 +209,11 @@ Class MasterListGSpyFact
         Try
             Using connection = New JulkinNet
                 connection.connect(server.serverAddress)
-                Dim packet = connection.sreadNext()
+                Dim packet = connection.ReadNext()
 
                 Dim packetObj = New UTQueryPacket(packet, UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
                 ping = packetObj.ContainsKey("basic") AndAlso packetObj.ContainsKey("secure")
-                connection.disconnect()
+                connection.Disconnect()
             End Using
         Catch ex As Exception
             Return False
@@ -240,8 +240,8 @@ Class MasterListGSpyFact
         lol.timeout = 2500
         Dim myResponse = New UTQueryPacket(UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
 
-        lol.connect(server.serverAddress)
-        packet = lol.sreadNext()
+        lol.Connect(server.serverAddress)
+        packet = lol.ReadNext()
         If Len(packet) = 0 Then Throw New Exception("No response from " & server.serverAddress)
 
         serverResponse = New UTQueryPacket(packet, UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer Or UTQueryPacket.UTQueryPacketFlags.UTQP_NoFinal)
@@ -259,12 +259,12 @@ Class MasterListGSpyFact
 
 
         myResponse.Add("list", "")
-        lol.swrite(myResponse)
+        lol.Write(myResponse)
 
         getRawList = ""
         tx = GetTickCount
         Do
-            getRawList &= lol.sreadNext()
+            getRawList &= lol.ReadNext()
         Loop While GetTickCount - tx < 7000 AndAlso InStr(getRawList, "\final\") = 0
         lol.disconnect()
         If Len(getRawList) < 5 Then
