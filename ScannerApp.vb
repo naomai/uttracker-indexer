@@ -36,7 +36,7 @@ Module ScannerApp
         dbconfig.username = ini.GetProperty("Database.MySQLUser")
         dbconfig.password = ini.GetProperty("Database.MySQLPass")
         dbconfig.database = ini.GetProperty("Database.MySQLDB")
-        dbconfig.protocol = ini.GetProperty("Database.MySQLProtocol")
+        dbconfig.protocol = ini.GetProperty("Database.MySQLProtocol", "socket")
         'dbconfig.charset = "utf16"
 
         If dbconfig.host = "changeme!!" Then

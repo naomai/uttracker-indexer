@@ -31,7 +31,6 @@ Public Class Logger
         If (logname = "") Then logname = progName & ".log"
         fileHandle = File.Open(logname, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read)
         fileHandle.SetLength(0)
-        logfile = logname
     End Sub
 
     Protected Overridable Sub Dispose(ByVal disposing As Boolean)

@@ -13,6 +13,9 @@
 
 Imports System.Text
 Imports System.IO
+Imports Microsoft.Extensions.FileProviders
+Imports System.Reflection
+Imports System.Diagnostics.Eventing
 
 Public Class IniFile
     Public iniName As String
@@ -32,7 +35,7 @@ Public Class IniFile
         End If
 
         If Not File.Exists(sourceFileReal) Then
-            File.Create(sourceFileReal).Dispose()
+            CreateIniTemplate(sourceFileReal)
         End If
 
         Me.iniName = sourceFileReal
@@ -74,6 +77,18 @@ Public Class IniFile
         Dim i As Integer = GetPrivateProfileString(section, propSplitted(1), "__UTTNONEXISTINGIDX__", temp, 255, Me.iniName)
         val = temp.ToString()
         Return val <> "__UTTNONEXISTINGIDX__"
+    End Function
+
+    Private Function CreateIniTemplate(dest As String)
+        Dim bundledConfigProvider = New EmbeddedFileProvider(Assembly.GetExecutingAssembly(), "Naomai.UTT.ScannerV2")
+        Dim bundledConfigFile = bundledConfigProvider.GetFileInfo("ConfigDist.ini")
+
+        Dim destinationConfig = File.Create(dest)
+        If bundledConfigFile.Exists Then
+            Dim bundledConfigStream = bundledConfigFile.CreateReadStream()
+            bundledConfigStream.CopyTo(destinationConfig)
+        End If
+        destinationConfig.Dispose()
     End Function
 
 End Class
