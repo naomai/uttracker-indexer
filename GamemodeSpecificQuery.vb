@@ -1,5 +1,5 @@
 ﻿Public MustInherit Class GamemodeSpecificQuery
-    Friend serverWorker As ServerScannerWorker
+    Friend serverWorker As ServerQuery
     Public MustOverride Function getInfoRequestString() As String
     Public MustOverride Sub parseInfoPacket(incomingPacket As Hashtable)
 
@@ -16,11 +16,11 @@
 
     End Sub
 
-    Public Sub New(serverWorker As ServerScannerWorker)
+    Public Sub New(serverWorker As ServerQuery)
         Me.serverWorker = serverWorker
     End Sub
 
-    Public Shared Function getQueryObjectForContext(serverWorker As ServerScannerWorker)
+    Public Shared Function getQueryObjectForContext(serverWorker As ServerQuery)
         Dim queryObject As GamemodeSpecificQuery = Nothing
         If serverWorker.caps.hasPropertyInterface = True Then
             Select Case serverWorker.info("gametype")

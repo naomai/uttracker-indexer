@@ -1,7 +1,9 @@
 ﻿Imports System.Net
+Imports System.Net.Sockets
+Imports System.Threading
 
 Public Class SocketManager
-    Dim julkin As New JulkinNet()
+    Private socket As System.Net.Sockets.Socket
 
     Dim ipQueue As New Hashtable
     Dim lastProcessed As Date
@@ -11,20 +13,37 @@ Public Class SocketManager
     Dim ignoreIps As New Hashtable
 
     Public Event PacketReceived(packet() As Byte, source As IPEndPoint)
-
     Public Sub New()
-        julkin.setProto(JulkinNet.jnProt.jnUDP)
-        julkin.timeout = 5000
-        julkin.bind()
+        socket = New Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
+        socket.Bind(New IPEndPoint(IPAddress.Any, 0))
+        socket.ReceiveTimeout = 5000
+        socket.ReceiveBufferSize = 1024 * 1024
+
         lastProcessed = Date.UtcNow
     End Sub
 
-    Public Sub sendTo(endpoint As IPEndPoint, packet As String)
-        julkin.swriteTo(packet, endpoint)
-    End Sub
-
     Public Sub sendTo(endpoint As String, packet As String)
-        julkin.swriteTo(packet, endpoint)
+        Dim buffer = System.Text.Encoding.ASCII.GetBytes(packet)
+
+        Dim ip As String = getIp(endpoint), port As UInt16 = getPort(endpoint)
+
+        Dim addr As IPAddress = Nothing, endpointObj As IPEndPoint = Nothing
+        If Net.IPAddress.TryParse(ip, addr) Then
+            endpointObj = New IPEndPoint(addr, port)
+        Else
+            endpointObj = New IPEndPoint(Dns.GetHostEntry(ip).AddressList(0), port)
+        End If
+
+
+        Try
+            socket.SendTo(buffer, endpointObj)
+        Catch E As Exception
+            Try
+                socket.Receive(Nothing, socket.Available, SocketFlags.None)
+            Catch NullEx As ArgumentNullException
+
+            End Try
+        End Try
     End Sub
 
     Public Sub tick()
@@ -36,10 +55,17 @@ Public Class SocketManager
     End Sub
 
     Private Sub enqueueIncomingPackets()
-        Dim packet() As Byte, source As New IPEndPoint(IPAddress.Any, 0), sourceIp As String
-        Do While julkin.Available > 0
+        Dim packet() As Byte, source As EndPoint = New IPEndPoint(IPAddress.Any, 0), sourceIp As String
+        Do While socket.Available > 0
             Try
-                packet = julkin.recvfrom(source)
+
+                Dim bytesRead As Integer
+                ReDim packet(2000)
+                bytesRead = socket.ReceiveFrom(packet, source)
+                If bytesRead > 0 Then
+                    ReDim Preserve packet(bytesRead)
+                End If
+
                 sourceIp = source.ToString
                 If ignoreIps.ContainsKey(sourceIp) Then
                     Continue Do

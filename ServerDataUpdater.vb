@@ -3,16 +3,16 @@ Imports System.Data
 Imports System.Text.Json
 Imports Naomai.UTT.ScannerV2.Utt2Database
 
-Public Class SaveGame
-    Protected serverWorker As ServerScannerWorker
+Public Class ServerDataUpdater
+    Protected serverWorker As ServerQuery
     Public dbCtx As Utt2Context
     Dim uttServerId As Int32
     Dim uttGameId As UInt32
     Dim uttServerScanTime As DateTime
-    Public state As SaveGameWorkerState
+    Public state As ServerScannerSaverState
     Private serverRecord As Server
 
-    Public Sub New(serverWorker As ServerScannerWorker)
+    Public Sub New(serverWorker As ServerQuery)
         Me.serverWorker = serverWorker
         dbCtx = serverWorker.scannerMaster.dbCtx
     End Sub
@@ -35,10 +35,10 @@ Public Class SaveGame
 
 
     Private Sub prepareServerRecord()
-        serverRecord = dbCtx.Servers.SingleOrDefault(Function(s) s.Address = serverWorker.address)
+        serverRecord = dbCtx.Servers.SingleOrDefault(Function(s) s.Address = serverWorker.addressQuery)
         If IsNothing(serverRecord) Then
             serverRecord = New Server() With {
-                .Address = serverWorker.address
+                .Address = serverWorker.addressQuery
             }
         End If
         state.hasDBRecord = True
@@ -87,7 +87,7 @@ Public Class SaveGame
 
         'utt haxes:
         rulesJoined("__uttlastupdate") = unixTime(uttServerScanTime)
-        rulesJoined("queryport") = Split(serverWorker.address, ":").Last
+        rulesJoined("queryport") = Split(serverWorker.addressQuery, ":").Last
         If serverWorker.caps.hasXSQ Then
             rulesJoined("__uttxserverquery") = "true"
         End If
@@ -399,7 +399,7 @@ Public Class SaveGame
 End Class
 
 
-Public Structure SaveGameWorkerState
+Public Structure ServerScannerSaverState
     Dim hasDBRecord As Boolean
     Dim hasServerId As Boolean
     Dim savedInfo As Boolean
