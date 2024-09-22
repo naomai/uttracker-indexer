@@ -16,10 +16,6 @@ Public Class JulkinNet
     ''' <summary>Creates network connection using simple interface</summary>
 
     Private Declare Function GetTickCount Lib "kernel32" () As Long
-    Private Declare Sub Sleep Lib "kernel32.dll" (ByVal Milliseconds As Integer)
-    Private Declare Function GetCurrentThread Lib "kernel32.dll" () As Long
-    Private Declare Function GetCurrentThreadId Lib "kernel32.dll" () As Long
-    Private Declare Function GetCurrentProcessId Lib "kernel32.dll" () As Long
 
     Public Enum jnProt
         jnTCP = 0
@@ -35,24 +31,22 @@ Public Class JulkinNet
 #Region "Private variables"
     Private disposed As Boolean = False
 
-    Private sprot As jnProt
+    Private protocol As jnProt
 
     Private dataCame As Boolean
     Private isSending As Boolean
 
     'Private buffer() As Byte
-    Private buf_ip As New ConcurrentDictionary(Of String, String) 'Hashtable()
-    Private timeout_ip As New ConcurrentDictionary(Of String, ULong) 'Hashtable()
+    Private hostPackets As New ConcurrentDictionary(Of String, String) 'Hashtable()
+    Private hostLastActivity As New ConcurrentDictionary(Of String, ULong) 'Hashtable()
 
     Private timeStarted As Long
-    Private timeLastData As Long
     Private remote As IPEndPoint
 
-    Private socketx As System.Net.Sockets.Socket
+    Private socketTcp As System.Net.Sockets.Socket
+    Private socketUdp As System.Net.Sockets.UdpClient
 
-    Private socketudp As System.Net.Sockets.UdpClient
     Private threadLocker As New Object
-    Private lockingThreadId As Long
 #End Region
 
     ''' <summary>Creates new socket.</summary>
@@ -60,13 +54,13 @@ Public Class JulkinNet
         Randomize(Date.UtcNow.Ticks)
         isSending = False
         dataCame = False
-        sprot = jnProt.jnTCP
+        protocol = jnProt.jnTCP
         timeout = 500
     End Sub
 
     Public ReadOnly Property Available As Integer
         Get
-            Return socketx.Available
+            Return socketTcp.Available
         End Get
     End Property
 
@@ -82,9 +76,8 @@ Public Class JulkinNet
     Public Sub connect(ByVal ip As String, ByVal port As Integer)
         On Error Resume Next
         Dim addr As IPAddress = Nothing
-        'Dim hostEntry As System.Net.IPHostEntry = System.Net.Dns.GetHostEntry(ip)
 
-        If Not IsNothing(socketx) Then
+        If Not IsNothing(socketTcp) Then
             disconnect()
         End If
         If Net.IPAddress.TryParse(ip, addr) Then
@@ -92,61 +85,42 @@ Public Class JulkinNet
         Else
             remote = New IPEndPoint(Dns.GetHostEntry(ip).AddressList(0), port)
         End If
-        If sprot = jnProt.jnTCP Then
-            socketx = New Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
-            'socketx.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, True)
+        If protocol = jnProt.jnTCP Then
+            socketTcp = New Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
         Else
-            socketx = New Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
-            socketx.Bind(New IPEndPoint(IPAddress.Any, 0))
+            socketTcp = New Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
+            socketTcp.Bind(New IPEndPoint(IPAddress.Any, 0))
         End If
-        socketx.ReceiveTimeout = timeout
+        socketTcp.ReceiveTimeout = timeout
 
 
-        ' If socket.State <> sckClosed Then disconnect()
+        If protocol = jnProt.jnTCP Then
+            socketTcp.Connect(ip, port)
 
-        'setTimeout()
-
-        If sprot = jnProt.jnTCP Then
-            'socketx.LocalPort = (Rnd() * 6000) + 1024
-            socketx.Connect(ip, port)
-            'Do
-            'DoEvents()
-            'Loop While Socket.State <> sckConnected And Not isTimedOut
         Else
-            'Socket.RemoteHost = ip
-            'Socket.RemotePort = port
-            'socketx.Bind(New System.Net.IPEndPoint(Dns.GetHostEntry(Dns.GetHostName()).AddressList(0), 0))
-            'Do
-            '    DoEvents()
-            'Loop While Socket.State <> sckOpen And Not isTimedOut
+
         End If
     End Sub
     Public Sub bind(Optional ByVal port As Integer = 0)
 
         Dim addr As IPAddress = Nothing
-        'Dim hostEntry As System.Net.IPHostEntry = System.Net.Dns.GetHostEntry(ip)
 
-        If Not IsNothing(socketx) Then
+        If Not IsNothing(socketTcp) Then
             disconnect()
         End If
-        If sprot = jnProt.jnUDP Then
-            socketx = New Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
-            socketx.Bind(New IPEndPoint(IPAddress.Any, port))
+        If protocol = jnProt.jnUDP Then
+            socketTcp = New Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
+            socketTcp.Bind(New IPEndPoint(IPAddress.Any, port))
         End If
-        socketx.ReceiveTimeout = timeout
-        socketx.ReceiveBufferSize = 1024 * 1024 ' 1mb
+        socketTcp.ReceiveTimeout = timeout
+        socketTcp.ReceiveBufferSize = 1024 * 1024 ' 1mb
     End Sub
 
     ''' <summary>Close the socket if it's connected</summary>
     Public Sub disconnect()
-        If Not IsNothing(socketx) AndAlso socketx.Connected Then
-            'setTimeout()
-
-            socketx.Shutdown(SocketShutdown.Both)
-            If socketx.Connected Then socketx.Disconnect(True)
-            'Do
-            'DoEvents()
-            'Loop While Socket.State <> sckClosed And Not isTimedOut
+        If Not IsNothing(socketTcp) AndAlso socketTcp.Connected Then
+            socketTcp.Shutdown(SocketShutdown.Both)
+            If socketTcp.Connected Then socketTcp.Disconnect(True)
         End If
     End Sub
     ''' <summary>
@@ -155,8 +129,8 @@ Public Class JulkinNet
     ''' <param name="prot">Protocol (jnTCP or jnUDP)</param>
     ''' <remarks></remarks>
     Public Sub setProto(ByVal prot As jnProt)
-        If IsNothing(socketx) Then
-            sprot = prot
+        If IsNothing(socketTcp) Then
+            protocol = prot
         End If
     End Sub
 
@@ -167,7 +141,7 @@ Public Class JulkinNet
     ''' <remarks></remarks>
     Public Sub swrite(ByVal packet As Byte()) '
         If IsNothing(remote) Then Exit Sub
-        socketx.SendTo(packet, remote)
+        socketTcp.SendTo(packet, remote)
 
     End Sub
     Public Sub swrite(ByVal packet As String) '
@@ -186,67 +160,55 @@ Public Class JulkinNet
     End Function
 
     Public Function sreadNextBytes() As Byte()
-        'Dim exc As SocketException
-        'dataCame = False
         Dim buffer(0) As Byte
         setTimeout()
-        'Do
-        'DoEvents()
-        'Loop While Not dataCame And Not isTimedOut
+
         If IsNothing(remote) Then Return buffer
         Do
-            'Application.DoEvents()
-            'Thread.Sleep(15)
-        Loop While socketx.Available = 0 AndAlso Not isTimedOut()
-        If socketx.Available <= 0 Then Return buffer
-        ReDim buffer(socketx.Available - 1)
+
+        Loop While socketTcp.Available = 0 AndAlso Not isTimedOut()
+        If socketTcp.Available <= 0 Then Return buffer
+        ReDim buffer(socketTcp.Available - 1)
         Try
-            socketx.Receive(buffer, socketx.Available, SocketFlags.None)
+            socketTcp.Receive(buffer, socketTcp.Available, SocketFlags.None)
             If buffer(0) <> 0 Then
                 Return buffer
             Else
-                'Return ""
+
             End If
         Catch
-            'sreadNextBytes = ""
         End Try
         Return Nothing
-        'Application.DoEvents()
+
     End Function
 
     Public Function sread(ByVal numbytes As Integer)
         Dim out As String = ""
         Dim bytesRead As Integer = 0, brtmp As Integer, buffer() As Byte
         setTimeout()
-        'Do
-        'DoEvents()
-        'Loop While Len(buffer) < numbytes And Not isTimedOut
+
         Do
 
 
-        Loop While socketx.Available = 0 And Not isTimedOut()
+        Loop While socketTcp.Available = 0 And Not isTimedOut()
 
         ReDim buffer(numbytes)
 
-        'setTimeout()
+
         Do
-            'brtmp = socketx.Available
             Try
-                brtmp = socketx.Receive(buffer, bytesRead, socketx.Available, SocketFlags.None)
+                brtmp = socketTcp.Receive(buffer, bytesRead, socketTcp.Available, SocketFlags.None)
             Catch
                 Exit Do
             End Try
             bytesRead += brtmp
-            'Application.DoEvents()
-            'Thread.Sleep(50)
-            'sread = Left(buffer, numbytes)
+
         Loop While bytesRead < numbytes AndAlso Not isTimedOut()
-        'setTimeout()
-        'Do
+
         out = System.Text.Encoding.ASCII.GetString(buffer)
-        'Loop While Len(out) < numbytes And Not isTimedOut()
+
         sread = Left(out, Min(numbytes, bytesRead))
-        'buffer = Mid(buffer, numbytes + 1)
+
     End Function
     Public Function sreadLarge()
         Dim tmp As String
@@ -254,10 +216,8 @@ Public Class JulkinNet
         Do
             tmp = sread(32768)
             sreadLarge = sreadLarge & tmp
-            'Thread.Sleep(1)
-            'Application.DoEvents()
+
         Loop While tmp <> ""
-        'MsgBox(Len(sreadLarge))
     End Function
     Protected Overrides Sub Finalize()
 
@@ -270,7 +230,6 @@ Public Class JulkinNet
 
     Private Function isTimedOut()
         isTimedOut = (timeout <> 0 AndAlso GetTickCount() > (timeStarted + timeout))
-        'Thread.Sleep(0)
     End Function
     Private Function getIp(ByVal addr As String)
         Dim tmpx() As String
@@ -300,11 +259,11 @@ Public Class JulkinNet
     End Sub
     Public Sub swriteTo(ByVal packet() As Byte, ByVal endpoint As IPEndPoint) '
         Try
-            socketx.SendTo(packet, endpoint)
+            socketTcp.SendTo(packet, endpoint)
         Catch E As Exception
             'MsgBox(E.Message)
             Try
-                socketx.Receive(Nothing, socketx.Available, SocketFlags.None)
+                socketTcp.Receive(Nothing, socketTcp.Available, SocketFlags.None)
             Catch NullEx As ArgumentNullException
 
             End Try
@@ -337,24 +296,19 @@ Public Class JulkinNet
     End Function
 
     Public Function sreadFrom(ByVal endpoint As IPEndPoint) As String
-        'Dim exc As SocketException
-        Dim remotex As New IPEndPoint(IPAddress.Any, 0), rip As String, loc As String, bytesread As Integer
+        Dim remoteEndpoint As New IPEndPoint(IPAddress.Any, 0), remoteAddress As String
+        Dim expectedAddress As String, bytesRead As Integer
         Dim btmp As String, buffer(10000) As Byte, buffercopy(10000) As Byte
         sreadFrom = ""
-        loc = endpoint.ToString
+        expectedAddress = endpoint.ToString
 
 
 
-        If buf_ip.ContainsKey(loc) AndAlso Len(buf_ip(loc)) <> 0 Then
-            'sreadFrom = buf_ip(loc)
-            'buf_ip(loc) = ""
-            'buf_ip.TryRemove(loc, Nothing)
-            buf_ip.TryRemove(loc, sreadFrom)
-            'Return buf_ip(loc)
+        If hostPackets.ContainsKey(expectedAddress) AndAlso Len(hostPackets(expectedAddress)) <> 0 Then
+            hostPackets.TryRemove(expectedAddress, sreadFrom)
             Exit Function
         End If
-        timeout_ip(loc) = GetTickCount
-        'socketx.ReceiveTimeout = 200
+        hostLastActivity(expectedAddress) = GetTickCount
 
         Do
             Thread.Sleep(1)
@@ -366,42 +320,19 @@ Public Class JulkinNet
             'the per-ip buffer approach is stupid, so don't copy it to other projects.
 
             SyncLock threadLocker
-                'lockingThreadId = GetCurrentThreadId() And &HFFFF
-                If socketx.Available > 0 Then
-
-                    'ReDim buffer(5000)
-                    'ReDim buffercopy(5000)
-
-                    'Console.WriteLine("{0}|{1}", buffer.Count, socketx.Available)
+                If socketTcp.Available > 0 Then
                     Try
+                        bytesRead = socketTcp.ReceiveFrom(buffer, DirectCast(remoteEndpoint, EndPoint))
+                        If bytesRead > 0 Then
+                            remoteAddress = remoteEndpoint.ToString()
 
-                        ' If bytesread > 5000 Then
-                        'Debugger.Break()
-                        ' End If
-                        bytesread = socketx.ReceiveFrom(buffer, DirectCast(remotex, EndPoint))
-                        'socketx.Receive(buffer, socketx.Available, SocketFlags.None)
-                        If bytesread > 0 Then
+                            Array.Copy(buffer, buffercopy, bytesRead)
 
-                            rip = remotex.ToString()
-
-                            'Dim bx As Integer = 0
-                            'For i = 0 To Min(bytesread, buffer.Count)
-                            '    If buffer(i) Then
-                            '        buffercopy(bx) = buffer(i)
-                            '        bx += 1
-                            '    End If
-                            'Next
-
-
-                            Array.Copy(buffer, buffercopy, bytesread)
-
-                            btmp = Left(System.Text.Encoding.ASCII.GetString(buffercopy), bytesread)
-                            'btmp = ASCII.GetString(buffer)
-                            'Console.WriteLine("GOT: {0} WAIT: {1} | {2}", rip, loc, Left(btmp, 30))
-                            If buf_ip.ContainsKey(rip) Then
-                                buf_ip(rip) &= btmp
+                            btmp = Left(System.Text.Encoding.ASCII.GetString(buffercopy), bytesRead)
+                            If hostPackets.ContainsKey(remoteAddress) Then
+                                hostPackets(remoteAddress) &= btmp
                             Else
-                                buf_ip(rip) = btmp
+                                hostPackets(remoteAddress) = btmp
                             End If
                         End If
 
@@ -410,38 +341,31 @@ Public Class JulkinNet
                     End Try
                 End If
             End SyncLock
-            'Dim a = Len(buf_ip(loc))
-            'Dim b = GetTickCount - (timeout_ip(loc) + timeout)
-        Loop While GetTickCount - timeout_ip(loc) < timeout AndAlso buf_ip.ContainsKey(loc) AndAlso Len(buf_ip(loc)) = 0
-        'Console.WriteLine("GOT: {0}", loc)
-        If buf_ip.ContainsKey(loc) AndAlso Len(buf_ip(loc)) <> 0 Then
-            'sreadFrom = buf_ip(loc)
-            buf_ip.TryRemove(loc, sreadFrom)
+
+        Loop While GetTickCount - hostLastActivity(expectedAddress) < timeout AndAlso hostPackets.ContainsKey(expectedAddress) AndAlso Len(hostPackets(expectedAddress)) = 0
+
+        If hostPackets.ContainsKey(expectedAddress) AndAlso Len(hostPackets(expectedAddress)) <> 0 Then
+            hostPackets.TryRemove(expectedAddress, sreadFrom)
         Else
-            buf_ip.TryRemove(loc, Nothing)
+            hostPackets.TryRemove(expectedAddress, Nothing)
             Return ""
         End If
     End Function
 
     Public Function recvfrom(ByRef source As EndPoint)
         Dim buffer() As Byte, bufferConv() As Byte, packetString As String = "", bytesRead As Integer
-        'source = New IPEndPoint(IPAddress.Any, 0)
-        If socketx.Available = 0 Then Return ""
+        If socketTcp.Available = 0 Then Return ""
         ReDim buffer(2000)
-        bytesRead = socketx.ReceiveFrom(buffer, source)
+        bytesRead = socketTcp.ReceiveFrom(buffer, source)
         If bytesRead > 0 Then
             ReDim Preserve buffer(bytesRead)
-            'bufferConv = Encoding.Convert(Encoding.GetEncoding(437), Encoding.Unicode, buffer)
-            'packetString = ASCII.GetString(buffer)
-            'packetString = Unicode.GetString(bufferConv) 
         End If
-        'Return packetString
         Return buffer
     End Function
 
     Public Sub UdpBind(Optional ByVal port As Integer = 0)
-        If sprot = jnProt.jnUDP Then
-            socketudp = New UdpClient(port, AddressFamily.InterNetwork)
+        If protocol = jnProt.jnUDP Then
+            socketUdp = New UdpClient(port, AddressFamily.InterNetwork)
         End If
     End Sub
     Public Sub UdpSwriteTo(ByVal dest As String, ByVal packet As String) '
@@ -455,7 +379,7 @@ Public Class JulkinNet
         Else
             remoteX = New IPEndPoint(Dns.GetHostEntry(destip).AddressList(0), destport)
         End If
-        socketudp.Send(System.Text.Encoding.ASCII.GetBytes(packet), Len(packet), remoteX)
+        socketUdp.Send(System.Text.Encoding.ASCII.GetBytes(packet), Len(packet), remoteX)
         'Thread.Sleep(10)
     End Sub
     Public Function UdpSreadNext() As String
@@ -464,10 +388,10 @@ Public Class JulkinNet
         setTimeout()
         Do
             Thread.Sleep(5)
-        Loop While socketudp.Available = 0 AndAlso Not isTimedOut()
-        ReDim buffer(socketudp.Available - 1)
+        Loop While socketUdp.Available = 0 AndAlso Not isTimedOut()
+        ReDim buffer(socketUdp.Available - 1)
         Try
-            buffer = socketudp.Receive(udpRemote)
+            buffer = socketUdp.Receive(udpRemote)
             UdpSreadNext = System.Text.Encoding.ASCII.GetString(buffer)
         Catch exc
             UdpSreadNext = ""
@@ -477,21 +401,21 @@ Public Class JulkinNet
     End Function
 
     ' IDisposable
-    Protected Overridable Sub Dispose( _
+    Protected Overridable Sub Dispose(
        ByVal disposing As Boolean)
         If Not Me.disposed Then
             If disposing Then
-                If Not IsNothing(socketx) Then
+                If Not IsNothing(socketTcp) Then
                     disconnect()
-                    socketx.Dispose()
-                    socketx = Nothing
+                    socketTcp.Dispose()
+                    socketTcp = Nothing
                 End If
-                If Not IsNothing(socketudp) Then
-                    socketudp.Close()
-                    socketudp = Nothing
+                If Not IsNothing(socketUdp) Then
+                    socketUdp.Close()
+                    socketUdp = Nothing
                 End If
-                buf_ip = Nothing
-                timeout_ip = Nothing
+                hostPackets = Nothing
+                hostLastActivity = Nothing
                 'buffer = Nothing
             End If
             remote = Nothing
