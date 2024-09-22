@@ -123,19 +123,22 @@ Public Class SaveGame
         ' This value is reset to 0 when a new match is started
         ' We can leverage this to detect new matches on one-map servers
 
-        Dim thisMatchCurrentID As Int32 = -1, lastMatchCurrentID As Int32
+        Dim thisMatchCurrentID As Int32? = Nothing, lastMatchCurrentID As Int32?
         Dim newMatchByCurrentIDChange As Boolean = False
+
+        If scannerState.hasInfoExtended Then
+            thisMatchCurrentID = Integer.Parse(serverWorker.info("__uttgamecurrentid"))
+        End If
 
         If IsNothing(previousMatchRecord) Then
             state.isNewMatch = True
         Else
             lastMatchCurrentID = previousMatchRecord.ServerPlayeridCounter
             If scannerState.hasInfoExtended Then
-                thisMatchCurrentID = serverWorker.info("__uttgamecurrentid")
                 newMatchByCurrentIDChange =
                     serverWorker.info("numplayers") > 0 AndAlso
-                    lastMatchCurrentID <> -1 AndAlso
-                    thisMatchCurrentID <> -1 AndAlso
+                    Not IsNothing(lastMatchCurrentID) AndAlso
+                    Not IsNothing(thisMatchCurrentID) AndAlso
                     thisMatchCurrentID < lastMatchCurrentID AndAlso
                     previousMatchRecord.MapName = serverWorker.info("mapname")
 
@@ -201,7 +204,9 @@ Public Class SaveGame
         Dim matchRecord As ServerMatch
 
         If state.isNewMatch Then
-            If timeMatchStart = Nothing Then timeMatchStart = Date.UtcNow
+            If timeMatchStart = Nothing Then
+                timeMatchStart = Date.UtcNow
+            End If
 
             matchRecord = New ServerMatch With {
             .ServerId = uttServerId,
@@ -213,11 +218,10 @@ Public Class SaveGame
             dbCtx.SaveChanges()
             uttGameId = matchRecord.Id
         Else
-            If thisMatchCurrentID <> -1 AndAlso thisMatchCurrentID > lastMatchCurrentID Then
+            If Not IsNothing(thisMatchCurrentID) AndAlso thisMatchCurrentID > lastMatchCurrentID Then
+                ' only update CurrenID in DB
                 'matchRecord = dbCtx.ServerMatches.Single(Function(g) g.Id = thisMatchCurrentID)
-                matchRecord = previousMatchRecord
-
-                matchRecord.ServerPlayeridCounter = thisMatchCurrentID
+                previousMatchRecord.ServerPlayeridCounter = thisMatchCurrentID
                 dbCtx.SaveChanges()
             End If
             uttGameId = previousMatchRecord.Id
