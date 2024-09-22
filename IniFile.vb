@@ -14,7 +14,7 @@
 Imports System.Text
 Imports System.IO
 
-Public Class N14INI
+Public Class IniFile
     Public iniName As String
 
     Private Declare Function WritePrivateProfileString Lib "kernel32.dll" Alias "WritePrivateProfileStringA" (ByVal section As String, ByVal key As String, ByVal val As String, ByVal filePath As String) As Long
@@ -28,7 +28,7 @@ Public Class N14INI
         Dim sourceFileReal = Path.GetFullPath(sourceFile)
 
         If Not Directory.Exists(Path.GetDirectoryName(sourceFileReal)) Then
-            Throw New N14INIException("Invalid path")
+            Throw New IniFileException("Invalid path")
         End If
 
         If Not File.Exists(sourceFileReal) Then
@@ -40,34 +40,34 @@ Public Class N14INI
 
     Public Property Item(index As String) As String
         Get
-            Return getProperty(index)
+            Return GetProperty(index)
         End Get
         Set(value As String)
-            setProperty(index, value)
+            SetProperty(index, value)
         End Set
 
     End Property
 
-    Public Function getProperty(prop As String, Optional defaultVal As String = "")
+    Public Function GetProperty(prop As String, Optional defaultVal As String = "")
         Dim temp As New StringBuilder(255), val As String
         Dim propSplitted = Split(prop, ".", 2)
         Dim section = propSplitted(0).Replace("|", ".")
         Dim i As Integer = GetPrivateProfileString(section, propSplitted(1), Nothing, temp, 255, Me.iniName)
         val = temp.ToString()
         If val = "" AndAlso defaultVal <> "" Then
-            setProperty(prop, defaultVal)
+            SetProperty(prop, defaultVal)
             Return defaultVal
         End If
         Return val
     End Function
 
-    Public Sub setProperty(prop As String, value As String)
+    Public Sub SetProperty(prop As String, value As String)
         Dim propSplitted = Split(prop, ".", 2)
         Dim section = propSplitted(0).Replace("|", ".")
         WritePrivateProfileString(section, propSplitted(1), value, Me.iniName)
     End Sub
 
-    Public Function propertyExists(prop As String) As Boolean
+    Public Function PropertyExists(prop As String) As Boolean
         Dim temp As New StringBuilder(255), val As String
         Dim propSplitted = Split(prop, ".", 2)
         Dim section = propSplitted(0).Replace("|", ".")
@@ -78,7 +78,7 @@ Public Class N14INI
 
 End Class
 
-Public Class N14INIException
+Public Class IniFileException
     Inherits Exception
 
     Public Sub New()

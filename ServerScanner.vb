@@ -21,7 +21,7 @@ Public Class ServerScanner
     Public serversCountOnline As Integer
 
     Protected Friend log As DeVlog
-    Protected Friend ini As N14INI
+    Protected Friend ini As IniFile
     Protected Friend dbCtx As Utt2Context
     Protected Friend dyncfg As DynConfig
 

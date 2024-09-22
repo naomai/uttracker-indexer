@@ -7,18 +7,18 @@ Module ScannerApp
     Dim WithEvents master As GSMasterServer
     Dim masterBridge As GSMasterServerBridge
     Dim masterManager As MasterServerManager
-    Dim ini As N14INI
+    Dim ini As IniFile
     Dim log As DeVlog
     Dim dbCtx As Utt2Context
     Dim dyncfg As DynConfig
 
     Sub Main()
         Dim appName = System.Reflection.Assembly.GetEntryAssembly.GetName.Name
-        ini = New N14INI()
+        ini = New IniFile()
         log = New DeVlog()
 
         log.consoleLoggingLevel = (DeVlogLoggingLevel.err Or DeVlogLoggingLevel.out)
-        If ini.getProperty("General.LogToFile", 0) Then
+        If ini.GetProperty("General.LogToFile", 0) Then
             log.fileLoggingLevel = (DeVlogLoggingLevel.err Or DeVlogLoggingLevel.out Or DeVlogLoggingLevel.debug)
         Else
             log.fileLoggingLevel = 0
@@ -32,11 +32,11 @@ Module ScannerApp
 
 
         Dim dbconfig As MySQLDBConfig
-        dbconfig.host = ini.getProperty("Database.MySQLHost", "changeme!!")
-        dbconfig.username = ini.getProperty("Database.MySQLUser")
-        dbconfig.password = ini.getProperty("Database.MySQLPass")
-        dbconfig.database = ini.getProperty("Database.MySQLDB")
-        dbconfig.protocol = ini.getProperty("Database.MySQLProtocol")
+        dbconfig.host = ini.GetProperty("Database.MySQLHost", "changeme!!")
+        dbconfig.username = ini.GetProperty("Database.MySQLUser")
+        dbconfig.password = ini.GetProperty("Database.MySQLPass")
+        dbconfig.database = ini.GetProperty("Database.MySQLDB")
+        dbconfig.protocol = ini.GetProperty("Database.MySQLProtocol")
         'dbconfig.charset = "utf16"
 
         If dbconfig.host = "changeme!!" Then
@@ -45,13 +45,13 @@ Module ScannerApp
 
         dbCtx = New Utt2Context(dbconfig)
 
-        masterManager = New MasterServerManager(ini.getProperty("MasterServer.Cache", ".\server_list.txt"), ini.getProperty("MasterServer.GSListCFGLoc", ".\gslist.cfg"))
+        masterManager = New MasterServerManager(ini.GetProperty("MasterServer.Cache", ".\server_list.txt"), ini.GetProperty("MasterServer.GSListCFGLoc", ".\gslist.cfg"))
         ' masterManager.log = log
 
         Dim msIdx As Integer = 0
         Dim masterServerString As String
-        Do While ini.propertyExists("UBrowserAll.ListFactories[" & msIdx & "]")
-            masterServerString = ini.getProperty("UBrowserAll.ListFactories[" & msIdx & "]")
+        Do While ini.PropertyExists("UBrowserAll.ListFactories[" & msIdx & "]")
+            masterServerString = ini.GetProperty("UBrowserAll.ListFactories[" & msIdx & "]")
             If masterServerString <> "" Then
                 masterManager.addMasterServer(masterServerString)
             End If
@@ -59,8 +59,8 @@ Module ScannerApp
         Loop
 
         msIdx = 0
-        Do While ini.propertyExists("XBrowser|XBrowserTabInternet.MasterServer[" & msIdx & "]")
-            masterServerString = ini.getProperty("XBrowser|XBrowserTabInternet.MasterServer[" & msIdx & "]")
+        Do While ini.PropertyExists("XBrowser|XBrowserTabInternet.MasterServer[" & msIdx & "]")
+            masterServerString = ini.GetProperty("XBrowser|XBrowserTabInternet.MasterServer[" & msIdx & "]")
             If masterServerString <> "" Then
                 masterManager.addMasterServer(masterServerString)
             End If
@@ -76,8 +76,8 @@ Module ScannerApp
             .log = log
             .dbCtx = dbCtx
             .dyncfg = dyncfg.Ns("scanner")
-            .masterServerUpdateInterval = ini.getProperty("MasterServer.RefreshIntervalMins", "120") * 60
-            .scanInterval = ini.getProperty("General.IntervalMins", "2") * 60
+            .masterServerUpdateInterval = ini.GetProperty("MasterServer.RefreshIntervalMins", "120") * 60
+            .scanInterval = ini.GetProperty("General.IntervalMins", "2") * 60
             .iniFile = ini.iniName
             .masterServerManager = masterManager
         End With
@@ -89,9 +89,9 @@ Module ScannerApp
         Dim nextscan As DateTime
 
 
-        If ini.getProperty("GSMasterServer.Enabled", "0") = 1 Then
+        If ini.GetProperty("GSMasterServer.Enabled", "0") = 1 Then
             log.WriteLine("Enabling GameSpy Master Server...")
-            Dim msPort As Integer = ini.getProperty("GSMasterServer.Port", "28900")
+            Dim msPort As Integer = ini.GetProperty("GSMasterServer.Port", "28900")
             Dim msDbCtx = New Utt2Context(dbconfig)
             master = New GSMasterServer(msPort)
             masterBridge = New GSMasterServerBridge(msDbCtx)
