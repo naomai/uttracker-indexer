@@ -280,10 +280,10 @@ Namespace Utt2Database
                     entity.Property(Function(e) e.Id).
                         HasColumnType("bigint(20) unsigned").
                         HasColumnName("id")
-                    entity.Property(Function(e) e.InternalMatchId).
+                    entity.Property(Function(e) e.ServerPlayeridCounter).
                         HasDefaultValueSql("'NULL'").
                         HasColumnType("int(11)").
-                        HasColumnName("internal_match_id")
+                        HasColumnName("server_playerid_counter")
                     entity.Property(Function(e) e.MapName).
                         IsRequired().
                         HasMaxLength(255).

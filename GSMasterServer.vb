@@ -68,16 +68,16 @@ Public Class GSMasterServer
     End Sub
 
     Public Sub tick()
-        Dim slaveConnection As Socket, slave As GSMasterServerConnection
+        Dim workerConnection As Socket, worker As GSMasterServerConnection
         tickCount += 1
 
         If listener.Pending() Then
-            slaveConnection = listener.AcceptSocket
+            workerConnection = listener.AcceptSocket
             Try
-                slave = New GSMasterServerConnection(slaveConnection, Me)
-                connectedClients.Add(slave)
-                OnClientConnected(slaveConnection.RemoteEndPoint)
-            Catch e As Exception When Not slaveConnection.Connected Or e.Source = "MySql.Data"
+                worker = New GSMasterServerConnection(workerConnection, Me)
+                connectedClients.Add(worker)
+                OnClientConnected(workerConnection.RemoteEndPoint)
+            Catch e As Exception When Not workerConnection.Connected Or e.Source = "MySql.Data"
 
             End Try
         End If

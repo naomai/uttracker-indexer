@@ -1,6 +1,6 @@
 ﻿Imports System.Net
 
-Public Class SocketMaster
+Public Class SocketManager
     Dim julkin As New JulkinNet()
 
     Dim ipQueue As New Hashtable

@@ -28,18 +28,17 @@ Public Class ServerScanner
 
 
     Protected WithEvents masterServerQuery As MasterServerManager
-    Protected WithEvents socketMaster As SocketMaster
-    Protected targets As New Hashtable
-    Protected targetsCollectionLock As New Object 'prevent 'For Each mess when collection is modified'
+    Protected WithEvents sockets As SocketManager
+    Protected serverWorkers As New Hashtable ' of ServerScannerWorker
+    Protected serverWorkersLock As New Object 'prevent 'For Each mess when collection is modified'
 
     Protected tickCounter As Integer = 0
-    Private transaction As RelationalTransaction
-
+    Private dbTransaction As RelationalTransaction
 
     Event OnScanBegin(serverCount As Integer)
     Event OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As TimeSpan)
 
-    Dim fragmentedPackets As New Hashtable
+    Dim serverPacketBuffer As New Hashtable
     Dim disposed As Boolean = False
 
     Public Sub New(scannerConfig As ServerScannerConfig)
@@ -91,18 +90,18 @@ Public Class ServerScanner
         RaiseEvent OnScanBegin(serversToScan.Count)
 
         initSockets()
-        initTargets(serversToScan)
+        initServerWorkers(serversToScan)
 
         scanStart = Date.UtcNow
         scanLastActivity = Date.UtcNow
-        serversCountTotal = targets.Count
+        serversCountTotal = serverWorkers.Count
 
         touchAll(True)
 
         tickCounter = 0
 
         Do While ((Date.UtcNow - scanLastActivity).TotalSeconds < 10 Or (Date.UtcNow - scanLastTouchAll).TotalSeconds >= 3) ' second check: avoid ending the scan too early when 'time-travelling'
-            socketMaster.tick()
+            sockets.tick()
             If (Date.UtcNow - scanLastTouchAll).TotalSeconds > 2 Then
                 'touchAll()
                 touchInactive()
@@ -119,8 +118,8 @@ Public Class ServerScanner
         Loop
 
         serversCountOnline = 0
-        SyncLock targetsCollectionLock
-            For Each target As ServerScannerWorker In targets.Values
+        SyncLock serverWorkersLock
+            For Each target As ServerScannerWorker In serverWorkers.Values
                 If target.getState().done AndAlso target.caps.isOnline Then
                     serversCountOnline += 1
                 End If
@@ -140,20 +139,20 @@ Public Class ServerScanner
     End Sub
 
 
-    Public Sub packetHandler(packet() As Byte, source As IPEndPoint) Handles socketMaster.PacketReceived
+    Public Sub packetHandler(packet() As Byte, source As IPEndPoint) Handles sockets.PacketReceived
         Dim fullPacket As String = "", target As ServerScannerWorker, ipString As String
 
         Dim packetString As String
         ipString = source.ToString
-        If Not targets.ContainsKey(ipString) Then Return ' unknown source!! we got packet that wasn't sent by any of the queried servers (haxerz?)
-        target = targets(ipString)
+        If Not serverWorkers.ContainsKey(ipString) Then Return ' unknown source!! we got packet that wasn't sent by any of the queried servers (haxerz?)
+        target = serverWorkers(ipString)
         Try
             If target.getState().done Then Return ' prevent processing the packets from targets in "done" state
             If packet.Length = 0 Then Return
 
             packetString = Encoding.Unicode.GetString(Encoding.Convert(Encoding.UTF8, Encoding.Unicode, packet))
 
-            fullPacket = fragmentedPackets(ipString) & packetString
+            fullPacket = serverPacketBuffer(ipString) & packetString
 
             target.incomingPacketObj = New UTQueryPacket(fullPacket)
 
@@ -161,14 +160,14 @@ Public Class ServerScanner
             target.tick()
 
             scanLastActivity = Date.UtcNow
-            fragmentedPackets(ipString) = ""
+            serverPacketBuffer(ipString) = ""
 
         Catch ex As UTQueryResponseIncompleteException
-            fragmentedPackets(source.ToString) = fullPacket
+            serverPacketBuffer(source.ToString) = fullPacket
         Catch ex As UTQueryInvalidResponseException ' we found a port that belongs to other service, so we're not going to bother it anymore
             target.logDbg("InvalidQuery: found unknown service")
             target.abortScan()
-            socketMaster.addIgnoredIp(target.address)
+            sockets.addIgnoredIp(target.address)
         End Try
         'debugShowStates()
 
@@ -176,18 +175,18 @@ Public Class ServerScanner
 
 
     Protected Sub initSockets()
-        socketMaster = New SocketMaster
+        sockets = New SocketManager
     End Sub
     Protected Sub disposeSockets()
-        socketMaster.clearIgnoredIps()
-        socketMaster = Nothing
+        sockets.clearIgnoredIps()
+        sockets = Nothing
     End Sub
 
     Private Sub debugShowStates()
         Dim bas, inf, infex, pl, ru, tt, don, onl, ttp As Integer
         Dim st As ServerScannerWorkerState
-        SyncLock targetsCollectionLock
-            For Each t As ServerScannerWorker In targets.Values
+        SyncLock serverWorkersLock
+            For Each t As ServerScannerWorker In serverWorkers.Values
                 st = t.getState
                 bas += IIf(st.hasBasic, 1, 0)
                 inf += IIf(st.hasInfo, 1, 0)
@@ -203,25 +202,25 @@ Public Class ServerScanner
         debugWriteLine("States: BAS {0} INF {1} INFEX {2} PL {3} RU {4} TT {5} TTP {8} DO {6} ON {7}", bas, inf, infex, pl, ru, tt, don, onl, ttp)
     End Sub
 
-    Protected Sub initTargets(serverList As List(Of String))
-        SyncLock targetsCollectionLock
+    Protected Sub initServerWorkers(serverList As List(Of String))
+        SyncLock serverWorkersLock
             For Each server In serverList
-                targets(server) = New ServerScannerWorker(Me, server)
-                targets(server).setSocket(socketMaster)
-                fragmentedPackets(server) = ""
+                serverWorkers(server) = New ServerScannerWorker(Me, server)
+                serverWorkers(server).setSocket(sockets)
+                serverPacketBuffer(server) = ""
             Next
         End SyncLock
     End Sub
 
     Protected Sub disposeTargets()
-        SyncLock targetsCollectionLock
-            For Each t As ServerScannerWorker In targets.Values
+        SyncLock serverWorkersLock
+            For Each t As ServerScannerWorker In serverWorkers.Values
                 Dim s = t.getState()
             Next
-            targets.Clear()
+            serverWorkers.Clear()
         End SyncLock
 
-        fragmentedPackets.Clear()
+        serverPacketBuffer.Clear()
 
     End Sub
 
@@ -285,28 +284,28 @@ Public Class ServerScanner
     End Function
 
     Protected Sub touchAll(Optional init As Boolean = False)
-        SyncLock targetsCollectionLock
-            If init Then
-                debugWriteLine("touchAll DOMINO MODE")
-                Dim lastPacketBufferFlush As Date = Date.UtcNow
-                For Each target As ServerScannerWorker In targets.Values
+        SyncLock serverWorkersLock
+            'If init Then
+
+            Dim lastPacketBufferFlush As Date = Date.UtcNow
+                For Each target As ServerScannerWorker In serverWorkers.Values
                     target.tick()
                     If (Date.UtcNow - lastPacketBufferFlush).TotalMilliseconds > 50 Then
-                        socketMaster.tick()
+                        sockets.tick()
                         taskSleep()
                         lastPacketBufferFlush = Date.UtcNow
                     End If
                 Next
-            Else
-                For Each target As ServerScannerWorker In targets.Values
-                    target.tick()
-                Next
-            End If
+            'Else
+            'For Each target As ServerScannerWorker In serverWorkers.Values
+            'target.tick()
+            '    Next
+            'End If
         End SyncLock
     End Sub
 
     Protected Sub touchInactive()
-        For Each target As ServerScannerWorker In targets.Values
+        For Each target As ServerScannerWorker In serverWorkers.Values
             If (Date.UtcNow - target.lastActivity).TotalSeconds > 15 Then
                 target.tick()
             End If
@@ -340,14 +339,14 @@ Public Class ServerScanner
     End Sub
 
     Private Sub ServerScanner_OnScanBegin(serverCount As Integer) Handles Me.OnScanBegin
-        transaction = dbCtx.Database.BeginTransaction()
+        dbTransaction = dbCtx.Database.BeginTransaction()
     End Sub
 
 
     Private Sub ServerScanner_OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As System.TimeSpan) Handles Me.OnScanComplete
-        transaction.Commit()
-        transaction.Dispose()
-        transaction = Nothing
+        dbTransaction.Commit()
+        dbTransaction.Dispose()
+        dbTransaction = Nothing
     End Sub
 
     Private Sub masterServerQuery_OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo)) Handles masterServerQuery.OnMasterServerManagerRequest
@@ -410,10 +409,10 @@ Public Class ServerScanner
 
         End If
 
-        If Not IsNothing(transaction) Then
-            transaction.Rollback()
-            transaction.Dispose()
-            transaction = Nothing
+        If Not IsNothing(dbTransaction) Then
+            dbTransaction.Rollback()
+            dbTransaction.Dispose()
+            dbTransaction = Nothing
         End If
         disposed = True
     End Sub
@@ -422,7 +421,7 @@ Public Class ServerScanner
 End Class
 
 Public Class ServerScannerWorker
-    Dim socket As SocketMaster
+    Dim socket As SocketManager
     Public scannerMaster As ServerScanner
 
     Public info As Hashtable
@@ -496,7 +495,7 @@ Public Class ServerScannerWorker
         Return state
     End Function
 
-    Public Sub setSocket(ByRef master As SocketMaster)
+    Public Sub setSocket(ByRef master As SocketManager)
         socket = master
     End Sub
 
@@ -817,7 +816,7 @@ Public Class ServerScannerWorker
     End Function
 
     Protected Friend Sub logDbg(msg As String)
-        scannerMaster.log.DebugWriteLine("ScannerSlave[{0}]: {1}", address, msg)
+        scannerMaster.log.DebugWriteLine("ServerWorker[{0}]: {1}", address, msg)
     End Sub
 
 End Class

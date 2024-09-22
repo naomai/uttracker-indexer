@@ -12,7 +12,7 @@ Namespace Utt2Database
 
         Public Property MapName As String
 
-        Public Property InternalMatchId As Integer?
+        Public Property ServerPlayeridCounter As Integer?
 
         Public Overridable Property PlayerLogs As ICollection(Of PlayerLog) = New List(Of PlayerLog)()
 
