@@ -22,9 +22,10 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
+        cache: true
     - name: Restore dependencies
       run: dotnet restore
     - name: Build for platform  ${{ matrix.platform }}
-      run: dotnet build ScannerV2.vbproj --no-restore --runtime ${{ matrix.platform }} --no-self-contained
+      run: dotnet build UTT_Indexer.vbproj --no-restore --runtime ${{ matrix.platform }} --no-self-contained
     #- name: Test
     #  run: dotnet test --no-build --verbosity normal

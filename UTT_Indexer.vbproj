@@ -11,6 +11,7 @@
     <AssemblyVersion></AssemblyVersion>
     <FileVersion></FileVersion>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>
