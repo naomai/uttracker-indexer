@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>Naomai.UTT.ScannerV2</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>
+    <RuntimeIdentifier>win-x64; linux-x64; linux-arm64</RuntimeIdentifier>
     <ImportedNamespaces>Microsoft.EntityFrameworkCore=False,Microsoft.EntityFrameworkCore.Design=False,MySql.Data.MySqlClient=False,MySql.Data.Types=False,Naomai.UTT.ScannerV2=False,Naomai.UTT.ScannerV2.My=False,System.Text.Json.Serialization=False,Microsoft.VisualBasic=True,System=True,System.Collections=True,System.Collections.Generic=True,System.Diagnostics=True,System.Linq=True,System.Xml.Linq=True,System.Threading.Tasks=True,ScannerV2=True</ImportedNamespaces>
     <Title>UTTracker Scanner</Title>
     <UseApplicationFramework>False</UseApplicationFramework>
