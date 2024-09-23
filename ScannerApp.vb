@@ -32,11 +32,21 @@ Module ScannerApp
 
 
         Dim dbconfig As MySQLDBConfig
-        dbconfig.host = ini.GetProperty("Database.MySQLHost", "changeme!!")
-        dbconfig.username = ini.GetProperty("Database.MySQLUser")
-        dbconfig.password = ini.GetProperty("Database.MySQLPass")
-        dbconfig.database = ini.GetProperty("Database.MySQLDB")
-        dbconfig.protocol = ini.GetProperty("Database.MySQLProtocol", "socket")
+        With dbconfig
+            If Environment.GetEnvironmentVariable("DB_HOST") <> "" Then
+                .host = Environment.GetEnvironmentVariable("DB_HOST")
+                .username = Environment.GetEnvironmentVariable("DB_USERNAME")
+                .password = Environment.GetEnvironmentVariable("DB_PASSWORD")
+                .database = Environment.GetEnvironmentVariable("DB_DATABASE")
+                .protocol = "socket"
+            Else
+                .host = ini.GetProperty("Database.MySQLHost", "changeme!!")
+                .username = ini.GetProperty("Database.MySQLUser")
+                .password = ini.GetProperty("Database.MySQLPass")
+                .database = ini.GetProperty("Database.MySQLDB")
+                .protocol = ini.GetProperty("Database.MySQLProtocol", "socket")
+            End If
+        End With
         'dbconfig.charset = "utf16"
 
         If dbconfig.host = "changeme!!" Then
