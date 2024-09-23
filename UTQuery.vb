@@ -204,104 +204,121 @@ Class UTQueryPacket
 
 
         Dim packetsSequence(30) As Hashtable ' used to merge all packets into a full response
-        Dim responseId As Integer
+        Dim responseId As Integer?
         Dim packetExpectedCount As Integer = 0
         Dim receivedCount As Integer = 0
         Dim isFinalPacket = packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoFinal)
         Dim isMultiIndex = packetFlags.HasFlag(UTQueryPacketFlags.UTQP_MultiIndex)
         Dim isMasterServer = packetFlags.HasFlag(UTQueryPacketFlags.UTQP_MasterServer)
 
-
-        If responseString = "" Then
-            Throw New UTQueryResponseIncompleteException("Empty response")
-        ElseIf responseString(0) <> "\"c Then
-            Throw New UTQueryInvalidResponseException("Response should start with backslash, got: '" & Asc(responseString(0)) & "'")
-        End If
-
         Try
-            Dim chunks() As String
-            Dim currentVariable As UTQueryKeyValuePair
+
             Dim keyName As String, value As String
             Dim packetId As Integer?
 
-            chunks = Split(responseString, "\")
-            For i = 1 To chunks.Count - 2 Step 2
-                keyName = LCase(chunks(i))
-                value = chunks(i + 1)
-                If keyName = "final" OrElse keyName = "wookie" Then
-                    If i >= 2 AndAlso chunks(i - 2) = "queryid" Then
-                        packetExpectedCount = packetId
-                    Else
-                        isFinalPacket = True
-                    End If
-                    Continue For ' we're not finished! there might be some more content from packet that might have arrived late
-                ElseIf i < chunks.Count - 1 AndAlso keyName = "secure" AndAlso value = "wookie" Then ' special case for master-server response
-                    packetContent(keyName) = value
-                    isFinalPacket = True
-                    Continue For
-                End If
-                If keyName = "queryid" Then ' we just bumped into the packet end, let's put it in correct place of queryarr
+            Dim response = PacketUnserialize(responseString)
 
-                    Dim sequenceIdChunks As String() = value.Split(".")
-                    packetId = sequenceIdChunks(1)
-                    responseId = sequenceIdChunks(0)
-                    packetContent("queryid") = responseId
-                    receivedCount += 1
-                    If isFinalPacket Then
-                        If IsNothing(packetId) Then 'empty (but complete and valid) response
-                            For Each var In packetContent.Keys
-                                currentVariable.key = var
-                                currentVariable.value = packetContent(var)
-                                currentVariable.sourcePacketId = 1
-                                responseResult.Add(currentVariable)
-                            Next
-                            Return responseResult
+            'chunks = Split(responseString, "\")
+            'For i = 1 To chunks.Count - 2 Step 2
+
+            Dim propPrevious As UTQueryKeyValuePair = Nothing
+            Dim iteration = 0
+            For Each prop In response
+                keyName = prop.key
+                value = prop.value
+
+                Select Case keyName
+                    Case "final", "wookie"
+                        If Not IsNothing(propPrevious) AndAlso propPrevious.key = "queryid" Then
+                            packetExpectedCount = packetId
+                        Else
+                            isFinalPacket = True
                         End If
-                        packetExpectedCount = packetId
-                        isFinalPacket = False
-                    End If
-                    packetsSequence(packetId) = packetContent.Clone()
-                    packetContent.Clear()
+                        ' we're not finished! there might be some more content from packet that might have arrived late
 
-                Else
-                    If isMultiIndex Then ' multi-index = has multiple keys with the same name, like \ip\123\ip\456\ip\...
-                        If Not packetContent.ContainsKey(keyName) Then
-                            packetContent(keyName) = New List(Of String)
+                    Case "queryid"
+                        If isMasterServer Then
+                            Throw New UTQueryInvalidResponseException("QueryID is not expected from Master Server")
                         End If
-                        packetContent(keyName).Add(value)
-                    Else
-                        packetContent(keyName) = value
-                    End If
+                        Dim sequenceIdChunks As String() = value.Split(".")
+                        responseId = sequenceIdChunks(0)
+                        packetId = sequenceIdChunks(1)
+                        'prop.value = responseId
 
-                End If
+                        'packetContent(keyName) = prop
+                        receivedCount += 1
+                        If isFinalPacket Then
+                            If IsNothing(packetId) Then
+                                'empty (but complete and valid) response
+                                'TODO investigate reason for this - are there any responses without packetId like \queryid\5\ ?
+                                For Each var In packetContent.Keys
+                                    prop.sourcePacketId = 1
+                                    responseResult.Add(prop)
+                                Next
+                                Return responseResult
+                            End If
+                            packetExpectedCount = packetId
+                            isFinalPacket = False
+                        End If
+                        packetsSequence(packetId) = packetContent.Clone()
+                        packetContent.Clear()
+
+                    Case Else
+                        If keyName = "secure" AndAlso value = "wookie" Then ' special case for master-server response
+                            isFinalPacket = True
+                        End If
+
+                        If isMultiIndex Then ' multi-index = has multiple keys with the same name, like \ip\123\ip\456\ip\...
+                            If Not packetContent.ContainsKey(keyName) Then
+                                packetContent(keyName) = New List(Of UTQueryKeyValuePair)
+                            End If
+                            packetContent(keyName).Add(prop)
+                        Else
+                            packetContent(keyName) = prop
+                        End If
+
+                End Select
+
+                iteration += 1
+                propPrevious = prop
             Next
-            If IsNothing(packetId) AndAlso isFinalPacket AndAlso isMasterServer Then 'no queryid, packet from master server?
+
+            Dim propEdited As UTQueryKeyValuePair
+            Dim hasQueryId = Not IsNothing(responseId)
+
+            If Not hasQueryId AndAlso isFinalPacket AndAlso isMasterServer Then ' handle master server response
                 For Each var In packetContent.Keys
-                    If packetContent(var).GetType = GetType(List(Of String)) Then
-                        For Each variableIndex As String In packetContent(var)
-                            currentVariable.key = var
-                            currentVariable.value = variableIndex
-                            currentVariable.sourcePacketId = 1
-                            responseResult.Add(currentVariable)
+
+                    If packetContent(var).GetType = GetType(List(Of UTQueryKeyValuePair)) Then
+                        For Each variableIndex As UTQueryKeyValuePair In packetContent(var)
+                            variableIndex.sourcePacketId = 1
+                            responseResult.Add(variableIndex)
                         Next
+                    ElseIf packetContent(var).GetType = GetType(UTQueryKeyValuePair) Then
+                        propEdited = packetContent(var)
+                        propEdited.sourcePacketId = 1
+                        responseResult.Add(propEdited)
                     Else
-                        currentVariable.key = var
-                        currentVariable.value = packetContent(var)
-                        currentVariable.sourcePacketId = 1
-                        responseResult.Add(currentVariable)
+                        propEdited.key = var
+                        propEdited.value = packetContent(var)
+                        propEdited.sourcePacketId = 1
+                        responseResult.Add(propEdited)
                     End If
 
                 Next
                 Return responseResult
             End If
+
+            ' incomplete/malformed response checks
             If packetExpectedCount = 0 OrElse receivedCount <> packetExpectedCount Then
                 If Not IsNothing(packetsSequence(packetId)) AndAlso packetsSequence(packetId).Count = 0 Then
-                    packetContent("queryid") = responseId
+                    ' TODO investigate
+                    'packetContent("queryid") = responseId
                     For Each var In packetContent.Keys
-                        currentVariable.key = var
-                        currentVariable.value = packetContent(var)
-                        currentVariable.sourcePacketId = 1
-                        responseResult.Add(currentVariable)
+                        propEdited.key = var
+                        propEdited.value = packetContent(var)
+                        propEdited.sourcePacketId = 1
+                        responseResult.Add(propEdited)
                     Next
                     Return responseResult
                 ElseIf packetId <> 0 Then
@@ -314,27 +331,25 @@ Class UTQueryPacket
                     End If
                 End If
             End If
-            ' put all the pieces in correct order
-            Dim hasQueryId = False
-            For packetId = LBound(packetsSequence) To UBound(packetsSequence)
-                Dim queryin As Hashtable = packetsSequence(packetId)
-                If Not IsNothing(queryin) AndAlso queryin.Count > 0 Then
-                    For Each qui As DictionaryEntry In queryin
-                        If qui.Key = "queryid" Then
-                            If Not hasQueryId Then
-                                hasQueryId = True
-                            Else
-                                Continue For
-                            End If
-                        End If
 
-                        currentVariable.key = qui.Key
-                        currentVariable.value = qui.Value
-                        currentVariable.sourcePacketId = packetId
-                        responseResult.Add(currentVariable)
+            ' put all the pieces in correct order
+            For packetId = LBound(packetsSequence) To UBound(packetsSequence)
+                Dim packetTable As Hashtable = packetsSequence(packetId)
+                If Not IsNothing(packetTable) AndAlso packetTable.Count > 0 Then
+                    For Each packetElement As DictionaryEntry In packetTable
+                        propEdited = packetElement.Value
+                        propEdited.sourcePacketId = packetId
+
+                        responseResult.Add(propEdited)
                     Next
                 End If
             Next
+            If hasQueryId Then
+                propEdited.key = "queryid"
+                propEdited.value = responseId
+                propEdited.sourcePacketId = Nothing
+                responseResult.Add(propEdited)
+            End If
         Catch ex As IndexOutOfRangeException
             Throw New UTQueryResponseIncompleteException
         Catch ex As NullReferenceException
@@ -342,6 +357,46 @@ Class UTQueryPacket
         End Try
 
         Return responseResult
+    End Function
+
+    Protected Shared Function PacketUnserialize(packetString As String) As List(Of UTQueryKeyValuePair)
+        Dim result As New List(Of UTQueryKeyValuePair)
+
+        If packetString = "" Then
+            Throw New UTQueryResponseIncompleteException("Empty packet")
+        ElseIf packetString(0) <> "\"c Then
+            Throw New UTQueryInvalidResponseException("Packet should start with backslash, got '" & Asc(packetString(0)) & "'")
+        End If
+
+        Dim offset = 1
+        Do
+            Dim newEntry As UTQueryKeyValuePair
+            Dim kvSeparatorIdx = packetString.IndexOf("\"c, offset)
+
+            newEntry.key = packetString.Substring(offset, kvSeparatorIdx - offset).ToLower()
+
+            Dim valueStartingIdx As Integer = kvSeparatorIdx + 1
+            Dim valueEndingIdx As Integer = valueStartingIdx
+            Do ' get entire value with escape sequences "\\"
+                valueEndingIdx = packetString.IndexOf("\"c, valueEndingIdx) + 1
+            Loop While valueEndingIdx <> 0 AndAlso valueEndingIdx < packetString.Length AndAlso packetString(valueEndingIdx) = "\"c
+
+            If valueEndingIdx = 0 Then
+                valueEndingIdx = packetString.Length
+            Else
+                valueEndingIdx -= 1
+            End If
+
+            Dim valueLength = valueEndingIdx - valueStartingIdx
+
+            offset = valueEndingIdx + 1
+
+            newEntry.value = packetString.Substring(valueStartingIdx, valueLength).Replace("\\", "\")
+            newEntry.sourcePacketId = Nothing
+            result.Add(newEntry)
+        Loop While offset < packetString.Length
+
+        Return result
     End Function
 
     Protected Function createGamespyResponse(Optional packetFlags As UTQueryPacketFlags = 0) As List(Of String)
