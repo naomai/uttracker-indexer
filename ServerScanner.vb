@@ -224,13 +224,13 @@ Public Class ServerScanner
     End Sub
 
     Protected Sub updateScanInfo()
-        dynconfigSet("lastupdate", unixTime())
+        dynconfigSet("lastupdate", UnixTime())
         dynconfigSet("scaninfo.serversscanned", serversCountTotal)
         dynconfigSet("scaninfo.serversonline", serversCountOnline)
         dynconfigSet("scaninfo.scantime", (scanEnd - scanStart).TotalSeconds)
         dynconfigSet("scaninfo.netticks", tickCounter)
         dynconfigSet("scaninterval", scanInterval)
-        dynconfigSet("masterservers.lastupdate", unixTime(masterServerLastUpdate))
+        dynconfigSet("masterservers.lastupdate", UnixTime(masterServerLastUpdate))
         dynconfigSet("masterservers.numservers", masterServerQuery.Count)
         debugWriteLine("ScanInfoUpdated")
     End Sub
@@ -361,15 +361,15 @@ Public Class ServerScanner
 
     Private Sub masterServerQuery_OnMasterServerQuery(serverInfo As MasterServerInfo) Handles masterServerQuery.OnMasterServerQuery
         log.WriteLine("MasterQuery ( " & serverInfo.serverClassName & " , " & serverInfo.serverIp & ":" & serverInfo.serverPort & " ) ")
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", unixTime())
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", UnixTime())
         dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".info",
             serverInfo.serverIp & ":" & serverInfo.serverPort)
     End Sub
 
 
     Private Sub masterServerQuery_OnMasterServerQueryParsed(serverInfo As MasterServerInfo, serverList As System.Collections.Generic.List(Of String)) Handles masterServerQuery.OnMasterServerQueryListReceived
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", unixTime())
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastsync", unixTime())
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", UnixTime())
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastsync", UnixTime())
         dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".serversnum", serverList.Count)
         log.WriteLine("Got {0} servers.", serverList.Count)
     End Sub
@@ -379,9 +379,9 @@ Public Class ServerScanner
 
     Private Sub masterServerQuery_OnMasterServerPing(serverInfo As MasterServerInfo, online As Boolean) Handles masterServerQuery.OnMasterServerPing
         log.DebugWriteLine("PingingRemoteMasterServer: {0}", serverInfo.serverAddress)
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", unixTime())
+        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", UnixTime())
         If online Then
-            dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", unixTime())
+            dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", UnixTime())
         End If
     End Sub
 #Region "Dynconfig"

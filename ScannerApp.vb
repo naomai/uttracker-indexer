@@ -131,7 +131,7 @@ Module ScannerApp
     End Sub
 
     Private Sub master_ClientConnected(client As System.Net.IPEndPoint) Handles master.ClientConnected
-        dyncfg.setProperty("gsmasterserver.lastevent", unixTime())
+        dyncfg.setProperty("gsmasterserver.lastevent", UnixTime())
     End Sub
 
     Private Sub master_ClientDisconnected(client As IPEndPoint, reason As GSClosingReason, relatedException As Exception) Handles master.ClientDisconnected

@@ -86,7 +86,7 @@ Public Class ServerDataUpdater
         Next
 
         'utt haxes:
-        rulesJoined("__uttlastupdate") = unixTime(uttServerScanTime)
+        rulesJoined("__uttlastupdate") = UnixTime(uttServerScanTime)
         rulesJoined("queryport") = Split(serverWorker.addressQuery, ":").Last
         If serverWorker.caps.hasXSQ Then
             rulesJoined("__uttxserverquery") = "true"

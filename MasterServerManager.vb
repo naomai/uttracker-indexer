@@ -198,7 +198,6 @@ Class MasterListGSpyFact
     Public gameInfo As GamespyGameInfo
     Protected region As Integer = 0
 
-    Private Declare Function GetTickCount Lib "kernel32" () As Long
 
     Public Sub New(serverInfo As MasterServerInfo, gInfo As GamespyGameInfo)
         MyBase.New(serverInfo)
@@ -263,10 +262,10 @@ Class MasterListGSpyFact
         lol.Write(myResponse)
 
         getRawList = ""
-        tx = GetTickCount
+        tx = TickCount()
         Do
             getRawList &= lol.ReadNext()
-        Loop While GetTickCount - tx < 7000 AndAlso InStr(getRawList, "\final\") = 0
+        Loop While TickCount() - tx < 7000 AndAlso InStr(getRawList, "\final\") = 0
         lol.Disconnect()
         If Len(getRawList) < 5 Then
             Throw New Exception("Master server query failed, no response to request")

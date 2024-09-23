@@ -16,27 +16,30 @@ Imports System.IO
 Imports Microsoft.Extensions.FileProviders
 Imports System.Reflection
 Imports System.Diagnostics.Eventing
+Imports Microsoft.Extensions.Configuration.Ini
 
 Public Class IniFile
     Public iniName As String
-
-    Private Declare Function WritePrivateProfileString Lib "kernel32.dll" Alias "WritePrivateProfileStringA" (ByVal section As String, ByVal key As String, ByVal val As String, ByVal filePath As String) As Long
-    Private Declare Function GetPrivateProfileString Lib "kernel32.dll" Alias "GetPrivateProfileStringA" (ByVal section As String, ByVal key As String, ByVal def As String, ByVal retVal As StringBuilder, ByVal size As Integer, ByVal filePath As String) As Integer
+    Public iniProvider As IniConfigurationProvider
 
     Public Sub New(Optional ByVal sourceFile As String = Nothing)
         If IsNothing(sourceFile) Then
             sourceFile = System.Reflection.Assembly.GetEntryAssembly.GetName.Name & ".ini"
+            If Not File.Exists(sourceFile) Then
+                CreateIniTemplate(sourceFile)
+            End If
         End If
 
         Dim sourceFileReal = Path.GetFullPath(sourceFile)
+        Dim sourceFileDir = Path.GetDirectoryName(sourceFileReal)
+        Dim sourceFileName = Path.GetFileName(sourceFileReal)
 
-        If Not Directory.Exists(Path.GetDirectoryName(sourceFileReal)) Then
-            Throw New IniFileException("Invalid path")
-        End If
-
-        If Not File.Exists(sourceFileReal) Then
-            CreateIniTemplate(sourceFileReal)
-        End If
+        Dim iniSrc = New IniConfigurationSource() With {
+            .FileProvider = New PhysicalFileProvider(sourceFileDir),
+            .Path = sourceFileName
+        }
+        iniProvider = New IniConfigurationProvider(iniSrc)
+        iniProvider.Load()
 
         Me.iniName = sourceFileReal
     End Sub
@@ -52,12 +55,11 @@ Public Class IniFile
     End Property
 
     Public Function GetProperty(prop As String, Optional defaultVal As String = "")
-        Dim temp As New StringBuilder(255), val As String
+        Dim temp As New StringBuilder(255), val As String = Nothing
         Dim propSplitted = Split(prop, ".", 2)
         Dim section = propSplitted(0).Replace("|", ".")
-        Dim i As Integer = GetPrivateProfileString(section, propSplitted(1), Nothing, temp, 255, Me.iniName)
-        val = temp.ToString()
-        If val = "" AndAlso defaultVal <> "" Then
+        Dim hasValue As Boolean = iniProvider.TryGet(section & ":" & propSplitted(1), val)
+        If Not hasValue AndAlso defaultVal <> "" Then
             SetProperty(prop, defaultVal)
             Return defaultVal
         End If
@@ -67,16 +69,16 @@ Public Class IniFile
     Public Sub SetProperty(prop As String, value As String)
         Dim propSplitted = Split(prop, ".", 2)
         Dim section = propSplitted(0).Replace("|", ".")
-        WritePrivateProfileString(section, propSplitted(1), value, Me.iniName)
+        ' WritePrivateProfileString(section, propSplitted(1), value, Me.iniName)
+        iniProvider.Set(section & ":" & propSplitted(1), value)
     End Sub
 
     Public Function PropertyExists(prop As String) As Boolean
-        Dim temp As New StringBuilder(255), val As String
+        Dim temp As New StringBuilder(255), val As String = Nothing
         Dim propSplitted = Split(prop, ".", 2)
         Dim section = propSplitted(0).Replace("|", ".")
-        Dim i As Integer = GetPrivateProfileString(section, propSplitted(1), "__UTTNONEXISTINGIDX__", temp, 255, Me.iniName)
-        val = temp.ToString()
-        Return val <> "__UTTNONEXISTINGIDX__"
+        Dim hasValue As Boolean = iniProvider.TryGet(section & ":" & propSplitted(1), val)
+        Return hasValue
     End Function
 
     Private Sub CreateIniTemplate(dest As String)

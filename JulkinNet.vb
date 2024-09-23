@@ -10,8 +10,6 @@ Public Class JulkinNet
     Implements IDisposable
     ''' <summary>Creates network connection using simple interface</summary>
 
-    Private Declare Function GetTickCount Lib "kernel32" () As Long
-
 #Region "Public properties"
     ''' <summary>Maximum time for operation</summary>
     Public timeout As Integer
@@ -147,11 +145,11 @@ Public Class JulkinNet
     End Function
 
     Private Sub SetTimeout()
-        timeStarted = GetTickCount
+        timeStarted = TickCount()
     End Sub
 
     Private Function IsTimedOut() As Boolean
-        Return timeout <> 0 AndAlso GetTickCount() > (timeStarted + timeout)
+        Return timeout <> 0 AndAlso TickCount() > (timeStarted + timeout)
     End Function
     Private Function GetIp(ByVal addr As String) As String
         Dim tmpx() As String
