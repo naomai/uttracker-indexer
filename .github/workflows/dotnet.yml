@@ -26,6 +26,13 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
     - name: Build for platform  ${{ matrix.platform }}
-      run: dotnet build UTT_Indexer.vbproj --no-restore --runtime ${{ matrix.platform }} --no-self-contained
+      run: dotnet build UTT_Indexer.vbproj --configuration Release --no-restore --runtime ${{ matrix.platform }} --no-self-contained 
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: binary-${{ matrix.platform }}
+        path: bin/Release/net8.0/${{ matrix.platform }}/
+        retention-days: 3 
+
     #- name: Test
     #  run: dotnet test --no-build --verbosity normal
