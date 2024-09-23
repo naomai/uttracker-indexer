@@ -4,12 +4,13 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>Naomai.UTT.ScannerV2</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>
-    <RuntimeIdentifier>win-x64; linux-x64; linux-arm64</RuntimeIdentifier>
+    <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;linux-musl-arm64</RuntimeIdentifiers>
     <ImportedNamespaces>Microsoft.EntityFrameworkCore=False,Microsoft.EntityFrameworkCore.Design=False,MySql.Data.MySqlClient=False,MySql.Data.Types=False,Naomai.UTT.ScannerV2=False,Naomai.UTT.ScannerV2.My=False,System.Text.Json.Serialization=False,Microsoft.VisualBasic=True,System=True,System.Collections=True,System.Collections.Generic=True,System.Diagnostics=True,System.Linq=True,System.Xml.Linq=True,System.Threading.Tasks=True,ScannerV2=True</ImportedNamespaces>
     <Title>UTTracker Scanner</Title>
     <UseApplicationFramework>False</UseApplicationFramework>
     <AssemblyVersion></AssemblyVersion>
     <FileVersion></FileVersion>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,10 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="EntityFrameworkCore.VisualBasic" Version="8.0.0">
+    <!--<PackageReference Include="EntityFrameworkCore.VisualBasic" Version="8.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    </PackageReference>-->
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.8" />
     <PackageReference Include="MySql.EntityFrameworkCore" Version="8.0.5" />
