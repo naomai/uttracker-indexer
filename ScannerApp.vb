@@ -33,11 +33,12 @@ Module ScannerApp
 
         Dim dbconfig As MySQLDBConfig
         With dbconfig
-            If Environment.GetEnvironmentVariable("DB_HOST") <> "" Then
-                .host = Environment.GetEnvironmentVariable("DB_HOST")
-                .username = Environment.GetEnvironmentVariable("DB_USERNAME")
-                .password = Environment.GetEnvironmentVariable("DB_PASSWORD")
-                .database = Environment.GetEnvironmentVariable("DB_DATABASE")
+            Dim env = Environment.GetEnvironmentVariables()
+            If env("DB_HOST") <> "" Then
+                .host = env("DB_HOST")
+                .username = env("DB_USERNAME")
+                .password = env("DB_PASSWORD")
+                .database = env("DB_DATABASE")
                 .protocol = "socket"
             Else
                 .host = ini.GetProperty("Database.MySQLHost", "changeme!!")
