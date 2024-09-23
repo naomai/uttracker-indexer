@@ -165,38 +165,43 @@ Public Class ServerQuery
         If Not incomingPacket.ContainsKey("gamename") Then
             logDbg("NoGamename: " & incomingPacketObj.ToString)
             abortScan()
-        Else
-            Dim validServer As Boolean = False
-
-            ' validate
-            If Not incomingPacket.ContainsKey("validate") Then
-                validServer = False
-            ElseIf Len(incomingPacket("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(incomingPacket("gamename")) Then
-                validServer = True
-            Else
-                Dim expectedResponse = gsenc(challenge, MasterServerManager.gamespyKeys(incomingPacket("gamename")).encKey)
-                validServer = (expectedResponse = incomingPacket("validate"))
-            End If
-
-            If Not validServer Then
-                logDbg("InvalidServer: " & incomingPacketObj.ToString)
-                abortScan()
-            End If
-
-            info = New Hashtable
-            info("gamename") = incomingPacket("gamename")
-            info("gamever") = incomingPacket("gamever")
-            If incomingPacket.ContainsKey("minnetver") Then
-                info("minnetver") = incomingPacket("minnetver")
-            ElseIf incomingPacket.ContainsKey("mingamever") Then
-                info("minnetver") = incomingPacket("mingamever")
-            End If
-            info("location") = incomingPacket("location")
-            state.hasBasic = True
-            caps.isOnline = True
-            caps.version = info("gamever")
-            caps.gameName = info("gamename")
+            Return
         End If
+
+        Dim gameName = incomingPacket("gamename").ToString().ToLower()
+        Dim validServer As Boolean = False
+
+        ' validate
+        If Not incomingPacket.ContainsKey("validate") Then
+            validServer = False
+        ElseIf incomingPacket("validate") = "Orange" Then ' dunno where does this come from
+            validServer = True
+        ElseIf Len(incomingPacket("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(gameName) Then
+            validServer = False
+        Else
+            Dim expectedResponse = gsenc(challenge, MasterServerManager.gamespyKeys(gameName).encKey)
+            validServer = (expectedResponse = incomingPacket("validate"))
+        End If
+
+        If Not validServer Then
+            logDbg("InvalidServer: " & incomingPacketObj.ToString)
+            abortScan()
+        End If
+
+        info = New Hashtable
+        info("gamename") = incomingPacket("gamename")
+        info("gamever") = incomingPacket("gamever")
+        If incomingPacket.ContainsKey("minnetver") Then
+            info("minnetver") = incomingPacket("minnetver")
+        ElseIf incomingPacket.ContainsKey("mingamever") Then
+            info("minnetver") = incomingPacket("mingamever")
+        End If
+        info("location") = incomingPacket("location")
+        state.hasBasic = True
+        caps.isOnline = True
+        caps.version = info("gamever")
+        caps.gameName = info("gamename")
+
     End Sub
 
     Private Sub parseInfo()
