@@ -3,6 +3,7 @@ Imports System.IO
 Imports Microsoft.Extensions.FileProviders
 Imports System.Reflection
 Imports System.Net.Http
+Imports Naomai.UTT.ScannerV2.UTQueryPacket
 
 Public Class MasterServerManager
     Public cacheFile As String
@@ -203,7 +204,9 @@ Class MasterListGSpyFact
     Public Sub New(serverInfo As MasterServerInfo, gInfo As GamespyGameInfo)
         MyBase.New(serverInfo)
         gameInfo = gInfo
-        If serverInfo.iniVariables.ContainsKey("Region") Then region = serverInfo.iniVariables("Region")
+        If serverInfo.iniVariables.ContainsKey("Region") Then
+            region = serverInfo.iniVariables("Region")
+        End If
     End Sub
 
     Public Overrides Function ping() As Boolean
@@ -234,47 +237,52 @@ Class MasterListGSpyFact
         Return result
     End Function
 
-    Protected Function getRawList()
-        Dim lol As JulkinNet, chal As String, tx As Long, packet As String, challengeResponse As String, is333 As Boolean = False
-        Dim serverResponse As UTQueryPacket ' As Hashtable
-        lol = New JulkinNet
-        lol.timeout = 2500
-        Dim myResponse = New UTQueryPacket(UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
+    Protected Function getRawList() As String
+        Dim result As String = ""
+        Dim connection As New JulkinNet With {
+            .timeout = 2500
+        }
+        connection.Connect(server.serverAddress)
 
-        lol.Connect(server.serverAddress)
-        packet = lol.ReadNext()
-        If Len(packet) = 0 Then Throw New Exception("No response from " & server.serverAddress)
-
-        serverResponse = New UTQueryPacket(packet, UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer Or UTQueryPacket.UTQueryPacketFlags.UTQP_NoFinal)
-
-        If gameInfo.gameName <> "" Then
-            myResponse.Add("gamename", gameInfo.gameName)
-        End If
-        myResponse.Add("location", region)
-        If serverResponse("secure") <> "" AndAlso serverResponse("secure") <> "wookie" Then ' challenge!
-            chal = serverResponse("secure")
-            challengeResponse = gsenc(chal, gameInfo.encKey)
-            myResponse.Add("validate", challengeResponse)
+        Dim packet As String = connection.ReadNext()
+        If Len(packet) = 0 Then
+            Throw New Exception("No response from " & server.serverAddress)
         End If
 
+        Dim myResponse As New UTQueryPacket(UTQueryPacketFlags.UTQP_MasterServer)
 
+        Using serverResponse = New UTQueryPacket(packet, UTQueryPacketFlags.UTQP_MasterServer Or UTQueryPacketFlags.UTQP_NoFinal)
+            If gameInfo.gameName <> "" Then
+                myResponse.Add("gamename", gameInfo.gameName)
+            End If
+            myResponse.Add("location", region)
+            If serverResponse("secure") <> "" AndAlso serverResponse("secure") <> "wookie" Then ' challenge!
+                Dim challengeReceived = serverResponse("secure")
+                Dim challengeResponse = gsenc(challengeReceived, gameInfo.encKey)
+                myResponse.Add("validate", challengeResponse)
+            End If
+        End Using
 
         myResponse.Add("list", "")
-        lol.Write(myResponse)
+        connection.Write(myResponse.ToString())
 
-        getRawList = ""
-        tx = TickCount()
+        Dim waitStart = TickCount()
         Do
-            getRawList &= lol.ReadNext()
-        Loop While TickCount() - tx < 7000 AndAlso InStr(getRawList, "\final\") = 0
-        lol.Disconnect()
-        If Len(getRawList) < 5 Then
+            result &= connection.ReadNext()
+        Loop While TickCount() - waitStart < 7000 AndAlso InStr(result, "\final\") = 0
+
+        connection.Disconnect()
+
+        If Len(result) < 5 Then
             Throw New Exception("Master server query failed, no response to request")
         End If
-        Dim mat = Regex.Match(getRawList, "\\echo\\([^\\]*)\\final\\")
+
+        Dim mat = Regex.Match(result, "\\echo\\([^\\]*)\\final\\")
         If mat.Groups.Count > 1 Then
             Throw New Exception("Master server query failed, server responded: " & mat.Groups(1).Value)
         End If
+
+        Return result
     End Function
 End Class
 

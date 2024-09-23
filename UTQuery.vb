@@ -1,17 +1,17 @@
 ﻿' UT query protocol things
 ' might be also usable for other gamespy-based games
 
-Imports System.Threading
-Imports System.Text.Encoding
-Imports System.Security.Cryptography
-Imports System.Runtime.InteropServices
+
 
 Class UTQueryPacket
     Inherits System.Collections.CollectionBase
     Implements IEnumerable(Of UTQueryKeyValuePair)
+    Implements IDisposable
     Dim packetContent As New List(Of UTQueryKeyValuePair)
     Dim queryId As Integer = 0
     Public packetFlags As UTQueryPacketFlags
+
+    Private disposedValue As Boolean
 
     Public Sub New(packet As String, Optional packetFlags As UTQueryPacketFlags = 0)
         Me.New(packetFlags)
@@ -403,7 +403,20 @@ Class UTQueryPacket
         UTQP_SimpleRequest = UTQP_NoQueryId Or UTQP_NoFinal
     End Enum
 
+    Protected Overridable Sub Dispose(disposing As Boolean)
+        If Not disposedValue Then
+            If disposing Then
+                packetContent = Nothing
+            End If
+            disposedValue = True
+        End If
+    End Sub
 
+
+    Public Sub Dispose() Implements IDisposable.Dispose
+        Dispose(disposing:=True)
+        GC.SuppressFinalize(Me)
+    End Sub
 End Class
 
 
