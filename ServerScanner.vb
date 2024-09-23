@@ -351,7 +351,7 @@ Public Class ServerScanner
     Private Sub masterServerQuery_OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo)) Handles masterServerQuery.OnMasterServerManagerRequest
         log.WriteLine("Master server query...")
         dyncfg.setProperty("masterservers.nummasters", masterServers.Count)
-        dyncfg.unsetProperty("masterservers.server")
+        dyncfg.UnsetProperty("masterservers.server")
 
     End Sub
 
@@ -386,7 +386,7 @@ Public Class ServerScanner
     End Sub
 #Region "Dynconfig"
     Public Function dynconfigGet(key As String)
-        Return dyncfg.getProperty(key)
+        Return dyncfg.GetProperty(key)
     End Function
 
     Public Sub dynconfigSet(key As String, data As String, Optional priv As Boolean = False)

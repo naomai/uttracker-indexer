@@ -1,4 +1,5 @@
-﻿Imports System.Net
+﻿Imports System.Diagnostics.Metrics
+Imports System.Net
 Imports System.Net.Sockets
 Imports System.Text.Encoding
 Imports System.Threading
@@ -28,46 +29,47 @@ Public Class GSMasterServer
         serverPort = port
     End Sub
 
-    Public Sub startServer()
+    Public Sub StartServer()
         If Not isActive Then
             listener.Start()
             isActive = True
+            CreateThread()
         End If
     End Sub
 
-    Public Sub stopServer()
+    Public Sub StopServer()
         If isActive Then
             listener.Stop()
             forceStop = True
         End If
     End Sub
-    Public Sub setServerListProvider(obj As IServerListProvider)
+    Public Sub SetServerListProvider(obj As IServerListProvider)
         appServerList = obj
     End Sub
 
 
-    Public Sub beginAsync()
-        asyncThread = New Thread(AddressOf masterServerLoop)
+    Private Sub CreateThread()
+        asyncThread = New Thread(AddressOf MasterServerLoop)
         asyncThread.Name = "GSMasterServer"
         asyncThread.Start()
     End Sub
 
-    Public Sub endAsync()
+    Public Sub StopThread()
         forceStop = True
     End Sub
 
-    Public Sub loadGSListFromDict(keys As Dictionary(Of String, GamespyGameInfo))
+    Public Sub LoadGSListFromDict(keys As Dictionary(Of String, GamespyGameInfo))
         gameSpyKeys = keys
     End Sub
 
-    Public Sub masterServerLoop()
+    Private Sub MasterServerLoop()
         Do
-            tick()
+            Tick()
             Thread.Sleep(15)
         Loop While Not forceStop
     End Sub
 
-    Public Sub tick()
+    Public Sub Tick()
         Dim workerConnection As Socket, worker As GSMasterServerConnection
         tickCount += 1
 
@@ -87,7 +89,7 @@ Public Class GSMasterServer
                                        Return Not client.active
                                    End Function)
         For Each client As GSMasterServerConnection In connectedClients
-            client.tick()
+            client.Tick()
         Next
 
     End Sub
@@ -136,11 +138,11 @@ Public Class GSMasterServerConnection
         masterServer = master
         conn = connection
         remote = connection.RemoteEndPoint
-        challengeString = generateChallenge()
-        sendChallenge()
+        challengeString = GenerateChallenge()
+        SendChallenge()
     End Sub
 
-    Public Sub tick()
+    Public Sub Tick()
         Dim bytes As Integer
         Dim dataBuffer(1000) As Byte
         Dim packet As UTQueryPacket
@@ -151,15 +153,15 @@ Public Class GSMasterServerConnection
             Try
                 packet = New UTQueryPacket(incomingPacket, UTQueryPacket.UTQueryPacketFlags.UTQP_NoQueryId Or UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
                 incomingPacket = ""
-                packetReceived(packet)
+                PacketReceived(packet)
             Catch e As UTQueryInvalidResponseException
-                packetSend("\error\Malformed response\final\")
+                PacketSend("\error\Malformed response\final\")
                 masterServer.OnClientDisconnect(remote, GSClosingReason.InvalidPacket, e)
                 conn.Close()
             Catch e As UTQueryResponseIncompleteException
 
             Catch e As Exception
-                packetSend("\error\Internal server error\final\")
+                PacketSend("\error\Internal server error\final\")
                 masterServer.OnClientDisconnect(remote, GSClosingReason.InternalError, e)
                 conn.Close()
             End Try
@@ -167,7 +169,7 @@ Public Class GSMasterServerConnection
         End If
         If (Date.UtcNow - lastSentPacketTime).TotalSeconds > 8 AndAlso active Then
             Try
-                packetSend("\error\EmoTimeout. Bye\final\")
+                PacketSend("\error\EmoTimeout. Bye\final\")
                 masterServer.OnClientDisconnect(remote, GSClosingReason.Timeout)
                 If conn.Connected Then
                     conn.Disconnect(False)
@@ -180,20 +182,20 @@ Public Class GSMasterServerConnection
         End If
 
         If (Date.UtcNow - lastPollTime).TotalSeconds > 5 AndAlso active Then ' detect dropped connections
-            packetSend("")
+            PacketSend("")
         End If
     End Sub
 
-    Private Sub packetReceived(packet As Hashtable)
+    Private Sub PacketReceived(packet As Hashtable)
         With state
             Dim responsePacket As New UTQueryPacket(UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
             Try
-                If .expectingChallenge AndAlso packet.ContainsKey("validate") Then receivedChallenge(packet)
-                If packet.ContainsKey("about") Then receivedAbout(packet, responsePacket)
-                If packet.ContainsKey("echo") Then receivedEcho(packet, responsePacket)
+                If .expectingChallenge AndAlso packet.ContainsKey("validate") Then ReceivedChallenge(packet)
+                If packet.ContainsKey("about") Then ReceivedAbout(packet, responsePacket)
+                If packet.ContainsKey("echo") Then ReceivedEcho(packet, responsePacket)
                 If packet.ContainsKey("list") Then
                     If .hasChallenge Then
-                        receivedListRequest(packet, responsePacket)
+                        ReceivedListRequest(packet, responsePacket)
                     Else
                         responsePacket.Add("error", "You need to verify yourself before sending the list request (use GSMSALG).")
                         responsePacket.setReadyToSend()
@@ -201,7 +203,7 @@ Public Class GSMasterServerConnection
                     End If
                 End If
                 If responsePacket.packetFlags.HasFlag(UTQueryPacket.UTQueryPacketFlags.UTQP_ReadyToSend) Then
-                    packetSend(responsePacket)
+                    PacketSend(responsePacket)
                 End If
                 If requestDisconnect Then
                     masterServer.OnClientDisconnect(remote, GSClosingReason.Success)
@@ -210,30 +212,30 @@ Public Class GSMasterServerConnection
                 End If
             Catch e As GSMSValidationFailedException
                 responsePacket.Add("error", "Sorry, your verification string is not valid.")
-                packetSend(responsePacket)
+                PacketSend(responsePacket)
                 masterServer.OnClientDisconnect(remote, GSClosingReason.InvalidChallenge, e)
                 conn.Close()
             Catch e As GSMSConnectionException
                 responsePacket.Add("error", e.Message)
-                packetSend(responsePacket)
+                PacketSend(responsePacket)
                 If Not .hasChallenge Then
                     masterServer.OnClientDisconnect(remote, GSClosingReason.InvalidPacket, e)
                     conn.Close()
                 End If
             End Try
-            
+
         End With
     End Sub
 
-    Private Sub sendChallenge()
+    Private Sub SendChallenge()
         Dim challengePacket As New UTQueryPacket(UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
         challengePacket.Add("basic", "")
         challengePacket.Add("secure", challengeString)
-        packetSend(challengePacket)
+        PacketSend(challengePacket)
         state.expectingChallenge = True
     End Sub
 
-    Private Sub receivedChallenge(packet As Hashtable)
+    Private Sub ReceivedChallenge(packet As Hashtable)
         Dim expectedResponse As String, encryptionKey As String
 
         If Not packet.ContainsKey("gamename") OrElse Not packet.ContainsKey("validate") Then Return 'Throw New GSMSConnectionException("Verification packet must contain both 'validate' and 'gamename' fields.")
@@ -254,7 +256,7 @@ Public Class GSMasterServerConnection
         End If
     End Sub
 
-    Private Sub receivedListRequest(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
+    Private Sub ReceivedListRequest(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
         masterServer.OnClientRequestedList(remote)
         Dim serverList = masterServer.appServerList.getServerListForGame(gameName)
         For Each server In serverList
@@ -264,19 +266,19 @@ Public Class GSMasterServerConnection
         destinationPacket.setReadyToSend()
     End Sub
 
-    Private Sub receivedAbout(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
+    Private Sub ReceivedAbout(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
         Dim aboutText As String
         aboutText = "// UTTracker Master Server Module; // 2014 Namonaki14; URL: http://amaki.no-ip.eu/uttracker/master/; // Contact: tm.dvtb at gmail.com"
         destinationPacket.Add("about", aboutText)
         destinationPacket.setReadyToSend()
     End Sub
 
-    Private Sub receivedEcho(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
+    Private Sub ReceivedEcho(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
         destinationPacket.Add("echo_reply", packet("echo"))
         destinationPacket.setReadyToSend()
     End Sub
 
-    Private Sub packetSend(packet As String)
+    Private Sub PacketSend(packet As String)
         Try
             conn.Send(ASCII.GetBytes(packet))
             If packet <> "" Then lastSentPacketTime = Date.UtcNow
@@ -288,19 +290,19 @@ Public Class GSMasterServerConnection
         End Try
     End Sub
 
-    Private Shared Function generateChallenge() As String
+    Private Shared Function GenerateChallenge() As String
         Static allowedChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         Static allowedCharsLen = Len(allowedChars)
-        Return allowedChars(rand(1, allowedCharsLen)) & allowedChars(rand(1, allowedCharsLen)) & allowedChars(rand(1, allowedCharsLen)) & _
-            allowedChars(rand(1, allowedCharsLen)) & allowedChars(rand(1, allowedCharsLen)) & allowedChars(rand(1, allowedCharsLen))
+        Return allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen)) &
+            allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen))
     End Function
 
-    Private Shared Function rand(min As UInt32, max As UInt32) As UInt32
+    Private Shared Function Rand(min As UInt32, max As UInt32) As UInt32
         Static randomGen = New System.Random()
         Return randomGen.next(min, max)
     End Function
 
-    Private Shared Function gsEscape(str As String)
+    Private Shared Function GsEscape(str As String)
         Return str.Replace("\", "_")
     End Function
 

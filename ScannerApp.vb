@@ -105,10 +105,9 @@ Module ScannerApp
             Dim msDbCtx = New Utt2Context(dbconfig)
             master = New GSMasterServer(msPort)
             masterBridge = New GSMasterServerBridge(msDbCtx)
-            master.setServerListProvider(masterBridge)
-            master.loadGSListFromDict(MasterServerManager.gamespyKeys)
-            master.startServer()
-            master.beginAsync()
+            master.SetServerListProvider(masterBridge)
+            master.LoadGSListFromDict(MasterServerManager.gamespyKeys)
+            master.StartServer()
         End If
         'tinyScanner.asyncBegin()
         Do

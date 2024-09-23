@@ -99,7 +99,7 @@ Public Class ServerQuery
                 gamemodeQuery = GamemodeSpecificQuery.getQueryObjectForContext(Me)
                 Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
                 If Not IsNothing(gamemodeQuery) Then
-                    gamemodeAdditionalRequests = gamemodeQuery.getInfoRequestString()
+                    gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
                     caps.gamemodeExtendedInfo = True
                 End If
                 If Not info.ContainsKey("timelimit") Then
@@ -260,7 +260,7 @@ Public Class ServerQuery
             End If
 
             If caps.gamemodeExtendedInfo Then
-                gamemodeQuery.parseInfoPacket(incomingPacket)
+                gamemodeQuery.ParseInfoPacket(incomingPacket)
             End If
         Catch e As Exception
             state.hasTimeTest = True
