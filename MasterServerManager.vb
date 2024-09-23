@@ -2,6 +2,7 @@
 Imports System.IO
 Imports Microsoft.Extensions.FileProviders
 Imports System.Reflection
+Imports System.Net.Http
 
 Public Class MasterServerManager
     Public cacheFile As String
@@ -280,6 +281,7 @@ End Class
 Class MasterListHTTPFact
     Inherits MasterListFactory
     Dim requestURI As String
+    Dim clientObj As New HttpClient()
 
     Public Sub New(serverInfo As MasterServerInfo)
         MyBase.New(serverInfo)
@@ -288,28 +290,31 @@ Class MasterListHTTPFact
 
     Public Overrides Function ping() As Boolean
         Dim requestUrl = "http://" & server.ToString & requestURI
-        Dim client = System.Net.HttpWebRequest.Create(requestUrl)
-        client.Method = "HEAD"
-        Dim resp As System.Net.HttpWebResponse = client.GetResponse()
-        Return (resp.StatusCode = Net.HttpStatusCode.OK)
+
+        Dim requestMsg As New HttpRequestMessage(HttpMethod.Head, requestUrl)
+        Dim requestTask = clientObj.SendAsync(requestMsg)
+        requestTask.Wait()
+        Dim requestResult = requestTask.Result
+
+        Return (requestResult.StatusCode = Net.HttpStatusCode.OK)
     End Function
 
     Public Overrides Function query() As System.Collections.Generic.List(Of String)
         Dim serverList = New List(Of String)
         Dim requestUrl = "http://" & server.ToString & requestURI
-        Dim client = System.Net.HttpWebRequest.Create(requestUrl)
-        client.Method = "GET"
 
-        Using resp = client.GetResponse()
-            Using respReader = New StreamReader(resp.GetResponseStream())
-                Do While Not respReader.EndOfStream
-                    Dim serverLine = respReader.ReadLine()
-                    Dim serverLineChunks() = serverLine.Split(" "c)
-                    If serverLineChunks.Count = 3 Then
-                        serverList.Add(serverLineChunks(0) & ":" & serverLineChunks(2))
-                    End If
-                Loop
-            End Using
+        Dim requestTask = clientObj.GetAsync(requestUrl)
+        requestTask.Wait()
+        Dim requestResult = requestTask.Result
+
+        Using respReader = New StreamReader(requestResult.Content.ReadAsStream())
+            Do While Not respReader.EndOfStream
+                Dim serverLine = respReader.ReadLine()
+                Dim serverLineChunks() = serverLine.Split(" "c)
+                If serverLineChunks.Count = 3 Then
+                    serverList.Add(serverLineChunks(0) & ":" & serverLineChunks(2))
+                End If
+            Loop
         End Using
         Return serverList
     End Function
