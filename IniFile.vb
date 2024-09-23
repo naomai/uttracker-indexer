@@ -55,29 +55,26 @@ Public Class IniFile
     End Property
 
     Public Function GetProperty(prop As String, Optional defaultVal As String = "")
-        Dim temp As New StringBuilder(255), val As String = Nothing
-        Dim propSplitted = Split(prop, ".", 2)
-        Dim section = propSplitted(0).Replace("|", ".")
-        Dim hasValue As Boolean = iniProvider.TryGet(section & ":" & propSplitted(1), val)
+        Dim result As String = Nothing
+
+        Dim propertyAccessor = GetPropertyAccessorString(prop)
+        Dim hasValue As Boolean = iniProvider.TryGet(propertyAccessor, result)
+
         If Not hasValue AndAlso defaultVal <> "" Then
             SetProperty(prop, defaultVal)
             Return defaultVal
         End If
-        Return val
+        Return result
     End Function
 
     Public Sub SetProperty(prop As String, value As String)
-        Dim propSplitted = Split(prop, ".", 2)
-        Dim section = propSplitted(0).Replace("|", ".")
-        ' WritePrivateProfileString(section, propSplitted(1), value, Me.iniName)
-        iniProvider.Set(section & ":" & propSplitted(1), value)
+        Dim propertyAccessor = GetPropertyAccessorString(prop)
+        iniProvider.Set(propertyAccessor, value)
     End Sub
 
     Public Function PropertyExists(prop As String) As Boolean
-        Dim temp As New StringBuilder(255), val As String = Nothing
-        Dim propSplitted = Split(prop, ".", 2)
-        Dim section = propSplitted(0).Replace("|", ".")
-        Dim hasValue As Boolean = iniProvider.TryGet(section & ":" & propSplitted(1), val)
+        Dim propertyAccessor = GetPropertyAccessorString(prop)
+        Dim hasValue As Boolean = iniProvider.TryGet(propertyAccessor, Nothing)
         Return hasValue
     End Function
 
@@ -92,6 +89,13 @@ Public Class IniFile
         End If
         destinationConfig.Dispose()
     End Sub
+
+    Protected Shared Function GetPropertyAccessorString(propertyString As String) As String
+        Dim propertyChunks = Split(propertyString, ".", 2)
+        Dim sectionName = propertyChunks(0).Replace("|", ".")
+        Dim propertyName = propertyChunks(1)
+        Return sectionName & ":" & propertyName
+    End Function
 
 End Class
 
