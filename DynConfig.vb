@@ -1,5 +1,5 @@
 ﻿Imports MySql.Data.MySqlClient
-Imports Naomai.UTT.ScannerV2.Utt2Database
+Imports Naomai.UTT.Indexer.Utt2Database
 Imports System.Threading
 
 Public Class DynConfig

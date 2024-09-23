@@ -1,7 +1,7 @@
 ﻿Imports System.Threading
 Imports System.Data
 Imports System.Text.Json
-Imports Naomai.UTT.ScannerV2.Utt2Database
+Imports Naomai.UTT.Indexer.Utt2Database
 
 Public Class ServerDataUpdater
     Protected serverWorker As ServerQuery

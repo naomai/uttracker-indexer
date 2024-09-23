@@ -1,6 +1,6 @@
 ﻿Imports System.Data
 Imports System.Net
-Imports Naomai.UTT.ScannerV2.Utt2Database
+Imports Naomai.UTT.Indexer.Utt2Database
 
 Module ScannerApp
     Dim WithEvents scanner As ServerScanner

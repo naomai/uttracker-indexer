@@ -2,7 +2,7 @@
 Imports System.Threading
 Imports System.Data
 Imports System.Text.Json
-Imports Naomai.UTT.ScannerV2.Utt2Database
+Imports Naomai.UTT.Indexer.Utt2Database
 
 
 Public Class GSMasterServerBridge
@@ -51,8 +51,8 @@ Public Class GSMasterServerBridge
                 If Not IsNothing(server.Rules) AndAlso server.Rules <> "" Then
                     rules = JsonSerializer.Deserialize(Of Hashtable)(server.Rules)
                     If Not IsNothing(rules) AndAlso rules.ContainsKey("queryport") Then
-                        Dim ip = getIp(server.Address)
-                        fullQueryIp = ip & ":" & rules("queryport").ToString()
+                        Dim host = GetHost(server.Address)
+                        fullQueryIp = host & ":" & rules("queryport").ToString()
                     End If
                 End If
             Catch e As Exception

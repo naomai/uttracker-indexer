@@ -488,16 +488,16 @@ End Structure
 #Region "Legacy code"
 
 Module UTQuery
-    Public Function getIp(ByVal addr As String)
+    Public Function GetHost(ByVal addr As String)
         Dim tmpx() As String
         tmpx = Split(addr, ":", 2)
-        getIp = tmpx(0)
+        GetHost = tmpx(0)
     End Function
 
-    Public Function getPort(ByVal addr As String)
+    Public Function GetPort(ByVal addr As String)
         Dim tmpx() As String
         tmpx = Split(addr, ":", 2)
-        getPort = tmpx(1)
+        GetPort = tmpx(1)
     End Function
 
 

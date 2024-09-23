@@ -3,7 +3,7 @@ Imports System.IO
 Imports Microsoft.Extensions.FileProviders
 Imports System.Reflection
 Imports System.Net.Http
-Imports Naomai.UTT.ScannerV2.UTQueryPacket
+Imports Naomai.UTT.Indexer.UTQueryPacket
 
 Public Class MasterServerManager
     Public cacheFile As String
@@ -114,7 +114,7 @@ Public Class MasterServerManager
         Dim line As String, fn As StreamReader
 
 
-        Dim gslistProvider = New EmbeddedFileProvider(Assembly.GetExecutingAssembly(), "Naomai.UTT.ScannerV2")
+        Dim gslistProvider = New EmbeddedFileProvider(Assembly.GetExecutingAssembly(), "Naomai.UTT.Indexer")
         Dim gslistFile = gslistProvider.GetFileInfo("gslist.cfg").CreateReadStream()
 
         fn = New StreamReader(gslistFile)

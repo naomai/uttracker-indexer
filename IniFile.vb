@@ -11,16 +11,17 @@
 ' loosely based on N14\INI class from UTT PHP
 ' maybe todo: CONFIG_LOCK
 
-Imports System.Text
 Imports System.IO
 Imports Microsoft.Extensions.FileProviders
 Imports System.Reflection
-Imports System.Diagnostics.Eventing
 Imports Microsoft.Extensions.Configuration.Ini
 
 Public Class IniFile
+    Implements IDisposable
+
     Public iniName As String
     Public iniProvider As IniConfigurationProvider
+    Private disposedValue As Boolean
 
     Public Sub New(Optional ByVal sourceFile As String = Nothing)
         If IsNothing(sourceFile) Then
@@ -79,7 +80,7 @@ Public Class IniFile
     End Function
 
     Private Sub CreateIniTemplate(dest As String)
-        Dim bundledConfigProvider = New EmbeddedFileProvider(Assembly.GetExecutingAssembly(), "Naomai.UTT.ScannerV2")
+        Dim bundledConfigProvider = New EmbeddedFileProvider(Assembly.GetExecutingAssembly(), "Naomai.UTT.Indexer")
         Dim bundledConfigFile = bundledConfigProvider.GetFileInfo("ConfigDist.ini")
 
         Dim destinationConfig = File.Create(dest)
@@ -97,6 +98,19 @@ Public Class IniFile
         Return sectionName & ":" & propertyName
     End Function
 
+    Protected Overridable Sub Dispose(disposing As Boolean)
+        If Not disposedValue Then
+            If disposing Then
+                iniProvider.Dispose()
+            End If
+            disposedValue = True
+        End If
+    End Sub
+
+    Public Sub Dispose() Implements IDisposable.Dispose
+        Dispose(disposing:=True)
+        GC.SuppressFinalize(Me)
+    End Sub
 End Class
 
 Public Class IniFileException

@@ -2,7 +2,7 @@
 Imports System.Text
 Imports System.Text.Json
 Imports System.Data
-Imports Naomai.UTT.ScannerV2.Utt2Database
+Imports Naomai.UTT.Indexer.Utt2Database
 Imports Microsoft.EntityFrameworkCore.Storage
 
 Public Class ServerScanner
@@ -100,7 +100,7 @@ Public Class ServerScanner
         tickCounter = 0
 
         Do While ((Date.UtcNow - scanLastActivity).TotalSeconds < 10 Or (Date.UtcNow - scanLastTouchAll).TotalSeconds >= 3) ' second check: avoid ending the scan too early when 'time-travelling'
-            sockets.tick()
+            sockets.Tick()
             If (Date.UtcNow - scanLastTouchAll).TotalSeconds > 2 Then
                 'touchAll()
                 touchInactive()
@@ -166,7 +166,7 @@ Public Class ServerScanner
         Catch ex As UTQueryInvalidResponseException ' we found a port that belongs to other service, so we're not going to bother it anymore
             target.logDbg("InvalidQuery: found unknown service")
             target.abortScan()
-            sockets.addIgnoredIp(target.addressQuery)
+            sockets.AddIgnoredIp(target.addressQuery)
         End Try
         'debugShowStates()
 
@@ -255,7 +255,7 @@ Public Class ServerScanner
                 If Not IsDBNull(server.Rules) AndAlso server.Rules <> "" Then
                     rules = JsonSerializer.Deserialize(Of Hashtable)(server.Rules)
                     If Not IsNothing(rules) AndAlso rules.ContainsKey("queryport") Then
-                        Dim ip = getIp(server.Address)
+                        Dim ip = GetHost(server.Address)
                         fullQueryIp = ip & ":" & rules("queryport").ToString
                     End If
                 End If
@@ -290,7 +290,7 @@ Public Class ServerScanner
             For Each target As ServerQuery In serverWorkers.Values
                 target.tick()
                 If (Date.UtcNow - lastPacketBufferFlush).TotalMilliseconds > 50 Then
-                    sockets.tick()
+                    sockets.Tick()
                     taskSleep()
                     lastPacketBufferFlush = Date.UtcNow
                 End If
