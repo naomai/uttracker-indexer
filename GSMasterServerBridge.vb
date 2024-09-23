@@ -35,7 +35,7 @@ Public Class GSMasterServerBridge
     End Sub
 
     Private Sub refreshServerListForGame(gamename As String)
-        Dim serverList As New List(Of String), gameEntry As ServersListForGame, table As DataTable
+        Dim serverList As New List(Of String), gameEntry As ServersListForGame
         Dim rules As Hashtable
 
         Dim timeLowerLimit = DateTime.UtcNow.AddMinutes(-10)

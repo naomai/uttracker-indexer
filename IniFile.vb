@@ -79,7 +79,7 @@ Public Class IniFile
         Return val <> "__UTTNONEXISTINGIDX__"
     End Function
 
-    Private Function CreateIniTemplate(dest As String)
+    Private Sub CreateIniTemplate(dest As String)
         Dim bundledConfigProvider = New EmbeddedFileProvider(Assembly.GetExecutingAssembly(), "Naomai.UTT.ScannerV2")
         Dim bundledConfigFile = bundledConfigProvider.GetFileInfo("ConfigDist.ini")
 
@@ -89,7 +89,7 @@ Public Class IniFile
             bundledConfigStream.CopyTo(destinationConfig)
         End If
         destinationConfig.Dispose()
-    End Function
+    End Sub
 
 End Class
 
