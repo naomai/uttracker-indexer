@@ -5,6 +5,7 @@
 Imports System.Math
 Imports System.Net
 Imports System.Net.Sockets
+Imports System.Threading
 
 Public Class JulkinNet
     Implements IDisposable
@@ -101,7 +102,7 @@ Public Class JulkinNet
 
         If IsNothing(remote) Then Return buffer
         Do
-
+            Thread.Sleep(10)
         Loop While socketObj.Available = 0 AndAlso Not IsTimedOut()
         If socketObj.Available <= 0 Then Return buffer
         ReDim buffer(socketObj.Available - 1)
@@ -124,7 +125,7 @@ Public Class JulkinNet
         SetTimeout()
 
         Do
-
+            Thread.Sleep(10)
         Loop While socketObj.Available = 0 And Not IsTimedOut()
 
         ReDim buffer(bytesToRead)

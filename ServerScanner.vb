@@ -1,4 +1,4 @@
-﻿Imports System.Net
+Imports System.Net
 Imports System.Text
 Imports System.Text.Json
 Imports System.Data
@@ -113,7 +113,8 @@ Public Class ServerScanner
             End If
 
             tickCounter += 1
-            If tickCounter Mod 48 = 0 Then taskSleep()
+            'If tickCounter Mod 48 = 0 Then taskSleep()
+            taskSleep()
         Loop
 
         serversCountOnline = 0
@@ -330,7 +331,7 @@ Public Class ServerScanner
     Protected Sub taskSleep() 'suspends program for 1 ms, since we don't need 100% of cpu power
         ' todo: replace with timer queue api for more predictable execution times
         ' and NO, timeBeginPeriod(1) is not a good solution!!
-        System.Threading.Thread.CurrentThread.Join(1)
+        System.Threading.Thread.CurrentThread.Join(10)
     End Sub
 
     Protected Sub taskSleepLonger()
