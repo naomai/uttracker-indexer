@@ -292,8 +292,6 @@ Namespace Utt2Database
                         HasColumnType("bigint(20) unsigned").
                         HasColumnName("server_id")
                     entity.Property(Function(e) e.StartTime).
-                        ValueGeneratedOnAddOrUpdate().
-                        HasDefaultValueSql("'current_timestamp()'").
                         HasColumnType("timestamp").
                         HasColumnName("start_time")
 

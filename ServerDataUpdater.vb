@@ -378,7 +378,7 @@ Public Class ServerDataUpdater
     End Sub
 
     Private Function GetLastMatchInfo() As ServerMatch
-        Return dbCtx.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault(
+        Return dbCtx.ServerMatches.AsNoTracking().OrderByDescending(Function(m) m.Id).FirstOrDefault(
             Function(m) m.ServerId = uttServerId)
     End Function
 

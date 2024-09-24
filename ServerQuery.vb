@@ -28,7 +28,7 @@ Public Class ServerQuery
     Protected saver As ServerDataUpdater
     Protected gamemodeQuery As GamemodeSpecificQuery
 
-    Private formatProvider = New CultureInfo("en-US")
+    Private formatProvider = CultureInfo.InvariantCulture
 
     Public Sub New(master As ServerScanner, serverAddress As String)
         addressQuery = serverAddress
