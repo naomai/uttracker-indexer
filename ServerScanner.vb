@@ -20,6 +20,11 @@ Public Class ServerScanner
     Public serversCountTotal As Integer
     Public serversCountOnline As Integer
 
+    Private plannedScanTimeMs As Integer
+    Private lastScanOverdueTimeMs As Integer = 0
+    Private deployScanJobIntervalMs As Single
+    Private jobsWaitingToDeploy As Boolean
+
     Protected Friend log As Logger
     Protected Friend ini As IniFile
     Protected Friend dbCtx As Utt2Context
@@ -99,12 +104,13 @@ Public Class ServerScanner
 
         tickCounter = 0
 
-        Do While ((Date.UtcNow - scanLastActivity).TotalSeconds < 10 Or (Date.UtcNow - scanLastTouchAll).TotalSeconds >= 3) ' second check: avoid ending the scan too early when 'time-travelling'
+        Do While jobsWaitingToDeploy OrElse
+            (Date.UtcNow - scanLastActivity).TotalSeconds < 10 OrElse
+            (Date.UtcNow - scanLastTouchAll).TotalSeconds >= 3 ' check: avoid ending the scan too early when 'time-travelling'
+
             sockets.Tick()
-            If (Date.UtcNow - scanLastTouchAll).TotalSeconds > 2 Then
-                'touchAll()
+            If jobsWaitingToDeploy OrElse (Date.UtcNow - scanLastTouchAll).TotalSeconds > 2 Then
                 touchInactive()
-                'debugShowStates()
                 scanLastTouchAll = Date.UtcNow
             End If
             If (Date.UtcNow - scanLastActivity).TotalSeconds > 5 Then
@@ -113,7 +119,8 @@ Public Class ServerScanner
             End If
 
             tickCounter += 1
-            'If tickCounter Mod 48 = 0 Then taskSleep()
+            'If tickCounter Mod 48 = 0 Then taskSleep()\
+            If tickCounter Mod 300 = 0 Then debugShowStates()
             taskSleep()
         Loop
 
@@ -132,6 +139,9 @@ Public Class ServerScanner
         RaiseEvent OnScanComplete(serversCountTotal, serversCountOnline, scanEnd - scanStart)
         log.autoFlush = True
         debugWriteLine("Scan done in {0} seconds, {1} network ticks.", Math.Round((scanEnd - scanStart).TotalSeconds), tickCounter)
+
+        lastScanOverdueTimeMs = Math.Max(0, GetScanTimeMs() - plannedScanTimeMs)
+
         debugShowStates()
         disposeTargets()
         disposeSockets()
@@ -183,11 +193,12 @@ Public Class ServerScanner
     End Sub
 
     Private Sub debugShowStates()
-        Dim bas, inf, infex, pl, ru, tt, don, onl, ttp As Integer
+        Dim sta, bas, inf, infex, pl, ru, tt, don, onl, ttp As Integer
         Dim st As ServerQueryState
         SyncLock serverWorkersLock
             For Each t As ServerQuery In serverWorkers.Values
                 st = t.getState
+                sta += IIf(st.started, 1, 0)
                 bas += IIf(st.hasBasic, 1, 0)
                 inf += IIf(st.hasInfo, 1, 0)
                 infex += IIf(st.hasInfoExtended, 1, 0)
@@ -199,15 +210,22 @@ Public Class ServerScanner
                 ttp += IIf(t.caps.timeTestPassed, 1, 0)
             Next
         End SyncLock
-        debugWriteLine("States: BAS {0} INF {1} INFEX {2} PL {3} RU {4} TT {5} TTP {8} DO {6} ON {7}", bas, inf, infex, pl, ru, tt, don, onl, ttp)
+        debugWriteLine("States: STA {9} BAS {0} INF {1} INFEX {2} PL {3} RU {4} TT {5} TTP {8} DO {6} ON {7}", bas, inf, infex, pl, ru, tt, don, onl, ttp, sta)
     End Sub
 
     Protected Sub initServerWorkers(serverList As List(Of String))
+        plannedScanTimeMs = (scanInterval - 20) * 1000 - lastScanOverdueTimeMs
+        deployScanJobIntervalMs = plannedScanTimeMs / serverList.Count
+
+        Dim jobIndex = 0
         SyncLock serverWorkersLock
             For Each server In serverList
-                serverWorkers(server) = New ServerQuery(Me, server)
-                serverWorkers(server).setSocket(sockets)
+                Dim worker = New ServerQuery(Me, server)
+                worker.setSocket(sockets)
+                worker.deployTimeOffsetMs = deployScanJobIntervalMs * jobIndex
+                serverWorkers(server) = worker
                 serverPacketBuffer(server) = ""
+                jobIndex += 1
             Next
         End SyncLock
     End Sub
@@ -285,27 +303,35 @@ Public Class ServerScanner
 
     Protected Sub touchAll(Optional init As Boolean = False)
         SyncLock serverWorkersLock
-            'If init Then
-
             Dim lastPacketBufferFlush As Date = Date.UtcNow
+            Dim currentScanTime = GetScanTimeMs()
+            jobsWaitingToDeploy = False
             For Each target As ServerQuery In serverWorkers.Values
-                target.tick()
+                If currentScanTime < target.deployTimeOffsetMs Then
+                    jobsWaitingToDeploy = True
+                Else
+                    target.tick()
+                End If
+
+
                 If (Date.UtcNow - lastPacketBufferFlush).TotalMilliseconds > 50 Then
                     sockets.Tick()
                     taskSleep()
                     lastPacketBufferFlush = Date.UtcNow
                 End If
             Next
-            'Else
-            'For Each target As ServerScannerWorker In serverWorkers.Values
-            'target.tick()
-            '    Next
-            'End If
+
         End SyncLock
     End Sub
 
     Protected Sub touchInactive()
+        jobsWaitingToDeploy = False
         For Each target As ServerQuery In serverWorkers.Values
+            If GetScanTimeMs() < target.deployTimeOffsetMs Then
+                jobsWaitingToDeploy = True
+                Continue For
+            End If
+
             If (Date.UtcNow - target.lastActivity).TotalSeconds > 15 Then
                 target.tick()
             End If
@@ -337,6 +363,10 @@ Public Class ServerScanner
     Protected Sub taskSleepLonger()
         System.Threading.Thread.CurrentThread.Join(200)
     End Sub
+
+    Protected Function GetScanTimeMs() As Integer
+        Return (Date.UtcNow - scanStart).TotalMilliseconds
+    End Function
 
     Private Sub ServerScanner_OnScanBegin(serverCount As Integer) Handles Me.OnScanBegin
         dbTransaction = dbCtx.Database.BeginTransaction()

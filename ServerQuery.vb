@@ -9,6 +9,7 @@ Public Class ServerQuery
     Public players As List(Of Hashtable)
     Public rules As Hashtable
 
+    Public deployTimeOffsetMs As Integer
     Public firstTimeTest, secondTimeTest As Single
     Public firstTimeTestLocal, secondTimeTestLocal, infoSentTimeLocal As DateTime
 
@@ -40,6 +41,7 @@ Public Class ServerQuery
         End With
 
         state.starting = True
+        state.started = False
         saver = New ServerDataUpdater(Me)
 
         challenge = generateChallenge()
@@ -48,8 +50,9 @@ Public Class ServerQuery
     Public Sub tick()
         If Not state.done Then
             If state.starting Then
-                sendRequest()
+                state.started = True
                 state.starting = False
+                sendRequest()
             Else
 
                 If Not IsNothing(incomingPacket) Then ' we received a full response from server
@@ -91,12 +94,12 @@ Public Class ServerQuery
                 serverSend("\basic\\secure\" & challenge)
                 .requestingBasic = True
             ElseIf Not .hasInfo Then
-                serverSend("\info\" & IIf(info("gamename") = "ut", xsqSuffix, ""))
+                serverSend("\info\" & IIf(caps.hasXSQ, xsqSuffix, ""))
                 .requestingInfo = True
                 infoSentTimeLocal = Date.UtcNow
             ElseIf Not .hasInfoExtended AndAlso Not .hasTimeTest AndAlso caps.hasPropertyInterface Then
                 firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
-                gamemodeQuery = GamemodeSpecificQuery.getQueryObjectForContext(Me)
+                gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(Me)
                 Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
                 If Not IsNothing(gamemodeQuery) Then
                     gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
@@ -131,7 +134,7 @@ Public Class ServerQuery
 
     Private Sub serverSend(packet As String)
         Try
-            socket.sendTo(addressQuery, packet)
+            socket.SendTo(addressQuery, packet)
             packetsSent += 1
         Catch e As Sockets.SocketException
             logDbg("ServerSendExc: " & e.Message)
@@ -202,6 +205,10 @@ Public Class ServerQuery
         caps.version = info("gamever")
         caps.gameName = info("gamename")
 
+        If gameName = "ut" Then
+            caps.hasXSQ = True ' set this flag for initial polling with XSQ suffix
+        End If
+
     End Sub
 
     Private Sub parseInfo()
@@ -218,8 +225,8 @@ Public Class ServerQuery
             'If info.ContainsKey("hostport") AndAlso IsNumeric(info("hostport")) Then
             'addressQuery2 = getIp(addressQuery) & ":" & (Integer.Parse(info("hostport")) + 1)
             'End If
-            If info.ContainsKey("xserverquery") Then
-                caps.hasXSQ = True
+            caps.hasXSQ = info.ContainsKey("xserverquery")
+            If caps.hasXSQ Then
                 Integer.TryParse(Replace(info("xserverquery"), ".", ""), formatProvider, caps.XSQVersion)
                 caps.hasPropertyInterface = False
                 caps.timeTestPassed = False
@@ -344,6 +351,24 @@ Public Class ServerQuery
                 lastActivity = Date.UtcNow
                 sendRequest()
                 Return True
+
+                ' workaround: XServerQuery not responding
+            ElseIf .requestingInfo AndAlso caps.hasXSQ Then
+                .requestingInfo = False
+                caps.hasXSQ = False
+                sendRequest()
+                Return True
+            ElseIf .requestingPlayers AndAlso caps.hasXSQ Then
+                .requestingPlayers = False
+                caps.hasXSQ = False
+                sendRequest()
+                Return True
+            ElseIf .requestingRules AndAlso caps.hasXSQ Then
+                .requestingRules = False
+                caps.hasXSQ = False
+                sendRequest()
+                Return True
+
             ElseIf .requestingRules Then
                 .requestingRules = False
                 caps.supportsRules = False
@@ -437,6 +462,7 @@ End Class
 
 
 Public Structure ServerQueryState
+    Dim started As Boolean
     Dim starting As Boolean
     Dim hasBasic As Boolean
     Dim hasInfo As Boolean
