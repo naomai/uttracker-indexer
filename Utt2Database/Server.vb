@@ -4,7 +4,7 @@ Imports Microsoft.VisualBasic
 
 Namespace Utt2Database
     Partial Public Class Server
-        Public Property Id As Long
+        Public Property Id As Long?
 
         Public Property Address As String
 

@@ -57,9 +57,12 @@ Public Class ServerDataUpdater
         End With
 
         dbCtx.Servers.Update(serverRecord)
-        dbCtx.SaveChanges()
 
+        If IsNothing(serverRecord.Id) Then
+            dbCtx.SaveChanges()
+        End If
         uttServerId = serverRecord.Id
+
         uttServerScanTime = serverWorker.infoSentTimeLocal
 
         state.hasServerId = True
@@ -96,7 +99,7 @@ Public Class ServerDataUpdater
 
         serverRecord.Rules = rulesJson
         dbCtx.Servers.Update(serverRecord)
-        dbCtx.SaveChanges()
+        'dbCtx.SaveChanges()
 
         state.savedRules = True
 
@@ -215,14 +218,16 @@ Public Class ServerDataUpdater
             .ServerPlayeridCounter = thisMatchCurrentID
         }
             dbCtx.ServerMatches.Add(matchRecord)
-            dbCtx.SaveChanges()
+            If IsNothing(matchRecord.Id) Then
+                dbCtx.SaveChanges()
+            End If
             uttGameId = matchRecord.Id
         Else
             If Not IsNothing(thisMatchCurrentID) AndAlso thisMatchCurrentID > lastMatchCurrentID Then
                 ' only update CurrenID in DB
                 'matchRecord = dbCtx.ServerMatches.Single(Function(g) g.Id = thisMatchCurrentID)
                 previousMatchRecord.ServerPlayeridCounter = thisMatchCurrentID
-                dbCtx.SaveChanges()
+                'dbCtx.SaveChanges()
             End If
             uttGameId = previousMatchRecord.Id
         End If
@@ -252,6 +257,7 @@ Public Class ServerDataUpdater
                 updatePlayerHistoryEntry(player)
             Next
             state.savedPlayers = True
+            'dbCtx.SaveChanges()
         End If
     End Sub
 
@@ -269,8 +275,10 @@ Public Class ServerDataUpdater
         End With
 
         dbCtx.Players.Update(playerRecord)
-        dbCtx.SaveChanges()
 
+        If IsNothing(playerRecord.Id) Then
+            dbCtx.SaveChanges()
+        End If
         playerData("uttPlayerId") = playerRecord.Id
     End Sub
 
@@ -312,7 +320,7 @@ Public Class ServerDataUpdater
         End With
 
         dbCtx.PlayerLogs.Update(playerLogRecord)
-        dbCtx.SaveChanges()
+        'dbCtx.SaveChanges()
 
     End Sub
 
@@ -357,7 +365,7 @@ Public Class ServerDataUpdater
                 dbCtx.PlayerStats.Update(playerStatRecord)
                 playerLog.Finished = True
             Next
-            dbCtx.SaveChanges()
+            'dbCtx.SaveChanges()
 
             state.savedCumulativeStats = True
         End If
@@ -378,7 +386,7 @@ Public Class ServerDataUpdater
     End Sub
 
     Private Function GetLastMatchInfo() As ServerMatch
-        Return dbCtx.ServerMatches.AsNoTracking().OrderByDescending(Function(m) m.Id).FirstOrDefault(
+        Return dbCtx.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault(
             Function(m) m.ServerId = uttServerId)
     End Function
 

@@ -4,7 +4,7 @@ Imports Microsoft.VisualBasic
 
 Namespace Utt2Database
     Partial Public Class Player
-        Public Property Id As Long
+        Public Property Id As Long?
 
         Public Property Slug As String
 
