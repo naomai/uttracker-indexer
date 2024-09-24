@@ -377,9 +377,14 @@ Class UTQueryPacket
 
             Dim valueStartingIdx As Integer = kvSeparatorIdx + 1
             Dim valueEndingIdx As Integer = valueStartingIdx
+            Dim doubleBackslash As Boolean
             Do ' get entire value with escape sequences "\\"
                 valueEndingIdx = packetString.IndexOf("\"c, valueEndingIdx) + 1
-            Loop While valueEndingIdx <> 0 AndAlso valueEndingIdx < packetString.Length AndAlso packetString(valueEndingIdx) = "\"c
+                doubleBackslash = valueEndingIdx <> 0 AndAlso valueEndingIdx < packetString.Length AndAlso packetString(valueEndingIdx) = "\"c
+                If doubleBackslash Then
+                    valueEndingIdx += 1
+                End If
+            Loop While doubleBackslash
 
             If valueEndingIdx = 0 Then
                 valueEndingIdx = packetString.Length
