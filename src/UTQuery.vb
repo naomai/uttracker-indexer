@@ -408,30 +408,53 @@ Public Class UTQueryPacket
 
         Dim responsePackets As New List(Of String)
         Dim currentPacket As String
-        Dim currentPacketId = 1, doneSomething As Boolean
+        Dim currentPacketId = 0, doneSomething As Boolean
+        Dim orphanPacket As String = ""
         Do
             doneSomething = False
             currentPacket = ""
             For Each variable In packetContent
                 If Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoQueryId) AndAlso variable.key = "queryid" AndAlso queryId = 0 Then
                     queryId = variable.value
-                ElseIf variable.sourcePacketId = currentPacketId Then
-                    currentPacket &= variable.ToString
-                    doneSomething = True
+                Else
+                    If currentPacketId = 0 AndAlso variable.sourcePacketId = 0 Then
+                        orphanPacket &= variable.ToString
+                        doneSomething = True
+                    ElseIf variable.sourcePacketId = currentPacketId Then
+                        currentPacket &= variable.ToString
+                        doneSomething = True
+                    End If
                 End If
             Next
-            If Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoQueryId) Then
-                currentPacket &= "\queryid\" & queryId & "." & currentPacketId
-            End If
 
-            If Not doneSomething AndAlso Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoFinal) Then
-                responsePackets(currentPacketId - 2) &= "\final\"
-            Else
+            If currentPacket <> "" Then
+                If Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoQueryId) Then
+                    currentPacket &= "\queryid\" & queryId & "." & currentPacketId
+                End If
                 responsePackets.Add(currentPacket)
             End If
 
-            currentPacketId += 1
+            If doneSomething OrElse currentPacketId = 0 Then
+                currentPacketId += 1
+                doneSomething = True
+            End If
         Loop While doneSomething
+
+        If orphanPacket <> "" Then
+            If Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoQueryId) Then
+                If queryId = 0 Then
+                    queryId = New System.Random().Next(10, 99)
+                End If
+                orphanPacket &= "\queryid\" & queryId & "." & currentPacketId
+            End If
+            responsePackets.Add(orphanPacket)
+        End If
+
+        If Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoFinal) Then
+            responsePackets(responsePackets.Count - 1) &= "\final\"
+        End If
+
+
         Return responsePackets
     End Function
 
