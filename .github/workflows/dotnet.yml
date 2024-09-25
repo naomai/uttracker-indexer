@@ -24,7 +24,7 @@ jobs:
     - name: Build
       run: |-
         for t in "win-x64", "linux-x64", "linux-arm64"; do
-          echo "dotnet build src/Indexer.vbproj --configuration Release --no-restore --runtime $t --no-self-contained";
+          dotnet build src/Indexer.vbproj --configuration Release --no-restore --runtime $t --no-self-contained;
         done;
     - name: Test
       run: dotnet test --no-build --verbosity normal
