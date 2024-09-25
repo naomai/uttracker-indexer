@@ -3,6 +3,7 @@ Imports Mysqlx.Crud
 Imports System.ComponentModel.DataAnnotations
 Imports Naomai.UTT.Indexer.UTQueryPacket
 Imports NUnit.Framework
+Imports Mysqlx.XDevAPI.Common
 
 Namespace Tests
 
@@ -11,6 +12,19 @@ Namespace Tests
         Public Sub Setup()
 
         End Sub
+
+        <TestCase("\ip\201.137.1.56:5534\ip\201.137.1.56:7778\ip\201.137.1.56:5512\final\")>
+        Public Sub MasterListResponseParse(packetString As String)
+            Dim packet As UTQueryPacket
+            packet = New UTQueryPacket(packetString, UTQueryPacketFlags.UTQP_MasterServerIpList)
+
+            Assert.That(packet.Count, [Is].EqualTo(3))
+            For Each ipEntry As UTQueryKeyValuePair In packet
+                Assert.That(ipEntry.key, [Is].EqualTo("ip"))
+            Next
+            Assert.That(packet("final"), [Is].Null)
+        End Sub
+
 
         <TestCase("ut", "\gamename\ut\gamever\451\minnetver\432\location\0\validate\XnaNeH9u\queryid\10.1\final\")>
         <TestCase("unreal", "\gamename\unreal\gamever\227k\gamesubver\11\mingamever\224\location\3\validate\jm96Voe7\final\\queryid\97.1")>
@@ -36,8 +50,6 @@ Namespace Tests
         <TestCase("\validate\gYL/pHpg\final\\queryid\68.2")>
         <TestCase("\gamename\unreal\gamever\227k\gamesubver\11\mingamever\224\location\0\queryid\68.1")>
         Public Sub ServerResponseParseMultiPacketIncomplete(packetString As String)
-            Dim packet As UTQueryPacket
-
             Assert.Throws(Of UTQueryResponseIncompleteException)(
                 Function()
                     Return New UTQueryPacket(packetString)
@@ -46,7 +58,7 @@ Namespace Tests
         End Sub
 
         <Test>
-        Public Sub ServerQueryCreatePacket()
+        Public Sub QueryCreatePacket()
             Dim packet As UTQueryPacket
             packet = New UTQueryPacket(UTQueryPacketFlags.UTQP_SimpleRequest)
             packet("info") = ""
