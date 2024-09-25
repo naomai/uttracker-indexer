@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\indexer.vbproj" />
+    <ProjectReference Include="..\src\Indexer.vbproj" />
   </ItemGroup>
 
 </Project>
