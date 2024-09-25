@@ -3,7 +3,7 @@
 
 
 
-Class UTQueryPacket
+Public Class UTQueryPacket
     Inherits System.Collections.CollectionBase
     Implements IEnumerable(Of UTQueryKeyValuePair)
     Implements IDisposable

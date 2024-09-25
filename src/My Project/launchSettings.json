@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "UTT_Indexer": {
+      "commandName": "Project",
+      "remoteDebugEnabled": true
+    }
+  }
+}
