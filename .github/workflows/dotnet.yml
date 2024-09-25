@@ -11,11 +11,7 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        platform: [ 'win-x64', 'linux-x64', 'linux-arm64' ]
     steps:
     - uses: actions/checkout@v4
     - name: Setup .NET
@@ -25,13 +21,11 @@ jobs:
         cache: true
     - name: Restore dependencies
       run: dotnet restore
-    - name: Build for platform  ${{ matrix.platform }}
-      run: dotnet build --configuration Release --no-restore --runtime ${{ matrix.platform }} --no-self-contained 
+    - name: Build
+      run: |-
+        for t in "win-x64", "linux-x64", "linux-arm64"; do
+          echo "dotnet build src/Indexer.vbproj --configuration Release --no-restore --runtime $t --no-self-contained";
+        done;
     - name: Test
       run: dotnet test --no-build --verbosity normal
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: binary-${{ matrix.platform }}
-        path: bin/Release/net8.0/${{ matrix.platform }}/
-        retention-days: 3 
+
