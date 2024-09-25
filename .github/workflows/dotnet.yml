@@ -23,7 +23,7 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
     - name: Test
-      run: dotnet test--verbosity normal
+      run: dotnet test --verbosity normal
     - name: Build
       run: |-
         for t in "win-x64" "linux-x64" "linux-arm64"; do
