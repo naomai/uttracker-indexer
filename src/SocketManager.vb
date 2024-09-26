@@ -1,6 +1,8 @@
-Imports System.Net
+﻿Imports System.Net
 Imports System.Net.Sockets
+Imports System.Threading
 Imports Naomai.UTT.Indexer.JulkinNet
+Imports Org.BouncyCastle.Bcpg
 
 ''' <summary>
 ''' UDP socket abstraction and host filter
@@ -13,16 +15,20 @@ Public Class SocketManager
     Protected lastProcessed As Date
 
     Public updateIntervalMs As Integer = 100
+    Public packetReceiveThread As Thread
 
     Public Event PacketReceived(packet() As Byte, source As IPEndPoint)
 
     Public Sub New()
+        Dim bindEndpoint As New IPEndPoint(IPAddress.Any, 0)
         socket = New Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
-        socket.Bind(New IPEndPoint(IPAddress.Any, 0))
+        socket.Bind(bindEndpoint)
         socket.ReceiveTimeout = 5000
         socket.ReceiveBufferSize = 1024 * 1024
 
         lastProcessed = Date.UtcNow
+
+        ReceiveLoop()
     End Sub
 
     Public Sub SendTo(endpoint As String, packet As String)
@@ -49,44 +55,50 @@ Public Class SocketManager
         End Try
     End Sub
 
+    Protected Async Sub ReceiveLoop()
+        Dim packet() As Byte, bindEndpoint As EndPoint = New IPEndPoint(IPAddress.Any, 0)
+        Dim sourceEndpoint As IPEndPoint, sourceIp As String
+        Dim receiveResult As SocketReceiveFromResult
+        Do
+            ReDim Packet(2000)
+            receiveResult = Await socket.ReceiveFromAsync(packet, bindEndpoint)
+            If receiveResult.ReceivedBytes > 0 Then
+                ReDim Preserve packet(receiveResult.ReceivedBytes)
+            End If
+
+            sourceEndpoint = receiveResult.RemoteEndPoint
+            sourceIp = sourceEndpoint.ToString
+            If ignoreIps.Contains(sourceIp) Then
+                Continue Do
+            End If
+            If packet.Count > 0 Then
+                EnqueuePacket(sourceEndpoint, packet)
+            End If
+        Loop
+    End Sub
+
     Public Sub Tick()
-        EnqueueIncoming()
         If (Date.UtcNow - lastProcessed).TotalMilliseconds > updateIntervalMs Then
             DequeueAll()
             lastProcessed = Date.UtcNow
         End If
     End Sub
 
-    Private Sub EnqueueIncoming()
-        Dim packet() As Byte, source As EndPoint = New IPEndPoint(IPAddress.Any, 0), sourceIp As String
-        Do While socket.Available > 0
-            Try
-
-                Dim bytesRead As Integer
-                ReDim packet(2000)
-                bytesRead = socket.ReceiveFrom(packet, source)
-                If bytesRead > 0 Then
-                    ReDim Preserve packet(bytesRead)
-                End If
-
-                sourceIp = source.ToString
-                If ignoreIps.Contains(sourceIp) Then
-                    Continue Do
-                End If
-                If packet.Count > 0 Then
-                    MaybeCreateQueueForIp(source)
-                    ipPacketQueue(source).Enqueue(packet)
-                End If
-            Catch e As Exception
-
-            End Try
-        Loop
+    Private Sub EnqueuePacket(sourceEndpoint As IPEndPoint, packet As Byte())
+        SyncLock ipPacketQueue
+            If Not ipPacketQueue.ContainsKey(sourceEndpoint) Then
+                ipPacketQueue.Add(sourceEndpoint, New Queue(Of Byte()))
+            End If
+            ipPacketQueue(sourceEndpoint).Enqueue(packet)
+        End SyncLock
     End Sub
 
     Private Sub DequeueAll()
-        For Each host In ipPacketQueue.Keys
-            DequeueForHost(host)
-        Next
+        SyncLock ipPacketQueue
+            For Each host In ipPacketQueue.Keys
+                DequeueForHost(host)
+            Next
+        End SyncLock
     End Sub
 
     Private Sub DequeueForHost(host As IPEndPoint)
@@ -95,12 +107,6 @@ Public Class SocketManager
             packet = packetQueue.Dequeue()
             RaiseEvent PacketReceived(packet, host)
         Loop
-    End Sub
-
-    Private Sub MaybeCreateQueueForIp(source As IPEndPoint)
-        If Not ipPacketQueue.ContainsKey(source) Then
-            ipPacketQueue.Add(source, New Queue(Of Byte()))
-        End If
     End Sub
 
     Public Sub AddIgnoredIp(ip As EndPoint)
@@ -114,4 +120,5 @@ Public Class SocketManager
     Public Sub ClearIgnoredIps()
         ignoreIps.Clear()
     End Sub
+
 End Class
