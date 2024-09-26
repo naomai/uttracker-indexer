@@ -15,19 +15,19 @@ Public Class UTQueryPacket
 
     Public Sub New(packet As String, Optional packetFlags As UTQueryPacketFlags = 0)
         Me.New(packetFlags)
-        parseString(packet)
+        ParseString(packet)
     End Sub
 
     Public Sub New(packetHashtable As Hashtable, Optional packetFlags As UTQueryPacketFlags = 0)
-        createFromHashtable(packetHashtable)
+        CreateFromHashtable(packetHashtable)
     End Sub
 
     Public Sub New(Optional packetFlags As UTQueryPacketFlags = 0)
         Me.packetFlags = packetFlags
     End Sub
 
-    Public Sub parseString(packet As String)
-        packetContent = parseGamespyResponse(packet, CBool(Me.packetFlags And UTQueryPacketFlags.UTQP_NoQueryId))
+    Public Sub ParseString(packet As String)
+        packetContent = ParseGamespyResponse(packet, CBool(Me.packetFlags And UTQueryPacketFlags.UTQP_NoQueryId))
         For Each variable In packetContent
             If variable.key = "queryid" Then
                 queryId = variable.value
@@ -39,57 +39,59 @@ Public Class UTQueryPacket
                                 End Function)
     End Sub
 
-    Protected Sub createFromHashtable(packetHashtable As Hashtable)
-        packetContent = convertHashtablePacketToListPacket(packetHashtable)
+    Protected Sub CreateFromHashtable(packetHashtable As Hashtable)
+        packetContent = ConvertHashtablePacketToListPacket(packetHashtable)
     End Sub
 
-    Protected Shared Function convertHashtablePacketToListPacket(packetHT As Hashtable) As List(Of UTQueryKeyValuePair)
-        convertHashtablePacketToListPacket = New List(Of UTQueryKeyValuePair)
+    Protected Shared Function ConvertHashtablePacketToListPacket(packetHT As Hashtable) As List(Of UTQueryKeyValuePair)
+        Dim result As New List(Of UTQueryKeyValuePair)
         Dim packetId As Integer
         For Each key In packetHT.Keys
             If packetHT(key).GetType Is GetType(List(Of String)) Then
                 For Each valueSub As String In packetHT(key)
-                    packetId = 1 + Math.Floor(convertHashtablePacketToListPacket.Count / 10)
-                    convertHashtablePacketToListPacket.Add(staticCreateKVPair(key, valueSub, packetId))
+                    packetId = 1 + Math.Floor(result.Count / 10)
+                    result.Add(CreateKVPair(key, valueSub, packetId))
                 Next
             Else
-                packetId = 1 + Math.Floor(convertHashtablePacketToListPacket.Count / 10)
-                convertHashtablePacketToListPacket.Add(staticCreateKVPair(key, packetHT(key), packetId))
+                packetId = 1 + Math.Floor(result.Count / 10)
+                result.Add(CreateKVPair(key, packetHT(key), packetId))
             End If
         Next
+        Return result
     End Function
 
-    Protected Shared Function convertListPacketToHashtablePacket(packetList As List(Of UTQueryKeyValuePair)) As Hashtable
-        convertListPacketToHashtablePacket = New Hashtable
+    Protected Shared Function ConvertListPacketToHashtablePacket(packetList As List(Of UTQueryKeyValuePair)) As Hashtable
+        Dim result As New Hashtable
         For Each variable In packetList
-            convertListPacketToHashtablePacket.Item(variable.key) = variable.value
+            result.Item(variable.key) = variable.value
         Next
+        Return result
     End Function
 
-    Public Function convertToHashtablePacket()
-        Return convertListPacketToHashtablePacket(packetContent)
+    Public Function ConvertToHashtablePacket()
+        Return ConvertListPacketToHashtablePacket(packetContent)
     End Function
 
-    Public Sub setReadyToSend(Optional rtsFlag As Boolean = True)
+    Public Sub SetReadyToSend(Optional rtsFlag As Boolean = True)
         packetFlags = IIf(rtsFlag,
                           packetFlags Or UTQueryPacketFlags.UTQP_ReadyToSend,
                           packetFlags And (Not UTQueryPacketFlags.UTQP_ReadyToSend))
     End Sub
 
 
-    Shared Function staticCreateKVPair(key As String, value As String, Optional packetId As Integer = 1) As UTQueryKeyValuePair
-        staticCreateKVPair.key = key
-        staticCreateKVPair.value = value
-        staticCreateKVPair.sourcePacketId = packetId
+    Shared Function CreateKVPair(key As String, value As String, Optional packetId As Integer = 1) As UTQueryKeyValuePair
+        CreateKVPair.key = key
+        CreateKVPair.value = value
+        CreateKVPair.sourcePacketId = packetId
     End Function
 
     Public Overrides Function ToString() As String
-        Return createGamespyResponseString(packetFlags)
+        Return CreateGamespyResponseString(packetFlags)
     End Function
 
     Public Sub Add(key As String, value As String)
         Dim packetId = 1 + Math.Floor(packetContent.Count / 10)
-        packetContent.Add(staticCreateKVPair(key, value, packetId))
+        packetContent.Add(CreateKVPair(key, value, packetId))
     End Sub
 
     Public Sub AddIndexed(key As String, value As String, Optional index As Integer = -1)
@@ -121,7 +123,7 @@ Public Class UTQueryPacket
 
     Default Public Overloads Property Item(key As String) As String
         Get
-            Dim variableList As List(Of UTQueryKeyValuePair) = findElementsByKey(key)
+            Dim variableList As List(Of UTQueryKeyValuePair) = GetElementsByKey(key)
             If variableList.Count Then
                 Return variableList(0).value
             Else
@@ -129,7 +131,7 @@ Public Class UTQueryPacket
             End If
         End Get
         Set(value As String)
-            Dim varId = findElementIdByKey(key)
+            Dim varId = GetElementIdByKey(key)
             Dim tmpKVPair As UTQueryKeyValuePair
             If varId <> -1 Then
                 tmpKVPair = packetContent(varId)
@@ -154,15 +156,15 @@ Public Class UTQueryPacket
 
     Public Shadows Property List As Hashtable
         Get
-            Return convertToHashtablePacket()
+            Return ConvertToHashtablePacket()
         End Get
         Set(value As Hashtable)
-            packetContent = convertHashtablePacketToListPacket(value)
+            packetContent = ConvertHashtablePacketToListPacket(value)
         End Set
     End Property
 
     Public Function ContainsKey(key As String)
-        Return findElementIdByKey(key) <> -1
+        Return GetElementIdByKey(key) <> -1
     End Function
 
     Public Shared Narrowing Operator CType(packetHT As Hashtable) As UTQueryPacket
@@ -170,14 +172,14 @@ Public Class UTQueryPacket
     End Operator
 
     Public Shared Widening Operator CType(packet As UTQueryPacket) As Hashtable
-        Return packet.convertToHashtablePacket()
+        Return packet.ConvertToHashtablePacket()
     End Operator
 
     Public Shared Widening Operator CType(packet As UTQueryPacket) As String
         Return packet.ToString()
     End Operator
 
-    Protected Function findElementsByKey(key As String) As List(Of UTQueryKeyValuePair)
+    Protected Function GetElementsByKey(key As String) As List(Of UTQueryKeyValuePair)
         Dim elements As New List(Of UTQueryKeyValuePair)
         For Each variable In packetContent
             If String.Compare(variable.key, key, True) = 0 Then elements.Add(variable)
@@ -185,7 +187,7 @@ Public Class UTQueryPacket
         Return elements
     End Function
 
-    Protected Function findElementIdByKey(key As String) As Integer
+    Protected Function GetElementIdByKey(key As String) As Integer
         For i = 0 To packetContent.Count - 1
             If String.Compare(packetContent(i).key, key, True) = 0 Then Return i
         Next
@@ -198,7 +200,7 @@ Public Class UTQueryPacket
     ''' <param name="responseString">Response received from server</param>
     ''' <param name="masterServer">Set to True to skip queryid checks when talking with master server</param>
     ''' <remarks></remarks>
-    Protected Function parseGamespyResponse(ByVal responseString As String, Optional masterServer As Boolean = False) As List(Of UTQueryKeyValuePair)
+    Protected Function ParseGamespyResponse(ByVal responseString As String, Optional masterServer As Boolean = False) As List(Of UTQueryKeyValuePair)
         Dim packetContent As New Hashtable() ' temporary array of values from currently processed packet
         Dim responseResult As New List(Of UTQueryKeyValuePair)
 
@@ -404,7 +406,7 @@ Public Class UTQueryPacket
         Return result
     End Function
 
-    Protected Function createGamespyResponse(Optional packetFlags As UTQueryPacketFlags = 0) As List(Of String)
+    Protected Function CreateGamespyResponse(Optional packetFlags As UTQueryPacketFlags = 0) As List(Of String)
 
         Dim responsePackets As New List(Of String)
         Dim currentPacket As String
@@ -458,15 +460,15 @@ Public Class UTQueryPacket
         Return responsePackets
     End Function
 
-    Protected Function createGamespyResponseString(Optional packetFlags As UTQueryPacketFlags = 0) As String
-        Dim list = createGamespyResponse(packetFlags)
-        createGamespyResponseString = ""
+    Protected Function CreateGamespyResponseString(Optional packetFlags As UTQueryPacketFlags = 0) As String
+        Dim list = CreateGamespyResponse(packetFlags)
+        CreateGamespyResponseString = ""
         For Each packet In list
-            createGamespyResponseString &= packet
+            CreateGamespyResponseString &= packet
         Next
     End Function
 
-    Public Shared Function escapeGsString(str As String)
+    Public Shared Function EscapeGsString(str As String)
         Return str.Replace("\", "_")
     End Function
 
@@ -509,27 +511,11 @@ Public Structure UTQueryKeyValuePair
     Dim value As String
     Dim sourcePacketId As Integer
     Public Overrides Function ToString() As String
-        Return "\" & UTQueryPacket.escapeGsString(Me.key) & "\" & UTQueryPacket.escapeGsString(Me.value)
+        Return "\" & UTQueryPacket.EscapeGsString(Me.key) & "\" & UTQueryPacket.EscapeGsString(Me.value)
     End Function
 End Structure
 
-#Region "Legacy code"
-
-Module UTQuery
-    Public Function GetHost(ByVal addr As String)
-        Dim tmpx() As String
-        tmpx = Split(addr, ":", 2)
-        GetHost = tmpx(0)
-    End Function
-
-    Public Function GetPort(ByVal addr As String)
-        Dim tmpx() As String
-        tmpx = Split(addr, ":", 2)
-        GetPort = tmpx(1)
-    End Function
-
-
-
+Module GameSpyProtocol
 #Region "GSMSALG"
     'GSMSALG 0.3.3
     'by Luigi Auriemma
@@ -554,19 +540,19 @@ Module UTQuery
     'http://www.gnu.org/licenses/gpl.txt
 
 
-    Private Function gsvalfunc(ByVal reg As Byte) As Byte
+    Private Function GsValFunc(ByVal reg As Byte) As Byte
         If reg < 26 Then
-            gsvalfunc = reg + &H41 'A'
+            Return reg + &H41 'A'
         ElseIf reg < 52 Then
-            gsvalfunc = reg + &H47 'G'
+            Return reg + &H47 'G'
         ElseIf reg < 62 Then
-            gsvalfunc = reg - 4
+            Return reg - 4
         ElseIf reg = 62 Then
-            gsvalfunc = &H2B '+'
+            Return &H2B '+'
         ElseIf reg = 63 Then
-            gsvalfunc = &H2F '/'
+            Return &H2F '/'
         Else
-            gsvalfunc = &H20 ' '
+            Return &H20 ' '
         End If
     End Function
 
@@ -587,7 +573,7 @@ Module UTQuery
     ''' memory for a new one automatically
     ''' </returns>
     ''' <remarks></remarks>
-    Public Function gsenc(ByVal chal As String, Optional ByVal enkey As String = "Z5Nfb0") As String
+    Public Function GsGetChallengeResponse(ByVal chal As String, Optional ByVal enkey As String = "Z5Nfb0") As String
         Dim resultBytes(0 To 7) As Byte, tmp(66) As Byte, enctmp(0 To 255) As Byte, size As Integer, chalBytes() As Byte, enkeyBytes() As Byte, a As Integer, b As Integer, x As Integer, y As Integer, z As Integer
         Dim ti As Integer
 
@@ -627,19 +613,17 @@ Module UTQuery
             x = tmp(i)
             y = tmp(i + 1)
             z = tmp(i + 2)
-            resultBytes(p) = gsvalfunc((x And &HFC) / 4)
-            resultBytes(p + 1) = gsvalfunc(((x And 3) * 16) Or ((y And &HF0) / 16))
-            resultBytes(p + 2) = gsvalfunc(((y And 15) * 4) Or ((z And &HC0) / 64))
-            resultBytes(p + 3) = gsvalfunc(z And 63)
+            resultBytes(p) = GsValFunc((x And &HFC) / 4)
+            resultBytes(p + 1) = GsValFunc(((x And 3) * 16) Or ((y And &HF0) / 16))
+            resultBytes(p + 2) = GsValFunc(((y And 15) * 4) Or ((z And &HC0) / 64))
+            resultBytes(p + 3) = GsValFunc(z And 63)
             p = p + 4
         Next i
-        gsenc = Trim(System.Text.Encoding.ASCII.GetString(resultBytes))
+        Return Trim(System.Text.Encoding.ASCII.GetString(resultBytes))
     End Function
 #End Region
 
 End Module
-
-#End Region
 
 
 Public Class UTQueryResponseIncompleteException

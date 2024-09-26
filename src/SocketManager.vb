@@ -1,6 +1,10 @@
-﻿Imports System.Net
+Imports System.Net
 Imports System.Net.Sockets
+Imports Naomai.UTT.Indexer.JulkinNet
 
+''' <summary>
+''' UDP socket abstraction and host filter
+''' </summary>
 Public Class SocketManager
     Protected socket As Socket
     Protected ignoreIps As New List(Of String)

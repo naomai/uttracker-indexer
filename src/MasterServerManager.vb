@@ -258,7 +258,7 @@ Class MasterListGSpyFact
             myResponse.Add("location", region)
             If serverResponse("secure") <> "" AndAlso serverResponse("secure") <> "wookie" Then ' challenge!
                 Dim challengeReceived = serverResponse("secure")
-                Dim challengeResponse = gsenc(challengeReceived, gameInfo.encKey)
+                Dim challengeResponse = GsGetChallengeResponse(challengeReceived, gameInfo.encKey)
                 myResponse.Add("validate", challengeResponse)
             End If
         End Using

@@ -37,7 +37,7 @@ Public Class JulkinNet
     ''' <summary>Establish connection to selected host</summary>
     ''' <param name="address">Host name followed by colon and port number (eg.: 10.0.0.2:21)</param>
     Public Sub Connect(ByVal address As String)
-        Me.Connect(GetIp(address), GetPort(address))
+        Me.Connect(GetHost(address), GetPort(address))
     End Sub
 
     ''' <summary>Establish connection to selected host</summary>
@@ -152,13 +152,14 @@ Public Class JulkinNet
     Private Function IsTimedOut() As Boolean
         Return timeout <> 0 AndAlso TickCount() > (timeStarted + timeout)
     End Function
-    Private Function GetIp(ByVal addr As String) As String
+
+    Public Shared Function GetHost(ByVal addr As String) As String
         Dim tmpx() As String
         tmpx = Split(addr, ":", 2)
         Return tmpx(0)
     End Function
 
-    Private Function GetPort(ByVal addr As String) As UInt16
+    Public Shared Function GetPort(ByVal addr As String) As UInt16
         Dim tmpx() As String
         tmpx = Split(addr, ":", 2)
         Return tmpx(1)

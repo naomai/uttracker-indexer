@@ -182,7 +182,7 @@ Public Class ServerQuery
         ElseIf Len(incomingPacket("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(gameName) Then
             validServer = False
         Else
-            Dim expectedResponse = gsenc(challenge, MasterServerManager.gamespyKeys(gameName).encKey)
+            Dim expectedResponse = GsGetChallengeResponse(challenge, MasterServerManager.gamespyKeys(gameName).encKey)
             validServer = (expectedResponse = incomingPacket("validate"))
         End If
 

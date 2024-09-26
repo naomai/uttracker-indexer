@@ -198,7 +198,7 @@ Public Class GSMasterServerConnection
                         ReceivedListRequest(packet, responsePacket)
                     Else
                         responsePacket.Add("error", "You need to verify yourself before sending the list request (use GSMSALG).")
-                        responsePacket.setReadyToSend()
+                        responsePacket.SetReadyToSend()
                         requestDisconnect = True
                     End If
                 End If
@@ -245,7 +245,7 @@ Public Class GSMasterServerConnection
             Throw New GSMSConnectionException("This master server doesn't support the game '" & gameName & "'")
         End If
         encryptionKey = masterServer.gameSpyKeys(gameName).encKey
-        expectedResponse = UTQuery.gsenc(challengeString, encryptionKey)
+        expectedResponse = GameSpyProtocol.GsGetChallengeResponse(challengeString, encryptionKey)
 
         If packet("validate") = expectedResponse OrElse packet.ContainsKey("debug") Then
             state.hasChallenge = True
@@ -263,19 +263,19 @@ Public Class GSMasterServerConnection
             destinationPacket.Add("ip", server)
         Next
         requestDisconnect = True
-        destinationPacket.setReadyToSend()
+        destinationPacket.SetReadyToSend()
     End Sub
 
     Private Sub ReceivedAbout(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
         Dim aboutText As String
         aboutText = "// UTTracker Master Server Module; // 2014 Namonaki14; URL: http://amaki.no-ip.eu/uttracker/master/; // Contact: tm.dvtb at gmail.com"
         destinationPacket.Add("about", aboutText)
-        destinationPacket.setReadyToSend()
+        destinationPacket.SetReadyToSend()
     End Sub
 
     Private Sub ReceivedEcho(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
         destinationPacket.Add("echo_reply", packet("echo"))
-        destinationPacket.setReadyToSend()
+        destinationPacket.SetReadyToSend()
     End Sub
 
     Private Sub PacketSend(packet As String)

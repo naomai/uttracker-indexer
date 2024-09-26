@@ -4,6 +4,7 @@ Imports System.Text.Json
 Imports System.Data
 Imports Naomai.UTT.Indexer.Utt2Database
 Imports Microsoft.EntityFrameworkCore.Storage
+Imports Naomai.UTT.Indexer.JulkinNet
 
 Public Class ServerScanner
     Implements IDisposable
@@ -166,7 +167,7 @@ Public Class ServerScanner
 
             target.incomingPacketObj = New UTQueryPacket(fullPacket)
 
-            target.incomingPacket = target.incomingPacketObj.convertToHashtablePacket()
+            target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
             target.tick()
 
             scanLastActivity = Date.UtcNow
