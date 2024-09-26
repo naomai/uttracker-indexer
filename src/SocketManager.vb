@@ -2,7 +2,6 @@
 Imports System.Net.Sockets
 Imports System.Threading
 Imports Naomai.UTT.Indexer.JulkinNet
-Imports Org.BouncyCastle.Bcpg
 
 ''' <summary>
 ''' UDP socket abstraction and host filter

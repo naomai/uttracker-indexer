@@ -1,9 +1,5 @@
-Imports Microsoft.EntityFrameworkCore.DbLoggerCategory
-Imports Mysqlx.Crud
-Imports System.ComponentModel.DataAnnotations
 Imports Naomai.UTT.Indexer.UTQueryPacket
 Imports NUnit.Framework
-Imports Mysqlx.XDevAPI.Common
 
 Namespace Tests
 
