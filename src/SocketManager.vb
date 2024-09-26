@@ -16,7 +16,7 @@ Public Class SocketManager
     Public updateIntervalMs As Integer = 100
     Public packetReceiveThread As Thread
 
-    Public Event PacketReceived(packet() As Byte, source As IPEndPoint)
+    Public Event NewDataReceived(packetBuffer As EndpointPacketBuffer, source As IPEndPoint)
 
     Public Sub New()
         Dim bindEndpoint As New IPEndPoint(IPAddress.Any, 0)
@@ -59,7 +59,7 @@ Public Class SocketManager
         Dim sourceEndpoint As IPEndPoint, sourceIp As String
         Dim receiveResult As SocketReceiveFromResult
         Do
-            ReDim Packet(2000)
+            ReDim packet(2000)
             receiveResult = Await socket.ReceiveFromAsync(packet, bindEndpoint)
             If receiveResult.ReceivedBytes > 0 Then
                 ReDim Preserve packet(receiveResult.ReceivedBytes)
@@ -86,7 +86,7 @@ Public Class SocketManager
     Private Sub EnqueuePacket(sourceEndpoint As IPEndPoint, packet As Byte())
         SyncLock ipPacketQueue
             If Not ipPacketQueue.ContainsKey(sourceEndpoint) Then
-                ipPacketQueue.Add(sourceEndpoint, New Queue(Of Byte()))
+                ipPacketQueue.Add(sourceEndpoint, New EndpointPacketBuffer)
             End If
             ipPacketQueue(sourceEndpoint).Enqueue(packet)
         End SyncLock
@@ -101,11 +101,10 @@ Public Class SocketManager
     End Sub
 
     Private Sub DequeueForHost(host As IPEndPoint)
-        Dim packetQueue As Queue(Of Byte()) = ipPacketQueue(host), packet() As Byte
-        Do While packetQueue.Count > 0
-            packet = packetQueue.Dequeue()
-            RaiseEvent PacketReceived(packet, host)
-        Loop
+        Dim packetQueue As EndpointPacketBuffer = ipPacketQueue(host)
+        If packetQueue.newPackets Then
+            RaiseEvent NewDataReceived(packetQueue, host)
+        End If
     End Sub
 
     Public Sub AddIgnoredIp(ip As EndPoint)
@@ -120,4 +119,47 @@ Public Class SocketManager
         ignoreIps.Clear()
     End Sub
 
+End Class
+
+
+Public Class EndpointPacketBuffer
+    Private packetQueue As New Queue(Of Byte())
+    Public newPackets As Boolean = False
+
+    Public Sub Enqueue(packet As Byte())
+        packetQueue.Enqueue(packet)
+        newPackets = True
+    End Sub
+
+    Public Function Dequeue() As Byte()
+        newPackets = False
+        Return packetQueue.Dequeue()
+    End Function
+
+
+    Public Function PeekLast() As Byte()
+        newPackets = False
+        Return packetQueue.Last()
+    End Function
+
+    Public Function PeekAll() As Byte()
+        Dim result As Byte()
+        Dim bytesTotal As Integer = 0
+        newPackets = False
+        For Each packet In packetQueue
+            bytesTotal += packet.Length
+        Next
+        ReDim result(bytesTotal)
+        Dim offset As Integer = 0
+        For Each packet In packetQueue
+            packet.CopyTo(result, offset)
+            offset += packet.Length
+        Next
+        Return result
+    End Function
+
+    Public Sub Clear()
+        newPackets = False
+        packetQueue.Clear()
+    End Sub
 End Class

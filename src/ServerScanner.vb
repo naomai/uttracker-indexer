@@ -150,8 +150,8 @@ Public Class ServerScanner
     End Sub
 
 
-    Public Sub packetHandler(packet() As Byte, source As IPEndPoint) Handles sockets.PacketReceived
-        Dim fullPacket As String = "", target As ServerQuery, ipString As String
+    Public Sub packetHandler(packetBuffer As EndpointPacketBuffer, source As IPEndPoint) Handles sockets.NewDataReceived
+        Dim target As ServerQuery, ipString As String
 
         Dim packetString As String
         ipString = source.ToString
@@ -159,22 +159,20 @@ Public Class ServerScanner
         target = serverWorkers(ipString)
         Try
             If target.getState().done Then Return ' prevent processing the packets from targets in "done" state
-            If packet.Length = 0 Then Return
+            Dim packet As Byte() = packetBuffer.PeekAll()
 
             packetString = Encoding.Unicode.GetString(Encoding.Convert(Encoding.UTF8, Encoding.Unicode, packet))
 
-            fullPacket = serverPacketBuffer(ipString) & packetString
-
-            target.incomingPacketObj = New UTQueryPacket(fullPacket)
+            target.incomingPacketObj = New UTQueryPacket(packetString)
 
             target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
             target.tick()
 
             scanLastActivity = Date.UtcNow
-            serverPacketBuffer(ipString) = ""
+            packetBuffer.Clear()
 
         Catch ex As UTQueryResponseIncompleteException
-            serverPacketBuffer(source.ToString) = fullPacket
+            ' let's try another time, maybe the missing pieces will join us
         Catch ex As UTQueryInvalidResponseException ' we found a port that belongs to other service, so we're not going to bother it anymore
             target.logDbg("InvalidQuery: found unknown service")
             target.abortScan()
@@ -225,7 +223,6 @@ Public Class ServerScanner
                 worker.setSocket(sockets)
                 worker.deployTimeOffsetMs = deployScanJobIntervalMs * jobIndex
                 serverWorkers(server) = worker
-                serverPacketBuffer(server) = ""
                 jobIndex += 1
             Next
         End SyncLock
@@ -238,9 +235,6 @@ Public Class ServerScanner
             Next
             serverWorkers.Clear()
         End SyncLock
-
-        serverPacketBuffer.Clear()
-
     End Sub
 
     Protected Sub updateScanInfo()
