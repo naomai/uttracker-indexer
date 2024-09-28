@@ -1,5 +1,7 @@
 ﻿Imports System.Net
 Imports System.Globalization
+Imports System.Text
+Imports System.Runtime.InteropServices
 
 Public Class ServerQuery
     Dim socket As SocketManager
@@ -30,6 +32,8 @@ Public Class ServerQuery
     Protected gamemodeQuery As GamemodeSpecificQuery
 
     Private formatProvider = CultureInfo.InvariantCulture
+
+    Protected packetCharset As Encoding = Encoding.GetEncoding(1252)
 
     Public Sub New(master As ServerScanner, serverAddress As String)
         addressQuery = serverAddress
@@ -86,50 +90,61 @@ Public Class ServerQuery
 
     Private Sub sendRequest()
         Const xsqSuffix = "XServerQuery"
+        Dim serverRecord = saver.GetServerRecord()
 
         If isInRequestState() Then Return ' remove this when implementing resend feature
 
         With state
             If Not .hasBasic Then
-                serverSend("\basic\\secure\" & challenge)
+                .hasValidated = Not IsNothing(serverRecord.LastValidation) AndAlso serverRecord.LastValidation > Date.UtcNow.AddHours(-24)
+                Dim challengeSuffix = ""
+                If Not .hasValidated Then
+                    challengeSuffix = "\secure\" & challenge
+                End If
+                serverSend("\basic\" & challengeSuffix)
                 .requestingBasic = True
-            ElseIf Not .hasInfo Then
-                serverSend("\info\" & IIf(caps.hasXSQ, xsqSuffix, ""))
-                .requestingInfo = True
-                infoSentTimeLocal = Date.UtcNow
-            ElseIf Not .hasInfoExtended AndAlso Not .hasTimeTest AndAlso caps.hasPropertyInterface Then
-                firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
-                gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(Me)
-                Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
-                If Not IsNothing(gamemodeQuery) Then
-                    gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
-                    caps.gamemodeExtendedInfo = True
-                End If
-                If Not info.ContainsKey("timelimit") Then
-                    otherAdditionalRequests &= "\game_property\TimeLimit\"
-                End If
 
-                serverSend("\game_property\NumPlayers\\game_property\NumSpectators\" _
+            ElseIf Not .hasInfo Then
+                    serverSend("\info\" & IIf(caps.hasXSQ, xsqSuffix, ""))
+                    .requestingInfo = True
+                    infoSentTimeLocal = Date.UtcNow
+                ElseIf Not .hasInfoExtended AndAlso Not .hasTimeTest AndAlso caps.hasPropertyInterface Then
+                    firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
+                    gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(Me)
+                    Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
+                    If Not IsNothing(gamemodeQuery) Then
+                        gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
+                        caps.gamemodeExtendedInfo = True
+                    End If
+                    If Not info.ContainsKey("timelimit") Then
+                        otherAdditionalRequests &= "\game_property\TimeLimit\"
+                    End If
+
+                    serverSend("\game_property\NumPlayers\\game_property\NumSpectators\" _
                            & "\game_property\GameSpeed\\game_property\CurrentID\" _
                            & "\game_property\bGameEnded\\game_property\bOvertime\" _
                            & "\game_property\ElapsedTime\\game_property\RemainingTime\" _
                            & otherAdditionalRequests _
                            & gamemodeAdditionalRequests)
-                .requestingInfoExtended = True
-            ElseIf Not .hasPlayers AndAlso info("numplayers") <> 0 AndAlso Not caps.fakePlayers Then
-                serverSend("\players\" & IIf(caps.hasXSQ, xsqSuffix, ""))
-                .requestingPlayers = True
-            ElseIf Not .hasRules AndAlso caps.supportsRules Then
-                serverSend("\rules\" & IIf(caps.hasXSQ, xsqSuffix, ""))
-                .requestingRules = True
+                    .requestingInfoExtended = True
+                ElseIf Not .hasPlayers AndAlso info("numplayers") <> 0 AndAlso Not caps.fakePlayers Then
+                    If caps.hasUtf8PlayerList Then
+                        packetCharset = Encoding.UTF8
+                    End If
+                    serverSend("\players\" & IIf(caps.hasXSQ, xsqSuffix, ""))
+                    .requestingPlayers = True
+                ElseIf Not .hasRules AndAlso caps.supportsRules Then
+                    serverSend("\rules\" & IIf(caps.hasXSQ, xsqSuffix, ""))
+                    .requestingRules = True
 
-            Else
-                .done = True
+                Else
+                    .done = True
             End If
 
 
         End With
         lastActivity = Date.UtcNow
+        serverRecord.LastCheck = lastActivity
     End Sub
 
     Private Sub serverSend(packet As String)
@@ -171,24 +186,21 @@ Public Class ServerQuery
             Return
         End If
 
+        Dim serverRecord = saver.GetServerRecord()
         Dim gameName = incomingPacket("gamename").ToString().ToLower()
         Dim validServer As Boolean = False
 
         ' validate
-        If Not incomingPacket.ContainsKey("validate") Then
-            validServer = False
-        ElseIf incomingPacket("validate") = "Orange" Then ' dunno where does this come from
-            validServer = True
-        ElseIf Len(incomingPacket("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(gameName) Then
-            validServer = False
-        Else
-            Dim expectedResponse = GsGetChallengeResponse(challenge, MasterServerManager.gamespyKeys(gameName).encKey)
-            validServer = (expectedResponse = incomingPacket("validate"))
-        End If
+        validServer = ValidateServer(gameName)
 
         If Not validServer Then
             logDbg("InvalidServer: " & incomingPacketObj.ToString)
             abortScan()
+        End If
+
+        If Not state.hasValidated Then
+            serverRecord.LastValidation = Date.UtcNow
+            state.hasValidated = True
         End If
 
         info = New Hashtable
@@ -207,9 +219,31 @@ Public Class ServerQuery
 
         If gameName = "ut" Then
             caps.hasXSQ = True ' set this flag for initial polling with XSQ suffix
+            caps.hasUtf8PlayerList = Integer.Parse(caps.version) >= 469
         End If
 
     End Sub
+
+    Private Function ValidateServer(gameName As String) As Boolean
+        If state.hasValidated Then
+            Return True
+        End If
+
+        Dim validServer As Boolean
+
+        If Not incomingPacket.ContainsKey("validate") Then
+            validServer = False
+        ElseIf incomingPacket("validate") = "Orange" Then ' dunno where does this come from
+            validServer = True
+        ElseIf Len(incomingPacket("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(gameName) Then
+            validServer = False
+        Else
+            Dim expectedResponse = GsGetChallengeResponse(challenge, MasterServerManager.gamespyKeys(gameName).encKey)
+            validServer = (expectedResponse = incomingPacket("validate"))
+        End If
+
+        Return validServer
+    End Function
 
     Private Sub parseInfo()
         If Not incomingPacket.ContainsKey("hostname") Then
@@ -414,6 +448,10 @@ Public Class ServerQuery
         End If
     End Sub
 
+    Public Function GetPacketCharset() As Encoding
+        Return packetCharset
+    End Function
+
     Public Overrides Function ToString() As String
         Return "ServerQuery#" & addressQuery & "#"
     End Function
@@ -447,6 +485,7 @@ Public Class ServerQuery
         Dim supportsRules As Boolean
         Dim gamemodeExtendedInfo As Boolean
         Dim fakePlayers As Boolean
+        Dim hasUtf8PlayerList As Boolean
 
         Public Overrides Function ToString() As String
             ToString = "ServerCapabilities{ "
@@ -464,6 +503,7 @@ End Class
 Public Structure ServerQueryState
     Dim started As Boolean
     Dim starting As Boolean
+    Dim hasValidated As Boolean
     Dim hasBasic As Boolean
     Dim hasInfo As Boolean
     Dim hasInfoExtended As Boolean

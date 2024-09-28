@@ -43,7 +43,6 @@ Public Class ServerScanner
     Event OnScanBegin(serverCount As Integer)
     Event OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As TimeSpan)
 
-    Dim serverPacketBuffer As New Hashtable
     Dim disposed As Boolean = False
 
     Public Sub New(scannerConfig As ServerScannerConfig)
@@ -161,7 +160,7 @@ Public Class ServerScanner
             If target.getState().done Then Return ' prevent processing the packets from targets in "done" state
             Dim packet As Byte() = packetBuffer.PeekAll()
 
-            packetString = Encoding.Unicode.GetString(Encoding.Convert(Encoding.UTF8, Encoding.Unicode, packet))
+            packetString = Encoding.Unicode.GetString(Encoding.Convert(target.GetPacketCharset(), Encoding.Unicode, packet))
 
             target.incomingPacketObj = New UTQueryPacket(packetString)
 
@@ -254,8 +253,8 @@ Public Class ServerScanner
         Dim scanTimeRange As DateTime = DateTime.UtcNow.AddSeconds(-seconds)
 
         Dim servers = dbCtx.Servers.Where(
-            Function(p As Server) p.LastScan > scanTimeRange Or
-            p.LastScan < ancientTimes
+            Function(p As Server) p.LastSuccess > scanTimeRange Or
+            p.LastSuccess < ancientTimes
         ).Select(
             Function(s) New With {.Address = s.Address, .Rules = s.Rules}
         ).ToList()

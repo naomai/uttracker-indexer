@@ -252,10 +252,18 @@ Namespace Utt2Database
                         HasDefaultValueSql("'NULL'").
                         HasColumnType("timestamp").
                         HasColumnName("last_rank_calculation")
-                    entity.Property(Function(e) e.LastScan).
+                    entity.Property(Function(e) e.LastCheck).
                         HasDefaultValueSql("'NULL'").
                         HasColumnType("timestamp").
-                        HasColumnName("last_scan")
+                        HasColumnName("last_check")
+                    entity.Property(Function(e) e.LastSuccess).
+                        HasDefaultValueSql("'NULL'").
+                        HasColumnType("timestamp").
+                        HasColumnName("last_success")
+                    entity.Property(Function(e) e.LastValidation).
+                        HasDefaultValueSql("'NULL'").
+                        HasColumnType("timestamp").
+                        HasColumnName("last_validation")
                     entity.Property(Function(e) e.Name).
                         IsRequired().
                         HasMaxLength(255).

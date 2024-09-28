@@ -42,7 +42,7 @@ Public Class GSMasterServerBridge
         Dim timeLowerLimit = DateTime.UtcNow.AddMinutes(-10)
 
         Dim serverRecords = dbCtx.Servers.
-            Where(Function(s) s.LastScan > timeLowerLimit AndAlso s.GameName = gamename).
+            Where(Function(s) s.LastSuccess > timeLowerLimit AndAlso s.GameName = gamename).
             Select(Function(s) New With {s.Address, s.Rules})
 
 

@@ -15,26 +15,35 @@ Public Class ServerDataUpdater
     Public Sub New(serverWorker As ServerQuery)
         Me.serverWorker = serverWorker
         dbCtx = serverWorker.scannerMaster.dbCtx
+        GetServerRecord()
     End Sub
 
     Public Sub tick()
         If state.done Then
             Return
         End If
-        If Not state.hasDBRecord Then prepareServerRecord()
-        If Not state.savedInfo Then tryUpdateInfo()
-        If Not state.savedRules Then tryUpdateRules()
-        If Not state.savedGameInfo Then TryUpdateMatchInfo()
-        If Not state.savedPlayers Then tryUpdatePlayerInfo()
-        If Not state.savedCumulativeStats Then tryUpdateCumulativePlayersStats()
-        If Not state.savedScanInfo Then updateCurrentScanInfo()
+        Try
+            'If Not state.hasDBRecord Then prepareServerRecord()
+            If Not state.savedInfo Then tryUpdateInfo()
+            If Not state.savedRules Then tryUpdateRules()
+            If Not state.savedGameInfo Then TryUpdateMatchInfo()
+            If Not state.savedPlayers Then tryUpdatePlayerInfo()
+            If Not state.savedCumulativeStats Then tryUpdateCumulativePlayersStats()
+            If Not state.savedScanInfo Then updateCurrentScanInfo()
+        Catch e As Exception
+            serverWorker.abortScan()
+        End Try
         If state.savedInfo AndAlso state.savedRules AndAlso state.savedGameInfo And state.savedPlayers And state.savedCumulativeStats And state.savedScanInfo Then
             state.done = True
         End If
     End Sub
 
 
-    Private Sub prepareServerRecord()
+    Public Function GetServerRecord() As Server
+        If Not IsNothing(serverRecord) Then
+            Return serverRecord
+        End If
+
         serverRecord = dbCtx.Servers.SingleOrDefault(Function(s) s.Address = serverWorker.addressQuery)
         If IsNothing(serverRecord) Then
             serverRecord = New Server() With {
@@ -42,7 +51,8 @@ Public Class ServerDataUpdater
             }
         End If
         state.hasDBRecord = True
-    End Sub
+        Return serverRecord
+    End Function
 
     Private Sub tryUpdateInfo()
         Dim scannerState = serverWorker.getState()
@@ -315,7 +325,7 @@ Public Class ServerDataUpdater
             .ScoreThisMatch = IIf(IsNumeric(player("frags")), player("frags"), "0")
             .DeathsThisMatch = IIf(serverWorker.caps.hasXSQ, Convert.ToInt32(player("deaths")), Nothing)
             .SeenCount += 1
-            .PingSum += player("ping")
+            .PingSum += Integer.Parse(player("ping"))
             .Team = player("team")
         End With
 
@@ -377,7 +387,7 @@ Public Class ServerDataUpdater
         End If
 
         If state.savedCumulativeStats OrElse (state.savedInfo AndAlso serverWorker.info("numplayers") = 0) Then
-            serverRecord.LastScan = DateTime.UtcNow
+            serverRecord.LastSuccess = DateTime.UtcNow
             dbCtx.Servers.Update(serverRecord)
             dbCtx.SaveChanges()
 

@@ -55,14 +55,14 @@ Public Class SocketManager
     End Sub
 
     Protected Async Sub ReceiveLoop()
-        Dim packet() As Byte, bindEndpoint As EndPoint = New IPEndPoint(IPAddress.Any, 0)
+        Dim buffer() As Byte, bindEndpoint As EndPoint = New IPEndPoint(IPAddress.Any, 0)
         Dim sourceEndpoint As IPEndPoint, sourceIp As String
         Dim receiveResult As SocketReceiveFromResult
         Do
-            ReDim packet(2000)
-            receiveResult = Await socket.ReceiveFromAsync(packet, bindEndpoint)
+            ReDim buffer(2000)
+            receiveResult = Await socket.ReceiveFromAsync(buffer, bindEndpoint)
             If receiveResult.ReceivedBytes > 0 Then
-                ReDim Preserve packet(receiveResult.ReceivedBytes)
+                ReDim Preserve buffer(receiveResult.ReceivedBytes)
             End If
 
             sourceEndpoint = receiveResult.RemoteEndPoint
@@ -70,8 +70,8 @@ Public Class SocketManager
             If ignoreIps.Contains(sourceIp) Then
                 Continue Do
             End If
-            If packet.Count > 0 Then
-                EnqueuePacket(sourceEndpoint, packet)
+            If buffer.Length > 0 Then
+                EnqueuePacket(sourceEndpoint, buffer)
             End If
         Loop
     End Sub

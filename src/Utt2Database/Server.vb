@@ -12,7 +12,11 @@ Namespace Utt2Database
 
         Public Property Rules As String
 
-        Public Property LastScan As Date?
+        Public Property LastCheck As Date?
+
+        Public Property LastSuccess As Date?
+
+        Public Property LastValidation As Date?
 
         Public Property LastRankCalculation As Date?
 
