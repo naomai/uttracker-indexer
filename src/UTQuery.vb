@@ -313,7 +313,7 @@ Public Class UTQueryPacket
 
             ' incomplete/malformed response checks
             If packetExpectedCount = 0 OrElse receivedCount <> packetExpectedCount Then
-                If Not IsNothing(packetsSequence(packetId)) AndAlso packetsSequence(packetId).Count = 0 Then
+                If IsNothing(packetId) OrElse (Not IsNothing(packetsSequence(packetId)) AndAlso packetsSequence(packetId).Count = 0) Then
                     ' TODO investigate
                     'packetContent("queryid") = responseId
                     For Each var In packetContent.Keys

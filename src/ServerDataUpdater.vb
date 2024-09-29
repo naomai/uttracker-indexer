@@ -363,7 +363,7 @@ Public Class ServerDataUpdater
                         gameSeconds = 0
 
                     End If
-                    .GameTime = gameSeconds
+                    .GameTime += gameSeconds
                     Dim deaths = playerLog.DeathsThisMatch
                     If Not IsNothing(deaths) Then
                         .Deaths += deaths
@@ -375,7 +375,7 @@ Public Class ServerDataUpdater
                 dbCtx.PlayerStats.Update(playerStatRecord)
                 playerLog.Finished = True
             Next
-            'dbCtx.SaveChanges()
+            dbCtx.SaveChanges()
 
             state.savedCumulativeStats = True
         End If
