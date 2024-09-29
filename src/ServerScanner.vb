@@ -60,23 +60,25 @@ Public Class ServerScanner
     End Sub
 
     Public Sub performScan()
-        Dim serversToScan As List(Of String), recentServersTimeRange = 3600, includeAncient As Boolean = False
+        Dim serversToScan As List(Of String)
+        Dim recentServersTimeRange = 60 * 60 ' only servers seen in last hour
 
-        If (Date.UtcNow - masterServerLastUpdate).TotalSeconds > masterServerUpdateInterval Then ' full scan
+        If (Date.UtcNow - masterServerLastUpdate).TotalSeconds > masterServerUpdateInterval Then
+            ' full scan - all known server
             masterServerQuery.refreshServerList()
             masterServerLastUpdate = Date.UtcNow
             masterServerLastPing = Date.UtcNow
-            recentServersTimeRange = 86400 * 30
-            includeAncient = True
+            recentServersTimeRange = 0
         End If
 
-        If masterServerPingInterval > 0 AndAlso (Date.UtcNow - masterServerLastPing).TotalSeconds > masterServerPingInterval Then ' monitors the other master servers
+        If masterServerPingInterval > 0 AndAlso (Date.UtcNow - masterServerLastPing).TotalSeconds > masterServerPingInterval Then
+            ' monitors the other master servers
             masterServerQuery.pingMasterServers()
             masterServerLastPing = Date.UtcNow
         End If
 
         serversToScan = masterServerQuery.getList()
-        Dim serversFromDB = getRecentlyScannedServerList(recentServersTimeRange, includeAncient)
+        Dim serversFromDB = getRecentlyScannedServerList(recentServersTimeRange)
         For Each server As String In serversFromDB
             serversToScan.Add(server)
         Next
@@ -87,7 +89,7 @@ Public Class ServerScanner
 
         log.autoFlush = False
 
-        debugWriteLine("Scanning using settings: recentServersTimeRange={0},includeAncient={1}", recentServersTimeRange, includeAncient)
+        debugWriteLine("Scanning using settings: recentServersTimeRange={0}", recentServersTimeRange)
 
         serversToScan = serversToScan.Distinct().ToList
 
@@ -248,36 +250,39 @@ Public Class ServerScanner
         debugWriteLine("ScanInfoUpdated")
     End Sub
 
-    Protected Function getRecentlyScannedServerList(Optional seconds As Integer = 86400, Optional includeAncientServers As Boolean = False) As List(Of String)
-        Dim ancientTimes As DateTime = DateTime.Parse("1.01.2009 0:00:00") ' include servers with invalid last scan date due to bios time reset
-        Dim scanTimeRange As DateTime = DateTime.UtcNow.AddSeconds(-seconds)
+    Protected Function getRecentlyScannedServerList(Optional seconds As Integer = 86400) As List(Of String)
+        Dim scanTimeRange As DateTime
+        If seconds = 0 Then
+            scanTimeRange = DateTime.Parse("1.01.2009 0:00:00")
+        Else
+            scanTimeRange = DateTime.UtcNow.AddSeconds(-seconds)
+        End If
 
         Dim servers = dbCtx.Servers.Where(
-            Function(p As Server) p.LastSuccess > scanTimeRange Or
-            p.LastSuccess < ancientTimes
-        ).Select(
-            Function(s) New With {.Address = s.Address, .Rules = s.Rules}
-        ).ToList()
+                Function(p As Server) p.LastSuccess > scanTimeRange
+            ).Select(
+                Function(s) New With {.Address = s.Address, .Rules = s.Rules}
+            ).ToList()
 
         Dim recentServers = New List(Of String)
-        Dim rules As Hashtable
+            Dim rules As Hashtable
 
-        For Each server In servers
-            Dim fullQueryIp = server.Address
-            Try
-                If Not IsDBNull(server.Rules) AndAlso server.Rules <> "" Then
-                    rules = JsonSerializer.Deserialize(Of Hashtable)(server.Rules)
-                    If Not IsNothing(rules) AndAlso rules.ContainsKey("queryport") Then
-                        Dim ip = GetHost(server.Address)
-                        fullQueryIp = ip & ":" & rules("queryport").ToString
+            For Each server In servers
+                Dim fullQueryIp = server.Address
+                Try
+                    If Not IsDBNull(server.Rules) AndAlso server.Rules <> "" Then
+                        rules = JsonSerializer.Deserialize(Of Hashtable)(server.Rules)
+                        If Not IsNothing(rules) AndAlso rules.ContainsKey("queryport") Then
+                            Dim ip = GetHost(server.Address)
+                            fullQueryIp = ip & ":" & rules("queryport").ToString
+                        End If
                     End If
-                End If
-            Catch e As Exception
-            End Try
+                Catch e As Exception
+                End Try
 
-            recentServers.Add(fullQueryIp)
-        Next
-        Return recentServers
+                recentServers.Add(fullQueryIp)
+            Next
+            Return recentServers
     End Function
 
     Protected Function getServersPendingQueue() As List(Of String)
