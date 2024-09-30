@@ -102,46 +102,53 @@ Public Class ServerScanner
         scanLastActivity = Date.UtcNow
         serversCountTotal = serverWorkers.Count
 
-        touchAll(True)
+        Try
 
-        tickCounter = 0
+            touchAll(True)
 
-        Do While jobsWaitingToDeploy OrElse
-            (Date.UtcNow - scanLastActivity).TotalSeconds < 10 OrElse
-            (Date.UtcNow - scanLastTouchAll).TotalSeconds >= 3 ' check: avoid ending the scan too early when 'time-travelling'
+            tickCounter = 0
 
-            sockets.Tick()
-            If jobsWaitingToDeploy OrElse (Date.UtcNow - scanLastTouchAll).TotalSeconds > 2 Then
-                touchInactive()
-                scanLastTouchAll = Date.UtcNow
-            End If
-            If (Date.UtcNow - scanLastActivity).TotalSeconds > 5 Then
-                touchAll()
-                taskSleepLonger()
-            End If
+            Do While jobsWaitingToDeploy OrElse
+                (Date.UtcNow - scanLastActivity).TotalSeconds < 10 OrElse
+                (Date.UtcNow - scanLastTouchAll).TotalSeconds >= 3 ' check: avoid ending the scan too early when 'time-travelling'
 
-            tickCounter += 1
-            'If tickCounter Mod 48 = 0 Then taskSleep()\
-            If tickCounter Mod 300 = 0 Then debugShowStates()
-            taskSleep()
-        Loop
-
-        serversCountOnline = 0
-        SyncLock serverWorkersLock
-            For Each target As ServerQuery In serverWorkers.Values
-                If target.getState().done AndAlso target.caps.isOnline Then
-                    serversCountOnline += 1
+                sockets.Tick()
+                If jobsWaitingToDeploy OrElse (Date.UtcNow - scanLastTouchAll).TotalSeconds > 2 Then
+                    touchInactive()
+                    scanLastTouchAll = Date.UtcNow
                 End If
-            Next
-        End SyncLock
-        scanEnd = Date.UtcNow
+                If (Date.UtcNow - scanLastActivity).TotalSeconds > 5 Then
+                    touchAll()
+                    taskSleepLonger()
+                End If
 
-        updateScanInfo()
+                tickCounter += 1
+                'If tickCounter Mod 48 = 0 Then taskSleep()\
+                If tickCounter Mod 300 = 0 Then debugShowStates()
+                taskSleep()
+            Loop
 
-        RaiseEvent OnScanComplete(serversCountTotal, serversCountOnline, scanEnd - scanStart)
-        log.autoFlush = True
-        debugWriteLine("Scan done in {0} seconds, {1} network ticks.", Math.Round((scanEnd - scanStart).TotalSeconds), tickCounter)
+            serversCountOnline = 0
+            SyncLock serverWorkersLock
+                For Each target As ServerQuery In serverWorkers.Values
+                    If target.getState().done AndAlso target.caps.isOnline Then
+                        serversCountOnline += 1
+                    End If
+                Next
+            End SyncLock
+            scanEnd = Date.UtcNow
 
+            updateScanInfo()
+
+            RaiseEvent OnScanComplete(serversCountTotal, serversCountOnline, scanEnd - scanStart)
+
+            log.autoFlush = True
+            debugWriteLine("Scan done in {0} seconds, {1} network ticks.", Math.Round((scanEnd - scanStart).TotalSeconds), tickCounter)
+        Catch e As MySqlException
+            log.autoFlush = True
+            logWriteLine("Scan failed with database error: {0}", e.Message)
+            dbTransaction = Nothing
+        End Try
         lastScanOverdueTimeMs = Math.Max(0, GetScanTimeMs() - plannedScanTimeMs)
 
         debugShowStates()
