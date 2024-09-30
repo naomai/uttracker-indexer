@@ -40,6 +40,7 @@ Namespace Utt2Database
             Dim connString As String = MySQLDB.makeConnectionStringFromConfigStruct(dbConfig)
             optionsBuilder.UseMySQL(connString)
             'optionsBuilder.LogTo(AddressOf Console.WriteLine)
+            ' optionsBuilder.EnableSensitiveDataLogging(True)
         End Sub
 
         Protected Overrides Sub OnModelCreating(modelBuilder As ModelBuilder)
@@ -100,6 +101,9 @@ Namespace Utt2Database
                     entity.HasIndex(Function(e) e.PlayerId, "player_logs_player_id_foreign")
 
                     entity.HasIndex(Function(e) e.ServerId, "player_logs_server_id_foreign")
+
+                    entity.HasIndex(Function(e) New With {e.PlayerId, e.MatchId}, "player_logs_player_id_match_id_unique").IsUnique()
+
 
                     entity.Property(Function(e) e.Id).
                         HasColumnType("bigint(20) unsigned").
