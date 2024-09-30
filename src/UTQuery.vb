@@ -375,6 +375,10 @@ Public Class UTQueryPacket
             Dim newEntry As UTQueryKeyValuePair
             Dim kvSeparatorIdx = packetString.IndexOf("\"c, offset)
 
+            If kvSeparatorIdx = -1 Then
+                Throw New UTQueryInvalidResponseException("Unexpected end of packet")
+            End If
+
             newEntry.key = packetString.Substring(offset, kvSeparatorIdx - offset).ToLower()
 
             Dim valueStartingIdx As Integer = kvSeparatorIdx + 1
