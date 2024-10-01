@@ -25,7 +25,7 @@ Public Class ServerDataUpdater
         Try
             'If Not state.hasDBRecord Then prepareServerRecord()
             If Not state.savedInfo Then tryUpdateInfo()
-            If Not state.savedRules Then tryUpdateRules()
+            If Not state.savedVariables Then tryUpdateVariables()
             If Not state.savedGameInfo Then TryUpdateMatchInfo()
             If Not state.savedPlayers Then tryUpdatePlayerInfo()
             If Not state.savedCumulativeStats Then tryUpdateCumulativePlayersStats()
@@ -33,7 +33,7 @@ Public Class ServerDataUpdater
         Catch e As Exception
             serverWorker.abortScan()
         End Try
-        If state.savedInfo AndAlso state.savedRules AndAlso state.savedGameInfo And state.savedPlayers And state.savedCumulativeStats And state.savedScanInfo Then
+        If state.savedInfo AndAlso state.savedVariables AndAlso state.savedGameInfo And state.savedPlayers And state.savedCumulativeStats And state.savedScanInfo Then
             state.done = True
         End If
     End Sub
@@ -79,39 +79,39 @@ Public Class ServerDataUpdater
         state.savedInfo = True
     End Sub
 
-    Private Sub tryUpdateRules()
-        Dim rulesJoined As Hashtable
-        Dim rulesJson As String
+    Private Sub tryUpdateVariables()
+        Dim variablesMerged As Hashtable
+        Dim variablesJson As String
         Dim scannerState = serverWorker.getState()
 
-        If Not serverWorker.caps.supportsRules Then
-            state.savedRules = True
+        If Not serverWorker.caps.supportsVariables Then
+            state.savedVariables = True
             Return
         End If
 
-        If Not (state.hasServerId AndAlso scannerState.hasRules) Then
+        If Not (state.hasServerId AndAlso scannerState.hasVariables) Then
             Return
         End If
 
-        rulesJoined = serverWorker.rules.Clone()
+        variablesMerged = serverWorker.variables.Clone()
         For Each infoItem In serverWorker.info.Keys
-            rulesJoined(infoItem) = serverWorker.info(infoItem)
+            variablesMerged(infoItem) = serverWorker.info(infoItem)
         Next
 
         'utt haxes:
-        rulesJoined("__uttlastupdate") = UnixTime(uttServerScanTime)
-        rulesJoined("queryport") = Split(serverWorker.addressQuery, ":").Last
+        variablesMerged("__uttlastupdate") = UnixTime(uttServerScanTime)
+        variablesMerged("queryport") = Split(serverWorker.addressQuery, ":").Last
         If serverWorker.caps.hasXSQ Then
-            rulesJoined("__uttxserverquery") = "true"
+            variablesMerged("__uttxserverquery") = "true"
         End If
 
-        rulesJson = JsonSerializer.Serialize(rulesJoined)
+        variablesJson = JsonSerializer.Serialize(variablesMerged)
 
-        serverRecord.Rules = rulesJson
+        serverRecord.Variables = variablesJson
         dbCtx.Servers.Update(serverRecord)
         'dbCtx.SaveChanges()
 
-        state.savedRules = True
+        state.savedVariables = True
 
     End Sub
 
@@ -421,7 +421,7 @@ Public Structure ServerScannerSaverState
     Dim hasDBRecord As Boolean
     Dim hasServerId As Boolean
     Dim savedInfo As Boolean
-    Dim savedRules As Boolean
+    Dim savedVariables As Boolean
     Dim savedGameInfo As Boolean
     Dim savedPlayers As Boolean
     Dim savedCumulativeStats As Boolean

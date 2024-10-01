@@ -210,7 +210,7 @@ Public Class ServerScanner
                 inf += IIf(st.hasInfo, 1, 0)
                 infex += IIf(st.hasInfoExtended, 1, 0)
                 pl += IIf(st.hasPlayers, 1, 0)
-                ru += IIf(st.hasRules, 1, 0)
+                ru += IIf(st.hasVariables, 1, 0)
                 tt += IIf(st.hasTimeTest, 1, 0)
                 don += IIf(st.done, 1, 0)
                 onl += IIf(t.caps.isOnline, 1, 0)
@@ -268,7 +268,7 @@ Public Class ServerScanner
         Dim servers = dbCtx.Servers.Where(
                 Function(p As Server) p.LastSuccess > scanTimeRange
             ).Select(
-                Function(s) New With {.Address = s.Address, .Rules = s.Rules}
+                Function(s) New With {.Address = s.Address, .Rules = s.Variables}
             ).ToList()
 
         Dim recentServers = New List(Of String)

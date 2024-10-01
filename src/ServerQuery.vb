@@ -9,7 +9,7 @@ Public Class ServerQuery
 
     Public info As Hashtable
     Public players As List(Of Hashtable)
-    Public rules As Hashtable
+    Public variables As Hashtable
 
     Public deployTimeOffsetMs As Integer
     Public firstTimeTest, secondTimeTest As Single
@@ -41,7 +41,7 @@ Public Class ServerQuery
         scannerMaster = master
         With caps
             .hasPropertyInterface = True
-            .supportsRules = True
+            .supportsVariables = True
         End With
 
         state.starting = True
@@ -105,40 +105,40 @@ Public Class ServerQuery
                 .requestingBasic = True
 
             ElseIf Not .hasInfo Then
-                    serverSend("\info\" & IIf(caps.hasXSQ, xsqSuffix, ""))
-                    .requestingInfo = True
-                    infoSentTimeLocal = Date.UtcNow
-                ElseIf Not .hasInfoExtended AndAlso Not .hasTimeTest AndAlso caps.hasPropertyInterface Then
-                    firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
-                    gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(Me)
-                    Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
-                    If Not IsNothing(gamemodeQuery) Then
-                        gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
-                        caps.gamemodeExtendedInfo = True
-                    End If
-                    If Not info.ContainsKey("timelimit") Then
-                        otherAdditionalRequests &= "\game_property\TimeLimit\"
-                    End If
+                serverSend("\info\" & IIf(caps.hasXSQ, xsqSuffix, ""))
+                .requestingInfo = True
+                infoSentTimeLocal = Date.UtcNow
+            ElseIf Not .hasInfoExtended AndAlso Not .hasTimeTest AndAlso caps.hasPropertyInterface Then
+                firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
+                gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(Me)
+                Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
+                If Not IsNothing(gamemodeQuery) Then
+                    gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
+                    caps.gamemodeExtendedInfo = True
+                End If
+                If Not info.ContainsKey("timelimit") Then
+                    otherAdditionalRequests &= "\game_property\TimeLimit\"
+                End If
 
-                    serverSend("\game_property\NumPlayers\\game_property\NumSpectators\" _
+                serverSend("\game_property\NumPlayers\\game_property\NumSpectators\" _
                            & "\game_property\GameSpeed\\game_property\CurrentID\" _
                            & "\game_property\bGameEnded\\game_property\bOvertime\" _
                            & "\game_property\ElapsedTime\\game_property\RemainingTime\" _
                            & otherAdditionalRequests _
                            & gamemodeAdditionalRequests)
-                    .requestingInfoExtended = True
-                ElseIf Not .hasPlayers AndAlso info("numplayers") <> 0 AndAlso Not caps.fakePlayers Then
-                    If caps.hasUtf8PlayerList Then
-                        packetCharset = Encoding.UTF8
-                    End If
-                    serverSend("\players\" & IIf(caps.hasXSQ, xsqSuffix, ""))
-                    .requestingPlayers = True
-                ElseIf Not .hasRules AndAlso caps.supportsRules Then
-                    serverSend("\rules\" & IIf(caps.hasXSQ, xsqSuffix, ""))
-                    .requestingRules = True
+                .requestingInfoExtended = True
+            ElseIf Not .hasPlayers AndAlso info("numplayers") <> 0 AndAlso Not caps.fakePlayers Then
+                If caps.hasUtf8PlayerList Then
+                    packetCharset = Encoding.UTF8
+                End If
+                serverSend("\players\" & IIf(caps.hasXSQ, xsqSuffix, ""))
+                .requestingPlayers = True
+            ElseIf Not .hasVariables AndAlso caps.supportsVariables Then
+                serverSend("\rules\" & IIf(caps.hasXSQ, xsqSuffix, ""))
+                .requestingVariables = True
 
-                Else
-                    .done = True
+            Else
+                .done = True
             End If
 
 
@@ -167,8 +167,8 @@ Public Class ServerQuery
                 parseInfoExtended()
             ElseIf .requestingPlayers Then
                 parsePlayers()
-            ElseIf .requestingRules Then
-                parseRules()
+            ElseIf .requestingVariables Then
+                parseVariables()
             Else
                 'Debugger.Break()
             End If
@@ -359,13 +359,13 @@ Public Class ServerQuery
         state.hasPlayers = True
     End Sub
 
-    Private Sub parseRules()
-        rules = incomingPacket.Clone()
+    Private Sub parseVariables()
+        variables = incomingPacket.Clone()
 
         info("__utthaspropertyinterface") = caps.hasPropertyInterface
         info("__utttimetestpassed") = caps.timeTestPassed
 
-        state.hasRules = True
+        state.hasVariables = True
     End Sub
 
     Private Function skipStepIfOptional()
@@ -397,16 +397,16 @@ Public Class ServerQuery
                 caps.hasXSQ = False
                 sendRequest()
                 Return True
-            ElseIf .requestingRules AndAlso caps.hasXSQ Then
-                .requestingRules = False
+            ElseIf .requestingVariables AndAlso caps.hasXSQ Then
+                .requestingVariables = False
                 caps.hasXSQ = False
                 sendRequest()
                 Return True
 
-            ElseIf .requestingRules Then
-                .requestingRules = False
-                caps.supportsRules = False
-                .hasRules = False
+            ElseIf .requestingVariables Then
+                .requestingVariables = False
+                caps.supportsVariables = False
+                .hasVariables = False
                 sendRequest()
                 Return True
             End If
@@ -421,7 +421,7 @@ Public Class ServerQuery
             .requestingInfo = False
             .requestingInfoExtended = False
             .requestingPlayers = False
-            .requestingRules = False
+            .requestingVariables = False
             .requestingTimeTest = False
         End With
     End Sub
@@ -432,7 +432,7 @@ Public Class ServerQuery
             .requestingInfo Or
             .requestingInfoExtended Or
             .requestingPlayers Or
-            .requestingRules Or
+            .requestingVariables Or
             .requestingTimeTest
         End With
     End Function
@@ -482,7 +482,7 @@ Public Class ServerQuery
         Dim hasPropertyInterface As Boolean
         Dim timeTestPassed As Boolean
         Dim gameSpeed As Single
-        Dim supportsRules As Boolean
+        Dim supportsVariables As Boolean
         Dim gamemodeExtendedInfo As Boolean
         Dim fakePlayers As Boolean
         Dim hasUtf8PlayerList As Boolean
@@ -509,24 +509,24 @@ Public Structure ServerQueryState
     Dim hasInfoExtended As Boolean
     Dim hasTimeTest As Boolean
     Dim hasPlayers As Boolean
-    Dim hasRules As Boolean
+    Dim hasVariables As Boolean
 
     Dim requestingBasic As Boolean
     Dim requestingInfo As Boolean
     Dim requestingInfoExtended As Boolean
     Dim requestingTimeTest As Boolean
     Dim requestingPlayers As Boolean
-    Dim requestingRules As Boolean
+    Dim requestingVariables As Boolean
 
     Dim done As Boolean
 
     Public Overrides Function ToString() As String
         ToString = "ServerQueryState#"
-        If requestingRules Then
-            ToString &= "requestingRules"
+        If requestingVariables Then
+            ToString &= "requestingVariables"
         ElseIf requestingPlayers Then
             ToString &= "requestingPlayers"
-        ElseIf requestingPlayers Then
+        ElseIf requestingTimeTest Then
             ToString &= "requestingTimeTest"
         ElseIf requestingInfoExtended Then
             ToString &= "requestingInfoExtended"

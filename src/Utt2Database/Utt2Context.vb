@@ -252,10 +252,10 @@ Namespace Utt2Database
                         IsRequired().
                         HasMaxLength(255).
                         HasColumnName("game_name")
-                    entity.Property(Function(e) e.LastRankCalculation).
+                    entity.Property(Function(e) e.LastRatingCalculation).
                         HasDefaultValueSql("'NULL'").
                         HasColumnType("timestamp").
-                        HasColumnName("last_rank_calculation")
+                        HasColumnName("last_rating_calculation")
                     entity.Property(Function(e) e.LastCheck).
                         HasDefaultValueSql("'NULL'").
                         HasColumnType("timestamp").
@@ -272,13 +272,16 @@ Namespace Utt2Database
                         IsRequired().
                         HasMaxLength(255).
                         HasColumnName("name")
-                    entity.Property(Function(e) e.RfScore).
+                    entity.Property(Function(e) e.RatingMonth).
                         HasColumnType("int(11)").
-                        HasColumnName("rf_score")
-                    entity.Property(Function(e) e.Rules).
+                        HasColumnName("rating_month")
+                    entity.Property(Function(e) e.RatingMinute).
+                        HasColumnType("int(11)").
+                        HasColumnName("rating_minute")
+                    entity.Property(Function(e) e.Variables).
                         IsRequired().
                         HasDefaultValueSql("'''{}'''").
-                        HasColumnName("rules")
+                        HasColumnName("variables")
                 End Sub)
 
             modelBuilder.Entity(Of ServerMatch)(

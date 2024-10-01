@@ -43,7 +43,7 @@ Public Class GSMasterServerBridge
 
         Dim serverRecords = dbCtx.Servers.
             Where(Function(s) s.LastSuccess > timeLowerLimit AndAlso s.GameName = gamename).
-            Select(Function(s) New With {s.Address, s.Rules})
+            Select(Function(s) New With {s.Address, s.Variables})
 
 
         For Each server In serverRecords

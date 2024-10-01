@@ -10,7 +10,7 @@ Namespace Utt2Database
 
         Public Property Name As String
 
-        Public Property Rules As String
+        Public Property Variables As String
 
         Public Property LastCheck As Date?
 
@@ -18,9 +18,11 @@ Namespace Utt2Database
 
         Public Property LastValidation As Date?
 
-        Public Property LastRankCalculation As Date?
+        Public Property LastRatingCalculation As Date?
 
-        Public Property RfScore As Integer
+        Public Property RatingMonth As Integer
+
+        Public Property RatingMinute As Integer
 
         Public Property Country As String
 
