@@ -268,7 +268,7 @@ Public Class ServerDataUpdater
                 UpdatePlayerHistoryEntry(player)
             Next
             state.savedPlayers = True
-            'dbCtx.SaveChanges()
+            dbCtx.SaveChanges()
         End If
     End Sub
 
