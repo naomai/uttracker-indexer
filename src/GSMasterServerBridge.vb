@@ -49,8 +49,8 @@ Public Class GSMasterServerBridge
         For Each server In serverRecords
             Dim fullQueryIp = server.Address
             Try
-                If Not IsNothing(server.Rules) AndAlso server.Rules <> "" Then
-                    rules = JsonSerializer.Deserialize(Of Hashtable)(server.Rules)
+                If Not IsNothing(server.Variables) AndAlso server.Variables <> "" Then
+                    rules = JsonSerializer.Deserialize(Of Hashtable)(server.Variables)
                     If Not IsNothing(rules) AndAlso rules.ContainsKey("queryport") Then
                         Dim host = GetHost(server.Address)
                         fullQueryIp = host & ":" & rules("queryport").ToString()

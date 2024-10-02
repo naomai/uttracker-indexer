@@ -72,7 +72,7 @@ Public Class ServerQuery
             End If
         End If
         If Not saver.state.done Then
-            saver.tick()
+            saver.Tick()
         End If
     End Sub
 

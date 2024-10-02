@@ -2,6 +2,7 @@
 Imports System.Data
 Imports System.Text.Json
 Imports Naomai.UTT.Indexer.Utt2Database
+Imports Org.BouncyCastle.Asn1.Cms
 
 Public Class ServerDataUpdater
     Protected serverWorker As ServerQuery
@@ -18,18 +19,18 @@ Public Class ServerDataUpdater
         GetServerRecord()
     End Sub
 
-    Public Sub tick()
+    Public Sub Tick()
         If state.done Then
             Return
         End If
         Try
             'If Not state.hasDBRecord Then prepareServerRecord()
-            If Not state.savedInfo Then tryUpdateInfo()
-            If Not state.savedVariables Then tryUpdateVariables()
+            If Not state.savedInfo Then TryUpdateInfo()
+            If Not state.savedVariables Then TryUpdateVariables()
             If Not state.savedGameInfo Then TryUpdateMatchInfo()
-            If Not state.savedPlayers Then tryUpdatePlayerInfo()
-            If Not state.savedCumulativeStats Then tryUpdateCumulativePlayersStats()
-            If Not state.savedScanInfo Then updateCurrentScanInfo()
+            If Not state.savedPlayers Then TryUpdatePlayerInfo()
+            If Not state.savedCumulativeStats Then TryUpdateCumulativePlayersStats()
+            If Not state.savedScanInfo Then UpdateCurrentScanInfo()
         Catch e As Exception
             serverWorker.abortScan()
         End Try
@@ -54,7 +55,7 @@ Public Class ServerDataUpdater
         Return serverRecord
     End Function
 
-    Private Sub tryUpdateInfo()
+    Private Sub TryUpdateInfo()
         Dim scannerState = serverWorker.getState()
 
         If Not (state.hasDBRecord AndAlso scannerState.hasBasic AndAlso scannerState.hasInfo) Then
@@ -79,7 +80,7 @@ Public Class ServerDataUpdater
         state.savedInfo = True
     End Sub
 
-    Private Sub tryUpdateVariables()
+    Private Sub TryUpdateVariables()
         Dim variablesMerged As Hashtable
         Dim variablesJson As String
         Dim scannerState = serverWorker.getState()
@@ -245,7 +246,7 @@ Public Class ServerDataUpdater
 
     End Sub
 
-    Private Sub tryUpdatePlayerInfo()
+    Private Sub TryUpdatePlayerInfo()
         Dim scannerState = serverWorker.getState()
         If scannerState.hasInfo AndAlso (serverWorker.info("numplayers") = 0 OrElse serverWorker.caps.fakePlayers) Then
             state.savedPlayers = True
@@ -253,7 +254,7 @@ Public Class ServerDataUpdater
 
         If scannerState.hasPlayers AndAlso state.savedGameInfo Then
             For Each player In serverWorker.players
-                Dim uttPlayerSlug As String = getPlayerSlug(player)
+                Dim uttPlayerSlug As String = GetPlayerSlug(player)
                 Dim playerRecord As Player
 
                 playerRecord = dbCtx.Players.SingleOrDefault(Function(p) p.Slug = uttPlayerSlug)
@@ -263,15 +264,15 @@ Public Class ServerDataUpdater
 
                 player("uttPlayerSlug") = uttPlayerSlug
 
-                updatePlayerInfoEntry(playerRecord, player)
-                updatePlayerHistoryEntry(player)
+                UpdatePlayerInfoEntry(playerRecord, player)
+                UpdatePlayerHistoryEntry(player)
             Next
             state.savedPlayers = True
             'dbCtx.SaveChanges()
         End If
     End Sub
 
-    Private Sub updatePlayerInfoEntry(playerRecord As Player, playerData As Hashtable)
+    Private Sub UpdatePlayerInfoEntry(playerRecord As Player, playerData As Hashtable)
         Dim countryString As String = ""
 
         With playerRecord
@@ -292,7 +293,7 @@ Public Class ServerDataUpdater
         playerData("uttPlayerId") = playerRecord.Id
     End Sub
 
-    Private Sub updatePlayerHistoryEntry(player As Hashtable) ' `playerhistory` table
+    Private Sub UpdatePlayerHistoryEntry(player As Hashtable) ' `playerhistory` table
         Dim playerTimeOffset As Integer = 0
         Dim playerLogRecord As PlayerLog
         Dim uttPlayerId As Int32 = player("uttPlayerId")
@@ -334,7 +335,7 @@ Public Class ServerDataUpdater
 
     End Sub
 
-    Private Sub tryUpdateCumulativePlayersStats() ' update `PlayerStats` using not-finished records in PlayerLogs, then marking them Finished
+    Private Sub TryUpdateCumulativePlayersStats() ' update `PlayerStats` using not-finished records in PlayerLogs, then marking them Finished
         If Not state.hasServerId Then
             Return
         End If
@@ -342,7 +343,7 @@ Public Class ServerDataUpdater
         If state.savedPlayers AndAlso state.savedGameInfo Then
             Dim playerLogsDirty = dbCtx.PlayerLogs.Where(
                 Function(l) l.Finished = False AndAlso l.ServerId = uttServerId AndAlso l.MatchId <> uttGameId
-            ).ToList()
+            )
 
             For Each playerLog In playerLogsDirty
                 Dim playerStatRecord As PlayerStat = dbCtx.PlayerStats.SingleOrDefault(
@@ -374,20 +375,26 @@ Public Class ServerDataUpdater
 
                 dbCtx.PlayerStats.Update(playerStatRecord)
                 playerLog.Finished = True
+                dbCtx.PlayerLogs.Update(playerLog)
             Next
+
+            UpdateServerRatings()
+
             dbCtx.SaveChanges()
 
             state.savedCumulativeStats = True
         End If
     End Sub
 
-    Private Sub updateCurrentScanInfo()
+    Private Sub UpdateCurrentScanInfo()
         If Not state.hasServerId Then
             Return
         End If
 
         If state.savedCumulativeStats OrElse (state.savedInfo AndAlso serverWorker.info("numplayers") = 0) Then
+
             serverRecord.LastSuccess = DateTime.UtcNow
+
             dbCtx.Servers.Update(serverRecord)
             dbCtx.SaveChanges()
 
@@ -395,23 +402,36 @@ Public Class ServerDataUpdater
         End If
     End Sub
 
+
+    Private Sub UpdateServerRatings()
+        Dim rfCalculator = New ServerRating(dbCtx)
+
+        With serverRecord
+            If IsNothing(.LastRatingCalculation) OrElse .LastRatingCalculation < Date.UtcNow.AddHours(-8) Then
+                .RatingMonth = rfCalculator.CalculateMonthly(serverRecord)
+                .LastRatingCalculation = Date.UtcNow
+            End If
+        End With
+        serverRecord.RatingMinute = rfCalculator.CalculateMinute(serverWorker.info, serverRecord)
+    End Sub
+
     Private Function GetLastMatchInfo() As ServerMatch
         Return dbCtx.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault(
             Function(m) m.ServerId = uttServerId)
     End Function
 
-    Private Shared Function getPlayerSlug(playerInfo As Hashtable) As String
+    Private Shared Function GetPlayerSlug(playerInfo As Hashtable) As String
         ' For a rare events of two players having the same name, to tell them apart
         ' we append player skin name to the slug.
         ' The more complex names do not need this
-        If (nameIsComplicated(playerInfo("name"))) Then
-            getPlayerSlug = LCase(playerInfo("name"))
+        If (NameIsComplicated(playerInfo("name"))) Then
+            GetPlayerSlug = LCase(playerInfo("name"))
         Else
-            getPlayerSlug = LCase(playerInfo("name") & "|" & playerInfo("mesh"))
+            GetPlayerSlug = LCase(playerInfo("name") & "|" & playerInfo("mesh"))
         End If
     End Function
 
-    Private Shared Function nameIsComplicated(pname As String) As Boolean
+    Private Shared Function NameIsComplicated(pname As String) As Boolean
         Return Len(pname) >= 10 OrElse Text.RegularExpressions.Regex.IsMatch(pname, "[\[\]\(\)\{\}<>~`!@#\$%\^&\*\-=_/;:'"",\.\?]")
     End Function
 End Class

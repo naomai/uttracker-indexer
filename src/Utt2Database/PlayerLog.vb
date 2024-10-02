@@ -33,5 +33,9 @@ Namespace Utt2Database
         Public Overridable Property Player As Player
 
         Public Overridable Property Server As Server
+
+        Public Overrides Function ToString() As String
+            Return Player.Name & "#M" & MatchId & "@S" & ServerId
+        End Function
     End Class
 End Namespace
