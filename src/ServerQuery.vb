@@ -246,8 +246,11 @@ Public Class ServerQuery
     End Function
 
     Private Sub parseInfo()
-        If Not incomingPacket.ContainsKey("hostname") Then
-            logDbg("NoHostname: " & incomingPacket.ToString)
+        If Not incomingPacket.ContainsKey("hostname") OrElse
+            Not incomingPacket.ContainsKey("mapname") OrElse
+            Not incomingPacket.ContainsKey("numplayers") OrElse
+            Not incomingPacket.ContainsKey("maxplayers") Then
+            logDbg("MissingFields: " & incomingPacket.ToString)
             abortScan()
         Else
             For Each packetKey As String In incomingPacket.Keys
