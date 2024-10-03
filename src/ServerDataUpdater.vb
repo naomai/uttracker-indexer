@@ -289,6 +289,7 @@ Public Class ServerDataUpdater
         dbCtx.Players.Update(playerRecord)
 
         If IsNothing(playerRecord.Id) Then
+            dbCtx.Players.Add(playerRecord)
             dbCtx.SaveChanges()
         End If
         playerData("uttPlayerId") = playerRecord.Id
