@@ -18,7 +18,7 @@ Public Class MasterServerManager
 
     Dim masterServers As New List(Of MasterServerInfo)
     Public Shared gamespyKeys As Dictionary(Of String, GamespyGameInfo)
-    Dim serverList As List(Of String)
+    Dim serverList As New List(Of String)
 
     Public Sub New(cacheFile As String)
         Me.cacheFile = cacheFile

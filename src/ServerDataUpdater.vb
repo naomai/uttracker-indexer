@@ -224,11 +224,11 @@ Public Class ServerDataUpdater
             End If
 
             matchRecord = New ServerMatch With {
-            .ServerId = uttServerId,
-            .StartTime = timeMatchStart,
-            .MapName = serverWorker.info("mapname"),
-            .ServerPlayeridCounter = thisMatchCurrentID
-        }
+                .ServerId = uttServerId,
+                .StartTime = timeMatchStart,
+                .MapName = serverWorker.info("mapname"),
+                .ServerPlayeridCounter = thisMatchCurrentID
+            }
             dbCtx.ServerMatches.Add(matchRecord)
             If IsNothing(matchRecord.Id) Then
                 dbCtx.SaveChanges()
@@ -251,6 +251,7 @@ Public Class ServerDataUpdater
         Dim scannerState = serverWorker.getState()
         If scannerState.hasInfo AndAlso (serverWorker.info("numplayers") = 0 OrElse serverWorker.caps.fakePlayers) Then
             state.savedPlayers = True
+            Return
         End If
 
         If scannerState.hasPlayers AndAlso state.savedGameInfo Then
@@ -259,8 +260,17 @@ Public Class ServerDataUpdater
                 Dim playerRecord As Player
 
                 playerRecord = dbCtx.Players.SingleOrDefault(Function(p) p.Slug = uttPlayerSlug)
+
+                player("uttSkinData") = player("mesh") & "|" & player("skin") & "|" & player("face")
+
                 If IsNothing(playerRecord) Then
-                    playerRecord = New Player
+                    playerRecord = New Player With {
+                                    .Name = player("name"),
+                                    .Slug = uttPlayerSlug,
+                                    .SkinData = player("uttSkinData")
+                    }
+                    'dbCtx.Players.Add(playerRecord)
+                    'dbCtx.SaveChanges()
                 End If
 
                 player("uttPlayerSlug") = uttPlayerSlug
@@ -277,9 +287,7 @@ Public Class ServerDataUpdater
         Dim countryString As String = ""
 
         With playerRecord
-            .Name = playerData("name")
-            .Slug = playerData("uttPlayerSlug")
-            .SkinData = playerData("mesh") & "|" & playerData("skin") & "|" & playerData("face")
+            .SkinData = playerData("uttSkinData")
             If serverWorker.caps.hasXSQ And playerData("countryc") <> "none" Then
                 countryString = playerData("countryc")
             End If
@@ -289,7 +297,7 @@ Public Class ServerDataUpdater
         dbCtx.Players.Update(playerRecord)
 
         If IsNothing(playerRecord.Id) Then
-            dbCtx.Players.Add(playerRecord)
+            '    dbCtx.Players.Add(playerRecord)
             dbCtx.SaveChanges()
         End If
         playerData("uttPlayerId") = playerRecord.Id
@@ -321,6 +329,7 @@ Public Class ServerDataUpdater
                 .PingSum = 0
             }
 
+
         End If
 
         With playerLogRecord
@@ -333,7 +342,11 @@ Public Class ServerDataUpdater
         End With
 
         dbCtx.PlayerLogs.Update(playerLogRecord)
-        'dbCtx.SaveChanges()
+        If IsNothing(playerLogRecord.Id) Then
+            dbCtx.SaveChanges()
+        End If
+
+
 
     End Sub
 
@@ -362,10 +375,11 @@ Public Class ServerDataUpdater
                 If IsNothing(playerStatRecord) Then
                     playerStatRecord = New PlayerStat With {
                         .PlayerId = playerLog.PlayerId,
-                        .ServerId = playerLog.ServerId
+                        .ServerId = playerLog.ServerId,
+                        .LastMatchId = playerLog.MatchId ' mandatory, db constraint
                     }
-                    dbCtx.PlayerStats.Add(playerStatRecord)
-                    dbCtx.SaveChanges()
+                    'dbCtx.PlayerStats.Add(playerStatRecord)
+                    'dbCtx.SaveChanges()
                 End If
 
                 With playerStatRecord
@@ -387,6 +401,9 @@ Public Class ServerDataUpdater
                 dbCtx.PlayerStats.Update(playerStatRecord)
                 playerLog.Finished = True
                 dbCtx.PlayerLogs.Update(playerLog)
+                If IsNothing(playerStatRecord.Id) Then
+                    dbCtx.SaveChanges()
+                End If
             Next
 
             UpdateServerRatings()
