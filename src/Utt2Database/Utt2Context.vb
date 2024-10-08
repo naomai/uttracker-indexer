@@ -235,15 +235,20 @@ Namespace Utt2Database
 
                     entity.ToTable("servers")
 
-                    entity.HasIndex(Function(e) e.Address, "servers_address_unique").IsUnique()
+                    entity.HasIndex(Function(e) e.AddressQuery, "servers_address_query_unique").IsUnique()
+                    entity.HasIndex(Function(e) e.AddressGame, "servers_address_game_unique").IsUnique()
 
                     entity.Property(Function(e) e.Id).
                         HasColumnType("bigint(20) unsigned").
                         HasColumnName("id")
-                    entity.Property(Function(e) e.Address).
+                    entity.Property(Function(e) e.AddressQuery).
                         IsRequired().
                         HasMaxLength(60).
-                        HasColumnName("address")
+                        HasColumnName("address_query")
+                    entity.Property(Function(e) e.AddressGame).
+                        IsRequired().
+                        HasMaxLength(60).
+                        HasColumnName("address_game")
                     entity.Property(Function(e) e.Country).
                         HasMaxLength(3).
                         HasDefaultValueSql("'NULL'").

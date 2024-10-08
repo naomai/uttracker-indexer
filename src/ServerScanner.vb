@@ -268,7 +268,7 @@ Public Class ServerScanner
         Dim servers = dbCtx.Servers.Where(
                 Function(p As Server) p.LastSuccess > scanTimeRange
             ).Select(
-                Function(s) New With {.Address = s.Address, .Rules = s.Variables}
+                Function(s) New With {.Address = s.AddressQuery, .Rules = s.Variables}
             ).ToList()
 
         Dim recentServers = New List(Of String)

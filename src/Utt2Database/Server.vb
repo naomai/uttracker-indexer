@@ -6,7 +6,9 @@ Namespace Utt2Database
     Partial Public Class Server
         Public Property Id As Long?
 
-        Public Property Address As String
+        Public Property AddressQuery As String
+
+        Public Property AddressGame As String
 
         Public Property Name As String
 

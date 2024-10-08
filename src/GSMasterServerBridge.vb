@@ -43,16 +43,16 @@ Public Class GSMasterServerBridge
 
         Dim serverRecords = dbCtx.Servers.
             Where(Function(s) s.LastSuccess > timeLowerLimit AndAlso s.GameName = gamename).
-            Select(Function(s) New With {s.Address, s.Variables})
+            Select(Function(s) New With {s.AddressQuery, s.Variables})
 
 
-        For Each server In serverRecords
-            Dim fullQueryIp = server.Address
+        For Each serverRecord In serverRecords
+            Dim fullQueryIp = serverRecord.AddressQuery
             Try
-                If Not IsNothing(server.Variables) AndAlso server.Variables <> "" Then
-                    rules = JsonSerializer.Deserialize(Of Hashtable)(server.Variables)
+                If Not IsNothing(serverRecord.Variables) AndAlso serverRecord.Variables <> "" Then
+                    rules = JsonSerializer.Deserialize(Of Hashtable)(serverRecord.Variables)
                     If Not IsNothing(rules) AndAlso rules.ContainsKey("queryport") Then
-                        Dim host = GetHost(server.Address)
+                        Dim host = GetHost(serverRecord.AddressQuery)
                         fullQueryIp = host & ":" & rules("queryport").ToString()
                     End If
                 End If

@@ -37,6 +37,8 @@ Public Class ServerQuery
 
     Public Sub New(master As ServerScanner, serverAddress As String)
         addressQuery = serverAddress
+        addressGame = JulkinNet.GetHost(serverAddress) & ":" &
+            (JulkinNet.GetPort(serverAddress) - 1)
         'addressQuery2 = serverAddress
         scannerMaster = master
         With caps
@@ -105,6 +107,9 @@ Public Class ServerQuery
                 .requestingBasic = True
 
             ElseIf Not .hasInfo Then
+                If caps.hasCp437Info Then
+                    packetCharset = Encoding.GetEncoding(437)
+                End If
                 serverSend("\info\" & IIf(caps.hasXSQ, xsqSuffix, ""))
                 .requestingInfo = True
                 infoSentTimeLocal = Date.UtcNow
@@ -220,6 +225,8 @@ Public Class ServerQuery
         If gameName = "ut" Then
             caps.hasXSQ = True ' set this flag for initial polling with XSQ suffix
             caps.hasUtf8PlayerList = Integer.Parse(caps.version) >= 469
+        ElseIf gameName = "unreal" Then
+            caps.hasCp437Info = True
         End If
 
     End Sub
@@ -252,24 +259,26 @@ Public Class ServerQuery
             Not incomingPacket.ContainsKey("maxplayers") Then
             logDbg("MissingFields: " & incomingPacket.ToString)
             abortScan()
-        Else
-            For Each packetKey As String In incomingPacket.Keys
-                If packetKey.Substring(0, 2) = "__" Then
-                    Continue For
-                End If
-                info(packetKey) = incomingPacket(packetKey)
-            Next
-            'If info.ContainsKey("hostport") AndAlso IsNumeric(info("hostport")) Then
-            'addressQuery2 = getIp(addressQuery) & ":" & (Integer.Parse(info("hostport")) + 1)
-            'End If
-            caps.hasXSQ = info.ContainsKey("xserverquery")
-            If caps.hasXSQ Then
-                Integer.TryParse(Replace(info("xserverquery"), ".", ""), formatProvider, caps.XSQVersion)
-                caps.hasPropertyInterface = False
-                caps.timeTestPassed = False
-            End If
-            state.hasInfo = True
+            Return
         End If
+        For Each packetKey As String In incomingPacket.Keys
+            If packetKey.Substring(0, 2) = "__" Then
+                Continue For
+            End If
+            info(packetKey) = incomingPacket(packetKey)
+        Next
+        If info.ContainsKey("hostport") AndAlso IsNumeric(info("hostport")) Then
+            addressGame = JulkinNet.GetHost(addressQuery) & ":" &
+                Integer.Parse(info("hostport"))
+        End If
+        caps.hasXSQ = info.ContainsKey("xserverquery")
+        If caps.hasXSQ Then
+            Integer.TryParse(Replace(info("xserverquery"), ".", ""), formatProvider, caps.XSQVersion)
+            caps.hasPropertyInterface = False
+            caps.timeTestPassed = False
+        End If
+        state.hasInfo = True
+
     End Sub
 
     Private Sub parseInfoExtended()
@@ -488,7 +497,8 @@ Public Class ServerQuery
         Dim supportsVariables As Boolean
         Dim gamemodeExtendedInfo As Boolean
         Dim fakePlayers As Boolean
-        Dim hasUtf8PlayerList As Boolean
+        Dim hasUtf8PlayerList As Boolean ' UT 469+
+        Dim hasCp437Info As Boolean ' Unreal
 
         Public Overrides Function ToString() As String
             ToString = "ServerCapabilities{ "

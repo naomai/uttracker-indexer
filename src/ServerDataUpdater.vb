@@ -46,10 +46,11 @@ Public Class ServerDataUpdater
             Return serverRecord
         End If
 
-        serverRecord = dbCtx.Servers.SingleOrDefault(Function(s) s.Address = serverWorker.addressQuery)
+        serverRecord = dbCtx.Servers.SingleOrDefault(Function(s) s.AddressQuery = serverWorker.addressQuery)
         If IsNothing(serverRecord) Then
             serverRecord = New Server() With {
-                .Address = serverWorker.addressQuery
+                .AddressQuery = serverWorker.addressQuery,
+                .AddressGame = serverWorker.addressGame
             }
         End If
         state.hasDBRecord = True
@@ -66,6 +67,7 @@ Public Class ServerDataUpdater
         With serverRecord
             .Name = serverWorker.info("hostname")
             .GameName = serverWorker.info("gamename")
+            .AddressGame = serverWorker.addressGame
         End With
 
         dbCtx.Servers.Update(serverRecord)
