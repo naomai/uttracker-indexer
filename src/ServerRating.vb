@@ -32,7 +32,7 @@ Public Class ServerRating
 		End If
 		Dim rfScore = serverRecord.RatingMonth
 
-		Dim rfCombo As Single = Math.Pow(rfScore, 1.6) * (playerNum + 1)
+		Dim rfCombo As Single = Math.Pow(rfScore + 20, 1.6) * (playerNum + 1)
 
 		Return Math.Round(rfCombo)
 	End Function
