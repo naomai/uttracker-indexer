@@ -71,11 +71,16 @@ Public Class ServerDataUpdater
         End With
 
         dbCtx.Servers.Update(serverRecord)
-
-        If IsNothing(serverRecord.Id) Then
+        Try
             dbCtx.SaveChanges()
-        End If
+        Catch e As DbUpdateException
+            ' conflict of AddressGame - one server, many QueryPorts
+            serverWorker.abortScan()
+            dbCtx.Servers.Remove(serverRecord)
+            Return
+        End Try
         uttServerId = serverRecord.Id
+
 
         uttServerScanTime = serverWorker.infoSentTimeLocal
 
