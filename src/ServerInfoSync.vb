@@ -17,6 +17,7 @@ Public Class ServerInfoSync
 
     Public state As ServerScannerSaverState
     Private serverRecord As Server
+    Private matchRecord As ServerMatch
 
     Public Sub New(serverData As ServerInfo, serverWorker As ServerQuery)
         Me.serverData = serverData
@@ -91,7 +92,7 @@ Public Class ServerInfoSync
         Catch e As DbUpdateException
             ' conflict of AddressGame - one server, many QueryPorts
             serverWorker.abortScan()
-            dbCtx.Servers.Remove(serverRecord)
+            dbCtx.Entry(serverRecord).State = EntityState.Detached
             Return
         End Try
         uttServerId = serverRecord.Id
@@ -132,7 +133,7 @@ Public Class ServerInfoSync
         variablesJson = JsonSerializer.Serialize(variablesMerged)
 
         serverRecord.Variables = variablesJson
-        dbCtx.Servers.Update(serverRecord)
+        'dbCtx.Servers.Update(serverRecord)
         'dbCtx.SaveChanges()
 
         state.savedVariables = True
@@ -237,24 +238,20 @@ Public Class ServerInfoSync
             End If
         End If
 
-        Dim matchRecord As ServerMatch
-
         If state.isNewMatch Then
             If timeMatchStart = Nothing Then
                 timeMatchStart = Date.UtcNow
             End If
 
             matchRecord = New ServerMatch With {
-                .ServerId = uttServerId,
                 .StartTime = timeMatchStart,
                 .MapName = serverData.info("mapname"),
                 .ServerPlayeridCounter = thisMatchCurrentID
             }
-            dbCtx.ServerMatches.Add(matchRecord)
+            serverRecord.ServerMatches.Add(matchRecord)
             If IsNothing(matchRecord.Id) Then
                 dbCtx.SaveChanges()
             End If
-            uttGameId = matchRecord.Id
         Else
             If Not IsNothing(thisMatchCurrentID) AndAlso thisMatchCurrentID > lastMatchCurrentID Then
                 ' only update CurrenID in DB
@@ -262,8 +259,9 @@ Public Class ServerInfoSync
                 previousMatchRecord.ServerPlayeridCounter = thisMatchCurrentID
                 'dbCtx.SaveChanges()
             End If
-            uttGameId = previousMatchRecord.Id
+            matchRecord = previousMatchRecord
         End If
+        uttGameId = matchRecord.Id
         state.savedGameInfo = True
 
     End Sub
@@ -315,9 +313,9 @@ Public Class ServerInfoSync
             .Country = countryString
         End With
 
-        dbCtx.Players.Update(playerRecord)
 
         If IsNothing(playerRecord.Id) Then
+            dbCtx.Players.Update(playerRecord)
             '    dbCtx.Players.Add(playerRecord)
             dbCtx.SaveChanges()
         End If
@@ -337,20 +335,19 @@ Public Class ServerInfoSync
             playerTimeOffset = -player("time")
         End If
 
-        playerLogRecord = dbCtx.PlayerLogs.SingleOrDefault(
-            Function(p) p.PlayerId = uttPlayerId And p.MatchId = uttGameId
+        playerLogRecord = matchRecord.PlayerLogs.FirstOrDefault(
+            Function(p) p.PlayerId = uttPlayerId
         )
         If IsNothing(playerLogRecord) Then
             playerLogRecord = New PlayerLog With {
+                .Server = serverRecord,
+                .Match = matchRecord,
                 .PlayerId = player("uttPlayerId"),
-                .ServerId = uttServerId,
-                .MatchId = uttGameId,
                 .FirstSeenTime = uttServerScanTime.AddSeconds(playerTimeOffset),
                 .SeenCount = 0,
                 .PingSum = 0
             }
-
-
+            'matchRecord.PlayerLogs.Add(playerLogRecord)
         End If
 
         With playerLogRecord
@@ -362,8 +359,8 @@ Public Class ServerInfoSync
             .Team = player("team")
         End With
 
-        dbCtx.PlayerLogs.Update(playerLogRecord)
         If IsNothing(playerLogRecord.Id) Then
+            dbCtx.Update(playerLogRecord)
             dbCtx.SaveChanges()
         End If
 
@@ -377,21 +374,22 @@ Public Class ServerInfoSync
         End If
 
         If state.savedPlayers AndAlso state.savedGameInfo Then
-            Dim playerLogsDirty = dbCtx.PlayerLogs.Where(
-                Function(l) l.Finished = False AndAlso l.ServerId = uttServerId AndAlso l.MatchId <> uttGameId
+            Dim playerLogsDirty = serverRecord.PlayerLogs.Where(
+                Function(l) l.Finished = False AndAlso l.MatchId <> uttGameId
             )
 
-            Dim playerStatsToUpdate = From stat In dbCtx.Set(Of PlayerStat)
-                                      Join log In playerLogsDirty
-                                          On stat.Player Equals log.Player And
-                                          stat.Server Equals log.Server
-                                      Select stat
+            'Dim playerStatsToUpdate = From stat In dbCtx.Set(Of PlayerStat)
+            '                          Join log In playerLogsDirty
+            '                              On stat.Player Equals log.Player And
+            '                              stat.Server Equals log.Server
+            '                          Select stat
 
             'If playerLogsDirty.Count > 0 Then Debugger.Break()
             For Each playerLog In playerLogsDirty.ToList()
-                Dim playerStatRecord As PlayerStat = dbCtx.PlayerStats.SingleOrDefault(
-                    Function(s) s.PlayerId = playerLog.PlayerId
-                )
+                'Dim playerStatRecord As PlayerStat = dbCtx.PlayerStats.SingleOrDefault(
+                '    Function(s) s.PlayerId = playerLog.PlayerId
+                ')
+                Dim playerStatRecord As PlayerStat = playerLog.Player.PlayerStats.SingleOrDefault()
 
                 If IsNothing(playerStatRecord) Then
                     playerStatRecord = New PlayerStat With {
@@ -419,15 +417,14 @@ Public Class ServerInfoSync
                     .LastMatchId = playerLog.MatchId
                 End With
 
-                dbCtx.PlayerStats.Update(playerStatRecord)
+
                 playerLog.Finished = True
-                dbCtx.PlayerLogs.Update(playerLog)
+                dbCtx.Update(playerLog)
                 If IsNothing(playerStatRecord.Id) Then
+                    dbCtx.Update(playerStatRecord)
                     dbCtx.SaveChanges()
                 End If
             Next
-
-            UpdateServerRatings()
 
             dbCtx.SaveChanges()
 
@@ -442,10 +439,12 @@ Public Class ServerInfoSync
 
         If state.savedCumulativeStats OrElse (state.savedInfo AndAlso serverData.info("numplayers") = 0) Then
 
+            UpdateServerRatings()
+
             serverRecord.LastSuccess = DateTime.UtcNow
             serverRecord.LastCheck = serverData.lastActivity
 
-            dbCtx.Servers.Update(serverRecord)
+            'dbCtx.Servers.Update(serverRecord)
             dbCtx.SaveChanges()
 
             state.savedScanInfo = True
@@ -466,8 +465,7 @@ Public Class ServerInfoSync
     End Sub
 
     Private Function GetLastMatchInfo() As ServerMatch
-        Return dbCtx.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault(
-            Function(m) m.ServerId = uttServerId)
+        Return serverRecord.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault()
     End Function
 
     Private Shared Function GetPlayerSlug(playerInfo As Hashtable) As String
