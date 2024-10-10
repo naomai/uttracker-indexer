@@ -1,14 +1,14 @@
 ﻿Public MustInherit Class GamemodeSpecificQuery
-    Friend serverWorker As ServerQuery
+    Friend server As ServerInfo
     Public MustOverride Function GetInfoRequestString() As String
     Public MustOverride Sub ParseInfoPacket(incomingPacket As Hashtable)
 
     Protected Property info(key As String) As String
         Get
-            Return serverWorker.info(key)
+            Return server.info(key)
         End Get
         Set(value As String)
-            serverWorker.info(key) = value
+            server.info(key) = value
         End Set
     End Property
 
@@ -16,20 +16,20 @@
 
     End Sub
 
-    Public Sub New(serverWorker As ServerQuery)
-        Me.serverWorker = serverWorker
+    Public Sub New(serverWorker As ServerInfo)
+        Me.server = serverWorker
     End Sub
 
-    Public Shared Function GetQueryObjectForContext(serverWorker As ServerQuery)
+    Public Shared Function GetQueryObjectForContext(server As ServerInfo)
         Dim queryObject As GamemodeSpecificQuery = Nothing
-        If serverWorker.caps.hasPropertyInterface = True Then
-            Select Case serverWorker.info("gametype")
+        If server.caps.hasPropertyInterface = True Then
+            Select Case server.info("gametype")
                 Case "MonsterHunt"
                     queryObject = New MonsterHuntQuery()
             End Select
         End If
         If IsNothing(queryObject) Then Return Nothing
-        queryObject.serverWorker = serverWorker
+        queryObject.server = server
         Return queryObject
     End Function
 End Class

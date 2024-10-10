@@ -2,8 +2,8 @@
 Imports System.Net
 Imports Naomai.UTT.Indexer.Utt2Database
 
-Module ScannerApp
-    Dim WithEvents scanner As ServerScanner
+Module App
+    Dim WithEvents scanner As Scanner
     Dim WithEvents master As GSMasterServer
     Dim masterBridge As GSMasterServerBridge
     Dim masterManager As MasterServerManager
@@ -80,7 +80,7 @@ Module ScannerApp
 
         Dim dyncfgDbCtx = New Utt2Context(dbconfig)
         dyncfg = New DynConfig(dyncfgDbCtx, "utt.reaper")
-        dyncfg.setProperty("configsrc", ini.iniName, True)
+        dyncfg.SetProperty("configsrc", ini.iniName, True)
 
         Dim scannerConfig As ServerScannerConfig
         With scannerConfig
@@ -92,7 +92,7 @@ Module ScannerApp
             .iniFile = ini.iniName
             .masterServerManager = masterManager
         End With
-        scanner = New ServerScanner(scannerConfig)
+        scanner = New Scanner(scannerConfig)
         'scannerConfig.masterServerManager = Nothing
         'scannerConfig.db = New MySQLDB(dbconfig)
         'Dim tinyScanner = New AsyncLittleScanner(scannerConfig)
@@ -131,7 +131,7 @@ Module ScannerApp
     End Sub
 
     Private Sub master_ClientConnected(client As System.Net.IPEndPoint) Handles master.ClientConnected
-        dyncfg.setProperty("gsmasterserver.lastevent", UnixTime())
+        dyncfg.SetProperty("gsmasterserver.lastevent", UnixTime())
     End Sub
 
     Private Sub master_ClientDisconnected(client As IPEndPoint, reason As GSClosingReason, relatedException As Exception) Handles master.ClientDisconnected

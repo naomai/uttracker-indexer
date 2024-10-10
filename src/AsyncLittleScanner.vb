@@ -5,7 +5,7 @@ Imports System.Data
 ' this one is meant to be used with outcomepred.php
 ' to get accurate frags count at the end of games
 Public Class AsyncLittleScanner
-    Inherits ServerScanner
+    Inherits Scanner
     Dim scannerThread, checkerThread As Thread
     Dim forceStop As Boolean = False
 

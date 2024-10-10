@@ -5,19 +5,25 @@ Imports Naomai.UTT.Indexer.Utt2Database
 Imports Org.BouncyCastle.Asn1.Cms
 Imports Microsoft.EntityFrameworkCore.Internal
 
-Public Class ServerDataUpdater
+Public Class ServerInfoSync
     Protected serverWorker As ServerQuery
     Public dbCtx As Utt2Context
+
+    Private serverData As ServerInfo
+
     Dim uttServerId As Int32
     Dim uttGameId As UInt32
     Dim uttServerScanTime As DateTime
+
     Public state As ServerScannerSaverState
     Private serverRecord As Server
 
-    Public Sub New(serverWorker As ServerQuery)
+    Public Sub New(serverData As ServerInfo, serverWorker As ServerQuery)
+        Me.serverData = serverData
         Me.serverWorker = serverWorker
         dbCtx = serverWorker.scannerMaster.dbCtx
         GetServerRecord()
+        serverRecord.LastCheck = Date.UtcNow
     End Sub
 
     Public Sub Tick()
@@ -54,8 +60,15 @@ Public Class ServerDataUpdater
             }
         End If
         state.hasDBRecord = True
+
+        ReadServerDataFromDB()
+
         Return serverRecord
     End Function
+
+    Public Sub ReadServerDataFromDB()
+        serverData.lastValidation = serverRecord.LastValidation
+    End Sub
 
     Private Sub TryUpdateInfo()
         Dim scannerState = serverWorker.getState()
@@ -65,9 +78,11 @@ Public Class ServerDataUpdater
         End If
 
         With serverRecord
-            .Name = serverWorker.info("hostname")
-            .GameName = serverWorker.info("gamename")
+            .Name = serverData.info("hostname")
+            .GameName = serverData.info("gamename")
             .AddressGame = serverWorker.addressGame
+            .LastValidation = serverData.lastValidation
+            .LastCheck = serverData.lastActivity
         End With
 
         dbCtx.Servers.Update(serverRecord)
@@ -93,7 +108,7 @@ Public Class ServerDataUpdater
         Dim variablesJson As String
         Dim scannerState = serverWorker.getState()
 
-        If Not serverWorker.caps.supportsVariables Then
+        If Not serverData.caps.supportsVariables Then
             state.savedVariables = True
             Return
         End If
@@ -102,15 +117,15 @@ Public Class ServerDataUpdater
             Return
         End If
 
-        variablesMerged = serverWorker.variables.Clone()
-        For Each infoItem In serverWorker.info.Keys
-            variablesMerged(infoItem) = serverWorker.info(infoItem)
+        variablesMerged = serverData.variables.Clone()
+        For Each infoItem In serverData.info.Keys
+            variablesMerged(infoItem) = serverData.info(infoItem)
         Next
 
         'utt haxes:
         variablesMerged("__uttlastupdate") = UnixTime(uttServerScanTime)
         variablesMerged("queryport") = Split(serverWorker.addressQuery, ":").Last
-        If serverWorker.caps.hasXSQ Then
+        If serverData.caps.hasXSQ Then
             variablesMerged("__uttxserverquery") = "true"
         End If
 
@@ -131,7 +146,7 @@ Public Class ServerDataUpdater
 
 
         If Not (state.hasServerId AndAlso scannerState.hasInfo) OrElse
-            (serverWorker.caps.hasPropertyInterface AndAlso Not scannerState.hasInfoExtended) Then
+            (serverData.caps.hasPropertyInterface AndAlso Not scannerState.hasInfoExtended) Then
             Return
         End If
 
@@ -149,7 +164,7 @@ Public Class ServerDataUpdater
         Dim newMatchByCurrentIDChange As Boolean = False
 
         If scannerState.hasInfoExtended Then
-            thisMatchCurrentID = Integer.Parse(serverWorker.info("__uttgamecurrentid"))
+            thisMatchCurrentID = Integer.Parse(serverData.info("__uttgamecurrentid"))
         End If
 
         If IsNothing(previousMatchRecord) Then
@@ -158,11 +173,11 @@ Public Class ServerDataUpdater
             lastMatchCurrentID = previousMatchRecord.ServerPlayeridCounter
             If scannerState.hasInfoExtended Then
                 newMatchByCurrentIDChange =
-                    serverWorker.info("numplayers") > 0 AndAlso
+                    serverData.info("numplayers") > 0 AndAlso
                     Not IsNothing(lastMatchCurrentID) AndAlso
                     Not IsNothing(thisMatchCurrentID) AndAlso
                     thisMatchCurrentID < lastMatchCurrentID AndAlso
-                    previousMatchRecord.MapName = serverWorker.info("mapname")
+                    previousMatchRecord.MapName = serverData.info("mapname")
 
             End If
 
@@ -170,27 +185,26 @@ Public Class ServerDataUpdater
         End If
 
         Dim trustingPlayerList =
-            serverWorker.caps.timeTestPassed AndAlso
-            serverWorker.info.ContainsKey("elapsedtime") AndAlso
-            Not serverWorker.caps.fakePlayers
+            serverData.caps.timeTestPassed AndAlso
+            serverData.info.ContainsKey("elapsedtime") AndAlso
+            Not serverData.caps.fakePlayers
 
 
         If trustingPlayerList Then
-            'timeGameStart = serverWorker.info("__uttgamestart")
-            Dim correctElapsedTime = IsNumeric(serverWorker.info("elapsedtime")) AndAlso
-                serverWorker.info("elapsedtime") > 0
+            'timeGameStart = info("__uttgamestart")
+            Dim correctElapsedTime = IsNumeric(serverData.info("elapsedtime")) AndAlso
+               serverData.info("elapsedtime") > 0
 
-            Dim correctTimeLimit = IsNumeric(serverWorker.info("timelimit")) AndAlso
-                serverWorker.info("timelimit") > 0 AndAlso
-                (serverWorker.info("timelimit") * 60) - serverWorker.info("remainingtime") > 60
+            Dim correctTimeLimit = IsNumeric(serverData.info("timelimit")) AndAlso
+                serverData.info("timelimit") > 0 AndAlso
+                (serverData.info("timelimit") * 60) - serverData.info("remainingtime") > 60
 
             Dim secondsElapsed As Integer = Nothing
 
 
             If correctElapsedTime Then
-                secondsElapsed = serverWorker.info("elapsedtime")
+                secondsElapsed = serverData.info("elapsedtime")
             ElseIf correctTimeLimit Then
-                secondsElapsed = serverWorker.info("timelimit") * 60 - serverWorker.info("remainingtime")
             Else
                 secondsElapsed = Nothing
             End If
@@ -202,19 +216,19 @@ Public Class ServerDataUpdater
 
             state.isNewMatch = state.isNewMatch OrElse
             (
-                serverWorker.info("numplayers") > 0 AndAlso
+                serverData.info("numplayers") > 0 AndAlso
                 Not IsNothing(timeMatchStart) AndAlso
                 previousMatchRecord.StartTime < timeMatchStart AndAlso
                 Math.Abs((previousMatchRecord.StartTime - timeMatchStart).TotalSeconds) > 240
             ) OrElse
-            previousMatchRecord.MapName <> serverWorker.info("mapname")
+            previousMatchRecord.MapName <> serverData.info("mapname")
         Else
             state.isNewMatch = state.isNewMatch OrElse
             (
-                serverWorker.info("numplayers") > 0 AndAlso
+                serverData.info("numplayers") > 0 AndAlso
                 (serverWorker.infoSentTimeLocal - previousMatchRecord.StartTime).TotalSeconds > 3600 * 4
             ) OrElse
-            previousMatchRecord.MapName <> serverWorker.info("mapname")
+            previousMatchRecord.MapName <> serverData.info("mapname")
 
             If state.isNewMatch Then
                 timeMatchStart = serverWorker.infoSentTimeLocal
@@ -233,7 +247,7 @@ Public Class ServerDataUpdater
             matchRecord = New ServerMatch With {
                 .ServerId = uttServerId,
                 .StartTime = timeMatchStart,
-                .MapName = serverWorker.info("mapname"),
+                .MapName = serverData.info("mapname"),
                 .ServerPlayeridCounter = thisMatchCurrentID
             }
             dbCtx.ServerMatches.Add(matchRecord)
@@ -256,13 +270,13 @@ Public Class ServerDataUpdater
 
     Private Sub TryUpdatePlayerInfo()
         Dim scannerState = serverWorker.getState()
-        If scannerState.hasInfo AndAlso (serverWorker.info("numplayers") = 0 OrElse serverWorker.caps.fakePlayers) Then
+        If scannerState.hasInfo AndAlso (serverData.info("numplayers") = 0 OrElse serverData.caps.fakePlayers) Then
             state.savedPlayers = True
             Return
         End If
 
         If scannerState.hasPlayers AndAlso state.savedGameInfo Then
-            For Each player In serverWorker.players
+            For Each player In serverData.players
                 Dim uttPlayerSlug As String = GetPlayerSlug(player)
                 Dim playerRecord As Player
 
@@ -295,7 +309,7 @@ Public Class ServerDataUpdater
 
         With playerRecord
             .SkinData = playerData("uttSkinData")
-            If serverWorker.caps.hasXSQ And playerData("countryc") <> "none" Then
+            If serverData.caps.hasXSQ And playerData("countryc") <> "none" Then
                 countryString = playerData("countryc")
             End If
             .Country = countryString
@@ -342,7 +356,7 @@ Public Class ServerDataUpdater
         With playerLogRecord
             .LastSeenTime = uttServerScanTime
             .ScoreThisMatch = IIf(IsNumeric(player("frags")), player("frags"), "0")
-            .DeathsThisMatch = IIf(serverWorker.caps.hasXSQ, Convert.ToInt32(player("deaths")), Nothing)
+            .DeathsThisMatch = IIf(serverData.caps.hasXSQ, Convert.ToInt32(player("deaths")), Nothing)
             .SeenCount += 1
             .PingSum += Integer.Parse(player("ping"))
             .Team = player("team")
@@ -426,9 +440,10 @@ Public Class ServerDataUpdater
             Return
         End If
 
-        If state.savedCumulativeStats OrElse (state.savedInfo AndAlso serverWorker.info("numplayers") = 0) Then
+        If state.savedCumulativeStats OrElse (state.savedInfo AndAlso serverData.info("numplayers") = 0) Then
 
             serverRecord.LastSuccess = DateTime.UtcNow
+            serverRecord.LastCheck = serverData.lastActivity
 
             dbCtx.Servers.Update(serverRecord)
             dbCtx.SaveChanges()
@@ -447,7 +462,7 @@ Public Class ServerDataUpdater
                 .LastRatingCalculation = Date.UtcNow
             End If
         End With
-        serverRecord.RatingMinute = rfCalculator.CalculateMinute(serverWorker.info, serverRecord)
+        serverRecord.RatingMinute = rfCalculator.CalculateMinute(serverData.info, serverRecord)
     End Sub
 
     Private Function GetLastMatchInfo() As ServerMatch

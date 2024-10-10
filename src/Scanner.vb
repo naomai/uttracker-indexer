@@ -6,7 +6,7 @@ Imports Naomai.UTT.Indexer.Utt2Database
 Imports Microsoft.EntityFrameworkCore.Storage
 Imports Naomai.UTT.Indexer.JulkinNet
 
-Public Class ServerScanner
+Public Class Scanner
     Implements IDisposable
 
     Public scanInterval = 120
@@ -131,7 +131,7 @@ Public Class ServerScanner
             serversCountOnline = 0
             SyncLock serverWorkersLock
                 For Each target As ServerQuery In serverWorkers.Values
-                    If target.getState().done AndAlso target.caps.isOnline Then
+                    If target.getState().done AndAlso target.isOnline Then
                         serversCountOnline += 1
                     End If
                 Next
@@ -213,8 +213,7 @@ Public Class ServerScanner
                 ru += IIf(st.hasVariables, 1, 0)
                 tt += IIf(st.hasTimeTest, 1, 0)
                 don += IIf(st.done, 1, 0)
-                onl += IIf(t.caps.isOnline, 1, 0)
-                ttp += IIf(t.caps.timeTestPassed, 1, 0)
+                onl += IIf(t.isOnline, 1, 0)
             Next
         End SyncLock
         debugWriteLine("States: STA {9} BAS {0} INF {1} INFEX {2} PL {3} RU {4} TT {5} TTP {8} DO {6} ON {7}", bas, inf, infex, pl, ru, tt, don, onl, ttp, sta)
