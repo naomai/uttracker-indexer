@@ -5,6 +5,7 @@ Imports System.Data
 Imports Naomai.UTT.Indexer.Utt2Database
 Imports Microsoft.EntityFrameworkCore.Storage
 Imports Naomai.UTT.Indexer.JulkinNet
+Imports Microsoft.EntityFrameworkCore.Query.Internal
 
 Public Class Scanner
     Implements IDisposable
@@ -20,6 +21,7 @@ Public Class Scanner
 
     Public serversCountTotal As Integer
     Public serversCountOnline As Integer
+    Public serversListCache
 
     Private plannedScanTimeMs As Integer
     Private lastScanOverdueTimeMs As Integer = 0
@@ -264,31 +266,36 @@ Public Class Scanner
             scanTimeRange = DateTime.UtcNow.AddSeconds(-seconds)
         End If
 
-        Dim servers = dbCtx.Servers.Where(
+        Dim listQuery = dbCtx.Servers.Where(
                 Function(p As Server) p.LastSuccess > scanTimeRange
             ).Select(
-                Function(s) New With {.Address = s.AddressQuery, .Rules = s.Variables}
-            ).ToList()
+                Function(s) New With {.AddressQuery = s.AddressQuery, .Variables = s.Variables}
+            )
+        listQuery.Load()
+
+        serversListCache = listQuery
+
+        Dim servers = listQuery.ToList()
 
         Dim recentServers = New List(Of String)
-            Dim rules As Hashtable
+        'Dim rules As Hashtable
 
-            For Each server In servers
-                Dim fullQueryIp = server.Address
-                Try
-                    If Not IsDBNull(server.Rules) AndAlso server.Rules <> "" Then
-                        rules = JsonSerializer.Deserialize(Of Hashtable)(server.Rules)
-                        If Not IsNothing(rules) AndAlso rules.ContainsKey("queryport") Then
-                            Dim ip = GetHost(server.Address)
-                            fullQueryIp = ip & ":" & rules("queryport").ToString
-                        End If
-                    End If
-                Catch e As Exception
-                End Try
+        For Each server In servers
+            Dim fullQueryIp = server.AddressQuery
+            'Try
+            '    If Not IsDBNull(server.Variables) AndAlso server.Variables <> "" Then
+            '        rules = JsonSerializer.Deserialize(Of Hashtable)(server.Variables)
+            '        If Not IsNothing(rules) AndAlso rules.ContainsKey("queryport") Then
+            '            Dim ip = GetHost(server.AddressQuery)
+            '            fullQueryIp = ip & ":" & rules("queryport").ToString
+            '        End If
+            '    End If
+            'Catch e As Exception
+            'End Try
 
-                recentServers.Add(fullQueryIp)
-            Next
-            Return recentServers
+            recentServers.Add(fullQueryIp)
+        Next
+        Return recentServers
     End Function
 
     Protected Function getServersPendingQueue() As List(Of String)

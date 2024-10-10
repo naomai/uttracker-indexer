@@ -16,8 +16,8 @@
 
     End Sub
 
-    Public Sub New(serverWorker As ServerInfo)
-        Me.server = serverWorker
+    Public Sub New(serverInfo As ServerInfo)
+        Me.server = serverInfo
     End Sub
 
     Public Shared Function GetQueryObjectForContext(server As ServerInfo)
