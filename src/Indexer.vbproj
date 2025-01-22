@@ -47,6 +47,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="IndexerSharp\IndexerSharp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Update="My Project\Resources.Designer.vb">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>

@@ -29,9 +29,9 @@ Public Class Scanner
     Private jobsWaitingToDeploy As Boolean
 
     Protected Friend log As Logger
-    Protected Friend ini As IniFile
+    Protected Friend ini As IniPropsProvider
     Protected Friend dbCtx As Utt2Context
-    Protected Friend dyncfg As DynConfig
+    Protected Friend dyncfg As PropsProvider
 
 
     Protected WithEvents masterServerQuery As MasterServerManager
@@ -64,6 +64,7 @@ Public Class Scanner
     Public Sub performScan()
         Dim serversToScan As List(Of String)
         Dim recentServersTimeRange = 60 * 60 ' only servers seen in last hour
+
 
         If (Date.UtcNow - masterServerLastUpdate).TotalSeconds > masterServerUpdateInterval Then
             ' full scan - all known server
@@ -197,7 +198,7 @@ Public Class Scanner
         sockets = New SocketManager
     End Sub
     Protected Sub disposeSockets()
-        sockets.clearIgnoredIps()
+        sockets.ClearIgnoredIps()
         sockets = Nothing
     End Sub
 
@@ -468,7 +469,7 @@ Public Structure ServerScannerConfig
     Dim masterServerManager As MasterServerManager
     Dim log As Logger
     Dim dbCtx As Utt2Context
-    Dim dyncfg As DynConfig
+    Dim dyncfg As PropsProvider
     Dim iniFile As String
 End Structure
 

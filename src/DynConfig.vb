@@ -2,6 +2,7 @@
 Imports Naomai.UTT.Indexer.Utt2Database
 Imports System.Threading
 
+
 Public Class DynConfig
     Protected dbCtx As Utt2Context
     Protected nsName As String
@@ -9,7 +10,7 @@ Public Class DynConfig
         dbCtx = context
         nsName = ns
     End Sub
-    Public Function GetProperty(key As String)
+    Public Function GetProperty(key As String) As String
         Dim keyFull = GetFullyQualifiedName(key)
         Return dbCtx.ConfigProps.SingleOrDefault(Function(p) p.Key = keyFull).Data
     End Function

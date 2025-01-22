@@ -7,17 +7,17 @@ Module App
     Dim WithEvents master As GSMasterServer
     Dim masterBridge As GSMasterServerBridge
     Dim masterManager As MasterServerManager
-    Dim ini As IniFile
+    Dim ini As IniPropsProvider
     Dim log As Logger
     Dim dbCtx As Utt2Context
-    Dim dyncfg As DynConfig
+    Dim dyncfg As PropsProvider
 
     Sub Main()
         Dim appName = System.Reflection.Assembly.GetEntryAssembly.GetName.Name
-        ini = New IniFile()
+        ini = New IniDeployablePropsProvider()
         log = New Logger()
 
-        log.consoleLoggingLevel = (LoggerLevel.err Or LoggerLevel.out)
+        log.consoleLoggingLevel = (LoggerLevel.err Or LoggerLevel.out Or LoggerLevel.debug)
         If ini.GetProperty("General.LogToFile", 0) Then
             log.fileLoggingLevel = (LoggerLevel.err Or LoggerLevel.out Or LoggerLevel.debug)
         Else
@@ -79,7 +79,7 @@ Module App
         Loop
 
         Dim dyncfgDbCtx = New Utt2Context(dbconfig)
-        dyncfg = New DynConfig(dyncfgDbCtx, "utt.reaper")
+        dyncfg = New DatabasePropsProvider(dyncfgDbCtx, "utt.reaper")
         dyncfg.SetProperty("configsrc", ini.iniName, True)
 
         Dim scannerConfig As ServerScannerConfig

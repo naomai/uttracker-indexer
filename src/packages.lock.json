@@ -395,6 +395,14 @@
         "type": "Transitive",
         "resolved": "0.8.0",
         "contentHash": "Z62eNBIu8E8YtbqlMy57tK3dV1+m2b9NhPeaYovB5exmLKvrGCqOhJTzrEUH5VyUWU6vwX3c1XHJGhW5HVs8dA=="
+      },
+      "indexersharp": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[8.0.8, )",
+          "Microsoft.Extensions.Configuration.Ini": "[8.0.0, )",
+          "MySql.EntityFrameworkCore": "[8.0.5, )"
+        }
       }
     },
     "net8.0/linux-arm64": {
