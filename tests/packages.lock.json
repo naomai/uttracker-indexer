@@ -477,11 +477,20 @@
       "indexer": {
         "type": "Project",
         "dependencies": {
+          "IndexerSharp": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[8.0.8, )",
           "Microsoft.Extensions.Configuration.Ini": "[8.0.0, )",
           "Microsoft.Extensions.FileProviders.Embedded": "[8.0.8, )",
           "MySql.EntityFrameworkCore": "[8.0.5, )",
           "System.Text.Json": "[8.0.4, )"
+        }
+      },
+      "indexersharp": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[8.0.8, )",
+          "Microsoft.Extensions.Configuration.Ini": "[8.0.0, )",
+          "MySql.EntityFrameworkCore": "[8.0.5, )"
         }
       }
     }

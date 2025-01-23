@@ -152,9 +152,14 @@ Public Class EndpointPacketBuffer
         ReDim result(bytesTotal)
         Dim offset As Integer = 0
         For Each packet In packetQueue
+            Dim zeroByteOffset = Array.IndexOf(packet, 0)
+            If zeroByteOffset <> -1 Then
+                ReDim Preserve packet(zeroByteOffset)
+            End If
             packet.CopyTo(result, offset)
             offset += packet.Length
         Next
+        ReDim Preserve result(offset)
         Return result
     End Function
 

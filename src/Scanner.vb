@@ -4,6 +4,7 @@ Imports System.Text.Json
 Imports System.Data
 Imports Naomai.UTT.Indexer.Utt2Database
 Imports Microsoft.EntityFrameworkCore.Storage
+Imports System.Environment
 Imports Naomai.UTT.Indexer.JulkinNet
 Imports Microsoft.EntityFrameworkCore.Query.Internal
 
@@ -45,6 +46,8 @@ Public Class Scanner
     Event OnScanBegin(serverCount As Integer)
     Event OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As TimeSpan)
 
+    Protected Friend _targetCommLog As New Hashtable
+
     Dim disposed As Boolean = False
 
     Public Sub New(scannerConfig As ServerScannerConfig)
@@ -64,6 +67,8 @@ Public Class Scanner
     Public Sub performScan()
         Dim serversToScan As List(Of String)
         Dim recentServersTimeRange = 60 * 60 ' only servers seen in last hour
+        _targetCommLog.Clear()
+
 
 
         If (Date.UtcNow - masterServerLastUpdate).TotalSeconds > masterServerUpdateInterval Then
@@ -164,7 +169,7 @@ Public Class Scanner
     Public Sub packetHandler(packetBuffer As EndpointPacketBuffer, source As IPEndPoint) Handles sockets.NewDataReceived
         Dim target As ServerQuery, ipString As String
 
-        Dim packetString As String
+        Dim packetString As String = ""
         ipString = source.ToString
         If Not serverWorkers.ContainsKey(ipString) Then Return ' unknown source!! we got packet that wasn't sent by any of the queried servers (haxerz?)
         target = serverWorkers(ipString)
@@ -177,6 +182,7 @@ Public Class Scanner
             target.incomingPacketObj = New UTQueryPacket(packetString)
 
             target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
+            _targetCommLog(target.addressQuery) &= "DDD " & packetString & NewLine
             target.tick()
 
             scanLastActivity = Date.UtcNow
@@ -184,9 +190,11 @@ Public Class Scanner
 
         Catch ex As UTQueryResponseIncompleteException
             ' let's try another time, maybe the missing pieces will join us
+            _targetCommLog(target.addressQuery) &= "Dxx " & packetString & NewLine
         Catch ex As UTQueryInvalidResponseException ' we found a port that belongs to other service, so we're not going to bother it anymore
-            target.logDbg("InvalidQuery: found unknown service")
-            target.abortScan()
+            'target.logDbg("InvalidQuery: found unknown service")
+            _targetCommLog(target.addressQuery) &= "Dxx " & packetString & NewLine
+            target.abortScan("Unknown service")
             sockets.AddIgnoredIp(target.addressQuery)
         End Try
         'debugShowStates()
@@ -345,7 +353,7 @@ Public Class Scanner
                 Continue For
             End If
 
-            If (Date.UtcNow - target.lastActivity).TotalSeconds > 15 Then
+            If (Date.UtcNow - target.lastActivity).TotalSeconds > 10 Then
                 target.tick()
             End If
         Next

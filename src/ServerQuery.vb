@@ -2,6 +2,8 @@
 Imports System.Globalization
 Imports System.Text
 Imports System.Runtime.InteropServices
+Imports Org.BouncyCastle.Asn1.X509
+Imports Org.BouncyCastle.Bcpg
 
 Public Class ServerQuery
     Dim socket As SocketManager
@@ -66,9 +68,9 @@ Public Class ServerQuery
                     packetReceived()
                     sendRequest()
                 Else ' haven't got anything, just checking for timeouts
-                    If (Date.UtcNow - lastActivity).TotalSeconds > 10 AndAlso (Date.UtcNow - scannerMaster.scanLastTouchAll).TotalSeconds < 5 Then
+                    If (Date.UtcNow - lastActivity).TotalSeconds > 20 AndAlso (Date.UtcNow - scannerMaster.scanLastTouchAll).TotalSeconds < 5 Then
                         If Not skipStepIfOptional() Then
-                            abortScan()
+                            abortScan("No response for required data")
                         End If
                     End If
                 End If
@@ -94,6 +96,7 @@ Public Class ServerQuery
     Private Sub sendRequest()
         Const xsqSuffix = "XServerQuery"
         Dim serverRecord = sync.GetServerRecord()
+
 
         If isInRequestState() Then Return ' remove this when implementing resend feature
 
@@ -157,9 +160,9 @@ Public Class ServerQuery
         Try
             socket.SendTo(addressQuery, packet)
             packetsSent += 1
+            scannerMaster._targetCommLog(addressQuery) &= "UUU " & packet & System.Environment.NewLine
         Catch e As Sockets.SocketException
-            logDbg("ServerSendExc: " & e.Message)
-            abortScan()
+            abortScan("ServerSendException: " & e.Message)
         End Try
     End Sub
 
@@ -187,8 +190,8 @@ Public Class ServerQuery
 
     Private Sub parseBasic()
         If Not incomingPacket.ContainsKey("gamename") Then
-            logDbg("NoGamename: " & incomingPacketObj.ToString)
-            abortScan()
+            'logDbg("NoGamename: " & incomingPacketObj.ToString)
+            abortScan("No GameName")
             Return
         End If
 
@@ -200,8 +203,8 @@ Public Class ServerQuery
         validServer = ValidateServer(gameName)
 
         If Not validServer Then
-            logDbg("InvalidServer: " & incomingPacketObj.ToString)
-            abortScan()
+            'logDbg("InvalidServer: " & incomingPacketObj.ToString)
+            abortScan("Challenge validation failed")
         End If
 
         If Not state.hasValidated Then
@@ -258,8 +261,8 @@ Public Class ServerQuery
             Not incomingPacket.ContainsKey("mapname") OrElse
             Not incomingPacket.ContainsKey("numplayers") OrElse
             Not incomingPacket.ContainsKey("maxplayers") Then
-            logDbg("MissingFields: " & incomingPacket.ToString)
-            abortScan()
+            'logDbg("MissingFields: " & incomingPacket.ToString)
+            abortScan("Missing required fields in packet")
             Return
         End If
         For Each packetKey As String In incomingPacket.Keys
@@ -330,18 +333,32 @@ Public Class ServerQuery
         Try
             Do While incomingPacket.ContainsKey("player_" & playerid)
                 suffix = "_" & playerid
+
+                ' validate
+                Dim parsedTmp As Long
+                If Not incomingPacket.ContainsKey("player" & suffix) OrElse
+                    Not incomingPacket.ContainsKey("team" & suffix) OrElse
+                    Not Long.TryParse(incomingPacket("team" & suffix), parsedTmp) Then
+                    abortScan("Player response is invalid ")
+                End If
+
+
                 playerinfo = New Hashtable
                 playerinfo("name") = incomingPacket("player" & suffix)
+                playerinfo("team") = incomingPacket("team" & suffix)
                 playerinfo("frags") = incomingPacket("frags" & suffix)
+                If playerinfo("team") = "255" Then
+                    playerinfo("frags") = 0
+                End If
                 playerinfo("mesh") = incomingPacket("mesh" & suffix)
                 playerinfo("skin") = incomingPacket("skin" & suffix)
                 playerinfo("face") = incomingPacket("face" & suffix)
-                playerinfo("team") = incomingPacket("team" & suffix)
 
-                Dim ping As Integer
+
+                Dim ping As Long
                 Dim pingString As String = incomingPacket("ping" & suffix)
 
-                If IsNothing(pingString) OrElse Not Integer.TryParse(pingString, ping) Then
+                If IsNothing(pingString) OrElse Not Long.TryParse(pingString, ping) Then
                     ping = 0
                 End If
 
@@ -364,7 +381,7 @@ Public Class ServerQuery
                 playerid += 1
             Loop
             If buggedPingCount > server.players.Count / 2 Then
-                abortScan()
+                abortScan("Frozen/glitched server")
             End If
         Catch e As Exception
             logDbg("ParsePlayersExc: " & e.Message)
@@ -450,14 +467,17 @@ Public Class ServerQuery
         End With
     End Function
 
-    Friend Sub abortScan()
+    Friend Sub abortScan(Optional reason As String = "?")
         If Not state.done Then
             state.done = True
             sync.state.done = True
             isOnline = False
             If Not state.requestingBasic Then
-                logDbg("Aborting scan (" & state.ToString & ")")
+                logDbg("Aborting scan (" & reason & ") - " & state.ToString)
+                logDbg("CommLog: " & System.Environment.NewLine &
+                  scannerMaster._targetCommLog(addressQuery))
             End If
+
         End If
     End Sub
 

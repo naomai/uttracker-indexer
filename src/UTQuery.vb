@@ -3,6 +3,8 @@
 
 
 
+Imports System.Net
+
 Public Class UTQueryPacket
     Inherits System.Collections.CollectionBase
     Implements IEnumerable(Of UTQueryKeyValuePair)

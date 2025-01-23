@@ -40,7 +40,7 @@ Public Class ServerInfoSync
             If Not state.savedCumulativeStats Then TryUpdateCumulativePlayersStats()
             If Not state.savedScanInfo Then UpdateCurrentScanInfo()
         Catch e As Exception
-            serverWorker.abortScan()
+            serverWorker.abortScan("Tick Exception")
         End Try
         If state.savedInfo AndAlso state.savedVariables AndAlso state.savedGameInfo And state.savedPlayers And state.savedCumulativeStats And state.savedScanInfo Then
             state.done = True
@@ -91,7 +91,15 @@ Public Class ServerInfoSync
             dbCtx.SaveChanges()
         Catch e As DbUpdateException
             ' conflict of AddressGame - one server, many QueryPorts
-            serverWorker.abortScan()
+            Dim reason As String = "Database update fail - " & e.Message
+
+            If e.InnerException.GetType() = GetType(MySqlException) Then
+                Dim dbEx As MySqlException = e.InnerException
+                If dbEx.Number = 1062 Then
+                    reason = "One server-multiple query ports"
+                End If
+            End If
+            serverWorker.abortScan(reason)
             dbCtx.Entry(serverRecord).State = EntityState.Detached
             Return
         End Try
@@ -386,10 +394,13 @@ Public Class ServerInfoSync
 
             'If playerLogsDirty.Count > 0 Then Debugger.Break()
             For Each playerLog In playerLogsDirty.ToList()
-                'Dim playerStatRecord As PlayerStat = dbCtx.PlayerStats.SingleOrDefault(
-                '    Function(s) s.PlayerId = playerLog.PlayerId
-                ')
-                Dim playerStatRecord As PlayerStat = playerLog.Player.PlayerStats.SingleOrDefault()
+                Dim playerStatRecord As PlayerStat = dbCtx.PlayerStats.SingleOrDefault(
+                    Function(s) s.PlayerId = playerLog.PlayerId AndAlso
+                    s.ServerId = playerLog.ServerId
+                )
+                'Dim playerStatRecord As PlayerStat = playerLog.Player.PlayerStats.SingleOrDefault(
+                'Function(s) s.ServerId = playerLog.ServerId
+                '                )
 
                 If IsNothing(playerStatRecord) Then
                     playerStatRecord = New PlayerStat With {
@@ -426,7 +437,7 @@ Public Class ServerInfoSync
                 End If
             Next
 
-            dbCtx.SaveChanges()
+            'dbCtx.SaveChanges()
 
             state.savedCumulativeStats = True
         End If
