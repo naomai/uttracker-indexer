@@ -474,8 +474,8 @@ Public Class ServerQuery
             isOnline = False
             If Not state.requestingBasic Then
                 logDbg("Aborting scan (" & reason & ") - " & state.ToString)
-                logDbg("CommLog: " & System.Environment.NewLine &
-                  scannerMaster._targetCommLog(addressQuery))
+                'logDbg("CommLog: " & System.Environment.NewLine &
+                'scannerMaster._targetCommLog(addressQuery))
             End If
 
         End If
