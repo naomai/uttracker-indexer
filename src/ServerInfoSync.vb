@@ -138,6 +138,8 @@ Public Class ServerInfoSync
             variablesMerged("__uttxserverquery") = "true"
         End If
 
+        variablesMerged("__uttfakeplayers") = Int(serverData.caps.fakePlayers)
+
         variablesJson = JsonSerializer.Serialize(variablesMerged)
 
         serverRecord.Variables = variablesJson
@@ -348,8 +350,8 @@ Public Class ServerInfoSync
         )
         If IsNothing(playerLogRecord) Then
             playerLogRecord = New PlayerLog With {
-                .Server = serverRecord,
-                .Match = matchRecord,
+                .ServerId = serverRecord.Id,
+                .MatchId = matchRecord.Id,
                 .PlayerId = player("uttPlayerId"),
                 .FirstSeenTime = uttServerScanTime.AddSeconds(playerTimeOffset),
                 .SeenCount = 0,

@@ -395,9 +395,12 @@ Public Class Scanner
 
 
     Private Sub ServerScanner_OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As System.TimeSpan) Handles Me.OnScanComplete
-        dbTransaction.Commit()
-        dbTransaction.Dispose()
-        dbTransaction = Nothing
+        Try
+            dbTransaction.Commit()
+        Finally
+            dbTransaction.Dispose()
+            dbTransaction = Nothing
+        End Try
     End Sub
 
     Private Sub masterServerQuery_OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo)) Handles masterServerQuery.OnMasterServerManagerRequest
