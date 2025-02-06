@@ -23,7 +23,9 @@ public class DatabasePropsProvider : PropsProvider
 	{
 		_dbCtx = context;
 		_nsName = ns;
-	}
+		_dbCtx.ConfigProps.Load();
+
+    }
 
 
 	public override string? GetProperty(string key)
@@ -46,7 +48,7 @@ public class DatabasePropsProvider : PropsProvider
 	{
 		string keyFull = GetFullyQualifiedName(key);
 
-		ConfigProp? prop = _dbCtx.ConfigProps.SingleOrDefault(p => p.Key == keyFull);
+		ConfigProp? prop = _dbCtx.ConfigProps.Local.SingleOrDefault(p => p.Key == keyFull);
 
 		if (prop == null)
 		{
