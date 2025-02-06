@@ -53,7 +53,8 @@ Public Class ServerInfoSync
             Return serverRecord
         End If
 
-        serverRecord = dbCtx.Servers.SingleOrDefault(Function(s) s.AddressQuery = serverWorker.addressQuery)
+        serverRecord = dbCtx.Servers.Local.SingleOrDefault(Function(s) s.AddressQuery = serverWorker.addressQuery)
+
         If IsNothing(serverRecord) Then
             serverRecord = New Server() With {
                 .AddressQuery = serverWorker.addressQuery,
@@ -305,10 +306,10 @@ Public Class ServerInfoSync
                 player("uttPlayerSlug") = uttPlayerSlug
 
                 UpdatePlayerInfoEntry(playerRecord, player)
-                UpdatePlayerHistoryEntry(player)
+                UpdatePlayerHistoryEntry(playerRecord, player)
             Next
             state.savedPlayers = True
-            dbCtx.SaveChanges()
+            'dbCtx.SaveChanges()
         End If
     End Sub
 
@@ -332,7 +333,7 @@ Public Class ServerInfoSync
         playerData("uttPlayerId") = playerRecord.Id
     End Sub
 
-    Private Sub UpdatePlayerHistoryEntry(player As Hashtable) ' `playerhistory` table
+    Private Sub UpdatePlayerHistoryEntry(playerRecord As Player, player As Hashtable) ' `playerhistory` table
         Dim playerTimeOffset As Integer = 0
         Dim playerLogRecord As PlayerLog
         Dim uttPlayerId As Int32 = player("uttPlayerId")
@@ -352,13 +353,23 @@ Public Class ServerInfoSync
             playerLogRecord = New PlayerLog With {
                 .ServerId = serverRecord.Id,
                 .MatchId = matchRecord.Id,
-                .PlayerId = player("uttPlayerId"),
                 .FirstSeenTime = uttServerScanTime.AddSeconds(playerTimeOffset),
+                .PlayerId = playerRecord.Id,
                 .SeenCount = 0,
                 .PingSum = 0
             }
-            'matchRecord.PlayerLogs.Add(playerLogRecord)
+            playerRecord.PlayerLogs.Add(playerLogRecord)
+        ElseIf isnothing(playerLogRecord.Id) Then
+            ' "MULTIPLE PLAYERS WITH SAME NAME"
+            ' There are some weird servers where all spectators are named 'Player',
+            ' which Indexer treats as one player entity.
+            ' At this point, one local entity was already created a while ago,
+            ' but not yet commited to DB, and further changes
+            ' will break the state of Entity Framework.
+            Return
         End If
+
+
 
         With playerLogRecord
             .LastSeenTime = uttServerScanTime
@@ -371,7 +382,7 @@ Public Class ServerInfoSync
 
         If IsNothing(playerLogRecord.Id) Then
             dbCtx.Update(playerLogRecord)
-            dbCtx.SaveChanges()
+            'dbCtx.SaveChanges()
         End If
 
 
@@ -435,7 +446,7 @@ Public Class ServerInfoSync
                 dbCtx.Update(playerLog)
                 If IsNothing(playerStatRecord.Id) Then
                     dbCtx.Update(playerStatRecord)
-                    dbCtx.SaveChanges()
+                    'dbCtx.SaveChanges()
                 End If
             Next
 

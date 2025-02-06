@@ -7,6 +7,7 @@ Imports Microsoft.EntityFrameworkCore.Storage
 Imports System.Environment
 Imports Naomai.UTT.Indexer.JulkinNet
 Imports Microsoft.EntityFrameworkCore.Query.Internal
+Imports Microsoft.SqlServer
 
 Public Class Scanner
     Implements IDisposable
@@ -277,14 +278,11 @@ Public Class Scanner
 
         Dim listQuery = dbCtx.Servers.Where(
                 Function(p As Server) p.LastSuccess > scanTimeRange
-            ).Select(
-                Function(s) New With {.AddressQuery = s.AddressQuery, .Variables = s.Variables}
             )
-        listQuery.Load()
 
-        serversListCache = listQuery
+        Dim servers As List(Of Server) = listQuery.ToList()
 
-        Dim servers = listQuery.ToList()
+        serversListCache = servers
 
         Dim recentServers = New List(Of String)
         'Dim rules As Hashtable
@@ -405,7 +403,7 @@ Public Class Scanner
 
     Private Sub masterServerQuery_OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo)) Handles masterServerQuery.OnMasterServerManagerRequest
         log.WriteLine("Master server query...")
-        dyncfg.setProperty("masterservers.nummasters", masterServers.Count)
+        dyncfg.SetProperty("masterservers.nummasters", masterServers.Count)
         dyncfg.UnsetProperty("masterservers.server")
 
     End Sub
@@ -416,15 +414,15 @@ Public Class Scanner
 
     Private Sub masterServerQuery_OnMasterServerQuery(serverInfo As MasterServerInfo) Handles masterServerQuery.OnMasterServerQuery
         log.WriteLine("MasterQuery ( " & serverInfo.serverClassName & " , " & serverInfo.serverIp & ":" & serverInfo.serverPort & " ) ")
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", UnixTime())
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".info",
+        dyncfg.SetProperty("masterservers.server." & serverInfo.serverId & ".checked", UnixTime())
+        dyncfg.SetProperty("masterservers.server." & serverInfo.serverId & ".info",
             serverInfo.serverIp & ":" & serverInfo.serverPort)
     End Sub
 
 
     Private Sub masterServerQuery_OnMasterServerQueryParsed(serverInfo As MasterServerInfo, serverList As System.Collections.Generic.List(Of String)) Handles masterServerQuery.OnMasterServerQueryListReceived
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", UnixTime())
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastsync", UnixTime())
+        dyncfg.SetProperty("masterservers.server." & serverInfo.serverId & ".lastseen", UnixTime())
+        dyncfg.SetProperty("masterservers.server." & serverInfo.serverId & ".lastsync", UnixTime())
         dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".serversnum", serverList.Count)
         log.WriteLine("Got {0} servers.", serverList.Count)
     End Sub
