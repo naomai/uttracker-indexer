@@ -70,7 +70,7 @@ Public Class ServerQuery
                 Else ' haven't got anything, just checking for timeouts
                     If (Date.UtcNow - lastActivity).TotalSeconds > 20 AndAlso (Date.UtcNow - scannerMaster.scanLastTouchAll).TotalSeconds < 5 Then
                         If Not skipStepIfOptional() Then
-                            abortScan("No response for required data")
+                            abortScan("No response for required data", dumpCommLog:=True)
                         End If
                     End If
                 End If
@@ -467,18 +467,20 @@ Public Class ServerQuery
         End With
     End Function
 
-    Friend Sub abortScan(Optional reason As String = "?")
+    Friend Sub abortScan(Optional reason As String = "?", Optional dumpCommLog As Boolean = False)
         If Not state.done Then
             state.done = True
             sync.state.done = True
             isOnline = False
             If Not state.requestingBasic Then
                 logDbg("Aborting scan (" & reason & ") - " & state.ToString)
-                'logDbg("CommLog: " & System.Environment.NewLine &
-                'scannerMaster._targetCommLog(addressQuery))
+                If dumpCommLog Then
+                    logDbg("CommLog: " & System.Environment.NewLine &
+                        scannerMaster._targetCommLog(addressQuery))
+                End If
             End If
 
-        End If
+            End If
     End Sub
 
     Public Function GetPacketCharset() As Encoding
