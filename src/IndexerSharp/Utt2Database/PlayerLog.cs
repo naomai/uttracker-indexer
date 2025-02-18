@@ -21,6 +21,6 @@ public partial class PlayerLog
 
     public override string ToString()
     {
-        return Player.Name + "#M" + MatchId + "@S" + ServerId;
+        return "L" + Player.Name + "#M" + MatchId + "@S" + ServerId;
     }
 }

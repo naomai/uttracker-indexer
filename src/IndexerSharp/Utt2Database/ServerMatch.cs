@@ -1,4 +1,6 @@
-﻿namespace Naomai.UTT.Indexer.Utt2Database;
+﻿using System.Xml.Linq;
+
+namespace Naomai.UTT.Indexer.Utt2Database;
 public partial class ServerMatch
 {
     public long? Id { get; set; } 
@@ -11,4 +13,8 @@ public partial class ServerMatch
     public ICollection<PlayerStat> PlayerStats { get; set; } = new List<PlayerStat>();
     public Server Server = null!;
 
+    public override string ToString()
+    {
+        return "M" + Id + "#" + Server.AddressGame + "[" + MapName + "]";
+    }
 }

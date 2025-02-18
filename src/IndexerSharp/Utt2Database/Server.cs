@@ -19,4 +19,9 @@ public partial class Server
     public ICollection<PlayerLog> PlayerLogs { get; } = new List<PlayerLog>();
     public ICollection<PlayerStat> PlayerStats { get;  } = new List<PlayerStat>();
     public ICollection<ServerMatch> ServerMatches { get;  } = new List<ServerMatch>();
+
+    public override string ToString()
+    {
+        return "S" + Id + "#" + AddressGame + "[" + Name + "]";
+    }
 }

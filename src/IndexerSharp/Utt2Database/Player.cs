@@ -8,4 +8,9 @@ public partial class Player
     public string? Country { get; set; } = null!;
     public ICollection<PlayerLog> PlayerLogs { get; set; } = new List<PlayerLog>();
     public ICollection<PlayerStat> PlayerStats { get; set; } = new List<PlayerStat>();
+
+    public override string ToString()
+    {
+        return "P" + Id + "#" + Slug + "[" + Name + "]";
+    }
 }
