@@ -16,8 +16,6 @@ Public Class JulkinNet
     Public timeout As Integer
 #End Region
 #Region "Private variables"
-
-    Private timeStarted As Long
     Private socketObj As Socket
     Private remote As IPEndPoint
     Private disposed As Boolean = False
@@ -91,23 +89,35 @@ Public Class JulkinNet
     ''' <returns>Packet content</returns>
     ''' <remarks></remarks>
 
-
-    Public Function ReadNext() As String
-        Return System.Text.Encoding.ASCII.GetString(ReadNextAsBytes())
+    Public Async Function WriteAsync(ByVal packet As Byte()) As Task '
+        If IsNothing(remote) Then
+            Exit Function
+        End If
+        Await socketObj.SendToAsync(packet, remote)
+    End Function
+    Public Async Function WriteAsync(ByVal packet As String) As Task '
+        Await WriteAsync(System.Text.Encoding.ASCII.GetBytes(packet))
     End Function
 
-    Public Function ReadNextAsBytes() As Byte()
+    Public Async Function ReadNextAsync() As Task(Of String)
+        Return System.Text.Encoding.ASCII.GetString(Await ReadNextAsBytes())
+    End Function
+    Public Async Function ReadNext() As Task(Of String)
+        Return System.Text.Encoding.ASCII.GetString(Await ReadNextAsBytes())
+    End Function
+
+    Public Async Function ReadNextAsBytes() As Task(Of Byte())
         Dim buffer(0) As Byte
-        SetTimeout()
+        Dim deadline = IIf(timeout > 0, Date.UtcNow.AddMilliseconds(timeout), Date.UtcNow.AddYears(1))
 
         If IsNothing(remote) Then Return buffer
         Do
-            Thread.Sleep(10)
-        Loop While socketObj.Available = 0 AndAlso Not IsTimedOut()
+            Await Task.Delay(10)
+        Loop While socketObj.Available = 0 AndAlso Not Date.UtcNow >= deadline
         If socketObj.Available <= 0 Then Return buffer
         ReDim buffer(socketObj.Available - 1)
         Try
-            socketObj.Receive(buffer, socketObj.Available, SocketFlags.None)
+            Await socketObj.ReceiveAsync(buffer, SocketFlags.None)
             If buffer(0) <> 0 Then
                 Return buffer
             Else
@@ -122,11 +132,12 @@ Public Class JulkinNet
     Public Function Read(ByVal bytesToRead As Integer) As String
         Dim outputString As String
         Dim bytesRead As Integer = 0, brtmp As Integer, buffer() As Byte
-        SetTimeout()
+        Dim deadline = IIf(timeout > 0, Date.UtcNow.AddMilliseconds(timeout), Date.UtcNow.AddYears(1))
+
 
         Do
             Thread.Sleep(10)
-        Loop While socketObj.Available = 0 And Not IsTimedOut()
+        Loop While socketObj.Available = 0 And Not Date.UtcNow >= deadline
 
         ReDim buffer(bytesToRead)
         Do
@@ -137,20 +148,12 @@ Public Class JulkinNet
             End Try
             bytesRead += brtmp
 
-        Loop While bytesRead < bytesToRead AndAlso Not IsTimedOut()
+        Loop While bytesRead < bytesToRead AndAlso Not Date.UtcNow >= deadline
 
         outputString = System.Text.Encoding.ASCII.GetString(buffer)
 
         Return Left(outputString, Min(bytesToRead, bytesRead))
 
-    End Function
-
-    Private Sub SetTimeout()
-        timeStarted = TickCount()
-    End Sub
-
-    Private Function IsTimedOut() As Boolean
-        Return timeout <> 0 AndAlso TickCount() > (timeStarted + timeout)
     End Function
 
     Public Shared Function GetHost(ByVal addr As String) As String

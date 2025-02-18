@@ -1,4 +1,4 @@
-﻿Imports System.Data
+Imports System.Data
 Imports System.Net
 Imports Naomai.UTT.Indexer.Utt2Database
 
@@ -56,15 +56,15 @@ Module App
 
         dbCtx = New Utt2Context(dbconfig)
 
-        masterManager = New MasterServerManager(ini.GetProperty("MasterServer.Cache", ".\server_list.txt"))
-        ' masterManager.log = log
+        masterManager = New MasterServerManager()
+        masterManager.log = log
 
         Dim msIdx As Integer = 0
         Dim masterServerString As String
         Do While ini.PropertyExists("UBrowserAll.ListFactories[" & msIdx & "]")
             masterServerString = ini.GetProperty("UBrowserAll.ListFactories[" & msIdx & "]")
             If masterServerString <> "" Then
-                masterManager.addMasterServer(masterServerString)
+                masterManager.AddMasterServer(masterServerString)
             End If
             msIdx += 1
         Loop
@@ -73,10 +73,13 @@ Module App
         Do While ini.PropertyExists("XBrowser|XBrowserTabInternet.MasterServer[" & msIdx & "]")
             masterServerString = ini.GetProperty("XBrowser|XBrowserTabInternet.MasterServer[" & msIdx & "]")
             If masterServerString <> "" Then
-                masterManager.addMasterServer(masterServerString)
+                masterManager.AddMasterServer(masterServerString)
             End If
             msIdx += 1
         Loop
+
+        masterManager.Refresh()
+        masterManager.ThreadLoop()
 
         Dim dyncfgDbCtx = New Utt2Context(dbconfig)
         dyncfg = New DatabasePropsProvider(dyncfgDbCtx, "utt.reaper")

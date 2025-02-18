@@ -4,106 +4,73 @@ Imports Microsoft.Extensions.FileProviders
 Imports System.Reflection
 Imports System.Net.Http
 Imports Naomai.UTT.Indexer.UTQueryPacket
+Imports System.Diagnostics.Metrics
 
 Public Class MasterServerManager
     Public cacheFile As String
     Public gslistFile As String
 
-    Public Event OnMasterServerQuery(serverInfo As MasterServerInfo)
-    Public Event OnMasterServerQueryListReceived(serverInfo As MasterServerInfo, serverList As List(Of String))
-    Public Event OnMasterServerQueryFailure(serverInfo As MasterServerInfo, thrownException As Exception)
-    Public Event OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo))
-    Public Event OnMasterServerManagerRequestComplete(serverList As List(Of String))
-    Public Event OnMasterServerPing(serverInfo As MasterServerInfo, online As Boolean)
+    'Public Event OnMasterServerQuery(serverInfo As MasterServerInfo)
+    'Public Event OnMasterServerQueryListReceived(serverInfo As MasterServerInfo, serverList As List(Of String))
+    'Public Event OnMasterServerQueryFailure(serverInfo As MasterServerInfo, thrownException As Exception)
+    'Public Event OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo))
+    'Public Event OnMasterServerManagerRequestComplete(serverList As List(Of String))
+    'Public Event OnMasterServerPing(serverInfo As MasterServerInfo, online As Boolean)
 
     Dim masterServers As New List(Of MasterServerInfo)
     Public Shared gamespyKeys As Dictionary(Of String, GamespyGameInfo)
-    Dim serverList As New List(Of String)
 
-    Public Sub New(cacheFile As String)
-        Me.cacheFile = cacheFile
+    Public log As Logger
+    Public updateInterval As Integer = 3600
+    Public pingInterval As Integer = 600
+
+    Public Async Sub ThreadLoop()
+        Do
+            Refresh()
+            Await Task.Delay(1000)
+        Loop
+    End Sub
+
+    Public Async Sub Refresh()
+        Dim tasks As New List(Of Task)
+        For Each masterServer As MasterServerInfo In masterServers
+            If masterServer.ShouldRefresh() Then
+                Dim t = masterServer.Refresh()
+                tasks.Add(t)
+            ElseIf masterServer.ShouldPing() Then
+                Dim t = masterServer.Ping()
+                tasks.Add(t)
+            End If
+        Next
+
+        Await Task.WhenAll(tasks)
+    End Sub
+
+    Public Sub New()
         MasterServerManager.gamespyKeys = staticLoadGSList()
     End Sub
 
-    Public Sub addMasterServer(configString As String)
-        Dim regexMatches As MatchCollection, masterServersNewItem As MasterServerInfo
-        Static serverNum As Integer = 0
-        regexMatches = Regex.Matches(configString, ",([^=]+)=([^,]*)")
-        masterServersNewItem = Nothing
-        masterServersNewItem.iniVariables = New Hashtable
-        masterServersNewItem.serverClassName = Regex.Match(configString, "^([^\.]*\.[^\,]*),").Groups(1).Value
-        With masterServersNewItem
-            For Each serverMatch In regexMatches
-                .iniVariables(serverMatch.Groups(1).Value) = serverMatch.Groups(2).Value
-                Select Case serverMatch.Groups(1).Value
-                    Case "MasterServerAddress"
-                        .serverIp = serverMatch.Groups(2).Value
-                    Case "MasterServerTCPPort"
-                        .serverPort = serverMatch.Groups(2).Value
-                        'Case "Region"
-                        '    .region = serverMatch.Groups(2).Value
-                        'Case "GameName"
-                        '    .gameName = serverMatch.Groups(2).Value
-                        '    .gameInfo = gamespyKeys(.gameName)
-                End Select
-            Next
-            .serverId = serverNum
-            serverNum += 1
-        End With
+    Public Sub AddMasterServer(configString As String)
+        Dim masterServer As New MasterServerInfo(configString)
+        masterServer.updateInterval = updateInterval
+        masterServer.pingInterval = pingInterval
+        masterServer.manager = Me
 
-        masterServers.Add(masterServersNewItem)
+        masterServers.Add(masterServer)
     End Sub
 
-    Public Sub refreshServerList()
-        Dim rawList As String = "", e As Exception
-        Dim tempList As New List(Of String)
-        Dim fact As MasterListFactory
 
-        serverList = New List(Of String)
-
-        RaiseEvent OnMasterServerManagerRequest(masterServers)
-
-        For Each masterServer As MasterServerInfo In masterServers
-            If masterServer.serverIp = Nothing Then Continue For
-            Try
-                RaiseEvent OnMasterServerQuery(masterServer)
-
-                fact = MasterListFactory.createFactoryForMasterServer(masterServer)
-                tempList = fact.query()
-
-                RaiseEvent OnMasterServerQueryListReceived(masterServer, tempList)
-                For Each server As String In tempList
-                    If InStr(server, ":") = 0 Then
-                        Continue For
-                    End If
-                    serverList.Add(server)
-                Next
-            Catch e
-                RaiseEvent OnMasterServerQueryFailure(masterServer, e)
-            End Try
+    Public Function GetList() As List(Of String)
+        Dim servers = New List(Of String)
+        For Each server In masterServers
+            servers.AddRange(server.serverList)
         Next
-
-        serverList = serverList.Distinct().ToList
-        RaiseEvent OnMasterServerManagerRequestComplete(serverList)
-    End Sub
-
-    Public Sub pingMasterServers()
-        For Each master In masterServers
-            Dim fact = MasterListFactory.createFactoryForMasterServer(master)
-            Dim result As Boolean = fact.ping()
-            RaiseEvent OnMasterServerPing(master, result)
-        Next
-    End Sub
-
-    Public Function getList() As List(Of String)
-        Dim listCopy(0 To Me.serverList.Count - 1) As String ' create a copy of the list object
-        Me.serverList.CopyTo(listCopy)
-        Return listCopy.ToList()
+        Return servers.Distinct().ToList()
     End Function
 
     Public Property Count As Integer
         Get
-            Return serverList.Count
+            Return GetList().Count
         End Get
         Set(value As Integer)
 
@@ -139,35 +106,132 @@ Public Class MasterServerManager
         Return gsList
 
     End Function
+
+    Friend Sub logWriteLine(ByVal format As String, ByVal ParamArray arg As Object())
+        log.WriteLine("MasterServer: " & format, arg)
+    End Sub
 End Class
 
-Public Structure MasterServerInfo
-    Dim serverIp As String
-    Dim serverPort As UInt16
-    Dim serverClassName As String
-    Dim serverListFactory As MasterListFactory
-    Property serverAddress As String
+Public Class MasterServerInfo
+    Public ReadOnly host As String
+    Public ReadOnly port As UInt16
+    Public ReadOnly unrealClassName As String
+    Public ReadOnly serverList As New List(Of String)
+    Protected isBusy As Boolean = False
+    Protected lastUpdate As Date
+    Protected lastPing As Date
+    Protected retryDeadline As Date = Nothing
+    Protected factory As MasterListFactory
+    Friend iniVariables As Hashtable
+    Friend serverId As Integer
+    Friend updateInterval As Integer = 3600
+    Friend pingInterval As Integer = 600
+    Friend manager As MasterServerManager
+
+    ReadOnly Property address As String
         Get
-            Return serverIp & ":" & serverPort
+            Return host & ":" & port
         End Get
-        Set(value As String)
-            Dim ipChunks = Split(value, ":")
-            If ipChunks.Count = 1 Then
-                serverIp = value
-            ElseIf ipChunks.Count = 2 Then
-                serverIp = ipChunks(1)
-                serverPort = Integer.Parse(ipChunks(2))
-            End If
-        End Set
     End Property
 
-    Public Overrides Function ToString() As String
-        Return serverAddress
+    Public Sub New(iniConfigString As String)
+        Static idCounter As Integer = 0
+        Dim regexMatches As MatchCollection
+        regexMatches = Regex.Matches(iniConfigString, ",([^=]+)=([^,]*)")
+        iniVariables = New Hashtable
+        unrealClassName = Regex.Match(iniConfigString, "^([^\.]*\.[^\,]*),").Groups(1).Value
+        With Me
+            For Each serverMatch In regexMatches
+                .iniVariables(serverMatch.Groups(1).Value) = serverMatch.Groups(2).Value
+                Select Case serverMatch.Groups(1).Value
+                    Case "MasterServerAddress"
+                        host = serverMatch.Groups(2).Value
+                    Case "MasterServerTCPPort"
+                        port = serverMatch.Groups(2).Value
+                        'Case "Region"
+                        '    .region = serverMatch.Groups(2).Value
+                        'Case "GameName"
+                        '    .gameName = serverMatch.Groups(2).Value
+                        '    .gameInfo = gamespyKeys(.gameName)
+                End Select
+            Next
+            serverId = idCounter
+            idCounter += 1
+        End With
+
+        factory = MasterListFactory.createFactoryForMasterServer(Me)
+    End Sub
+
+
+    Public Async Function Refresh() As Task
+        isBusy = True
+        If address = Nothing Then
+            Return
+        End If
+        Try
+            Log("Querying...")
+            Dim tempList = Await factory.query()
+
+            SyncLock serverList
+                serverList.Clear()
+
+                serverList.AddRange(
+                    tempList.Where(Function(s) s.Contains(":")).Distinct()
+                )
+
+            End SyncLock
+            Log("Received {0} servers", serverList.Count)
+            lastUpdate = Date.UtcNow
+            lastPing = Date.UtcNow
+        Catch e As Exception
+            Log("Failure: ", e.Message)
+            QueryFail()
+        Finally
+            isBusy = False
+        End Try
     End Function
 
-    Friend iniVariables As Hashtable
-    Dim serverId As Integer
-End Structure
+    Public Async Function Ping() As Task
+        isBusy = True
+        Log("Pinging...")
+        Dim result As Boolean = Await factory.ping()
+        If Not result Then
+            QueryFail()
+        End If
+        lastPing = Date.UtcNow
+        isBusy = False
+    End Function
+
+    Public Function ShouldRefresh()
+        Return (Date.UtcNow - lastUpdate).TotalSeconds > updateInterval _
+            AndAlso Not ShouldHold()
+    End Function
+
+    Public Function ShouldPing()
+        Return (Date.UtcNow - lastPing).TotalSeconds > pingInterval _
+            AndAlso Not ShouldHold()
+    End Function
+
+    Public Function ShouldHold()
+        Return (Not IsNothing(retryDeadline) _
+            AndAlso (retryDeadline - Date.UtcNow).TotalSeconds > 0) _
+            OrElse isBusy
+    End Function
+
+    Protected Sub QueryFail()
+        retryDeadline = Date.UtcNow.AddMinutes(10)
+        Log("Query failed")
+    End Sub
+
+    Protected Sub Log(ByVal format As String, ByVal ParamArray arg As Object())
+        manager.log.DebugWriteLine("MasterServer[" + address + "|" + iniVariables("GameName") + "]: " & format, arg)
+    End Sub
+
+    Public Overrides Function ToString() As String
+        Return address
+    End Function
+
+End Class
 
 
 Public MustInherit Class MasterListFactory
@@ -176,11 +240,11 @@ Public MustInherit Class MasterListFactory
         server = serverInfo
     End Sub
 
-    Public MustOverride Function query() As List(Of String)
-    Public MustOverride Function ping() As Boolean
+    Public MustOverride Async Function query() As Task(Of List(Of String))
+    Public MustOverride Async Function ping() As Task(Of Boolean)
 
     Public Shared Function createFactoryForMasterServer(serverInfo As MasterServerInfo) As MasterListFactory
-        Select Case serverInfo.serverClassName
+        Select Case serverInfo.unrealClassName
             Case "UBrowser.UBrowserGSpyFact", "XBrowser.XBrowserFactInternet"
                 Dim gameInfo As GamespyGameInfo = Nothing
                 If serverInfo.iniVariables.ContainsKey("GameName") Then
@@ -209,23 +273,25 @@ Class MasterListGSpyFact
         End If
     End Sub
 
-    Public Overrides Function ping() As Boolean
+    Public Overrides Async Function ping() As Task(Of Boolean)
+        Dim pingResult As Boolean
         Try
             Using connection = New JulkinNet
-                connection.Connect(server.serverAddress)
-                Dim packet = connection.ReadNext()
+                connection.Connect(server.address)
+                Dim packet = Await connection.ReadNextAsync()
 
                 Dim packetObj = New UTQueryPacket(packet, UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
-                ping = packetObj.ContainsKey("basic") AndAlso packetObj.ContainsKey("secure")
+                pingResult = packetObj.ContainsKey("basic") AndAlso packetObj.ContainsKey("secure")
                 connection.Disconnect()
             End Using
+            Return pingResult
         Catch ex As Exception
             Return False
         End Try
     End Function
 
-    Public Overrides Function query() As System.Collections.Generic.List(Of String)
-        Dim rawList As String = getRawList()
+    Public Overrides Async Function query() As Task(Of List(Of String))
+        Dim rawList As String = Await getRawList()
         Dim result = New List(Of String)
 
         Dim packet = New UTQueryPacket(rawList, UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServerIpList)
@@ -237,16 +303,16 @@ Class MasterListGSpyFact
         Return result
     End Function
 
-    Protected Function getRawList() As String
+    Protected Async Function getRawList() As Task(Of String)
         Dim result As String = ""
         Dim connection As New JulkinNet With {
             .timeout = 2500
         }
-        connection.Connect(server.serverAddress)
+        connection.Connect(server.address)
 
-        Dim packet As String = connection.ReadNext()
+        Dim packet As String = Await connection.ReadNextAsync()
         If Len(packet) = 0 Then
-            Throw New Exception("No response from " & server.serverAddress)
+            Throw New Exception("No response from " & server.address)
         End If
 
         Dim myResponse As New UTQueryPacket(UTQueryPacketFlags.UTQP_MasterServer)
@@ -264,11 +330,11 @@ Class MasterListGSpyFact
         End Using
 
         myResponse.Add("list", "")
-        connection.Write(myResponse.ToString())
+        Await connection.WriteAsync(myResponse.ToString())
 
         Dim waitStart = TickCount()
         Do
-            result &= connection.ReadNext()
+            result &= Await connection.ReadNextAsync()
         Loop While TickCount() - waitStart < 7000 AndAlso InStr(result, "\final\") = 0
 
         connection.Disconnect()
@@ -296,24 +362,20 @@ Class MasterListHTTPFact
         requestURI = serverInfo.iniVariables("MasterServerURI")
     End Sub
 
-    Public Overrides Function ping() As Boolean
+    Public Overrides Async Function ping() As Task(Of Boolean)
         Dim requestUrl = "http://" & server.ToString & requestURI
 
         Dim requestMsg As New HttpRequestMessage(HttpMethod.Head, requestUrl)
-        Dim requestTask = clientObj.SendAsync(requestMsg)
-        requestTask.Wait()
-        Dim requestResult = requestTask.Result
+        Dim requestResult = Await clientObj.SendAsync(requestMsg)
 
         Return (requestResult.StatusCode = Net.HttpStatusCode.OK)
     End Function
 
-    Public Overrides Function query() As System.Collections.Generic.List(Of String)
+    Public Overrides Async Function query() As Task(Of System.Collections.Generic.List(Of String))
         Dim serverList = New List(Of String)
         Dim requestUrl = "http://" & server.ToString & requestURI
 
-        Dim requestTask = clientObj.GetAsync(requestUrl)
-        requestTask.Wait()
-        Dim requestResult = requestTask.Result
+        Dim requestResult = Await clientObj.GetAsync(requestUrl)
 
         Using respReader = New StreamReader(requestResult.Content.ReadAsStream())
             Do While Not respReader.EndOfStream

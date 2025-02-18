@@ -70,23 +70,7 @@ Public Class Scanner
         Dim recentServersTimeRange = 60 * 60 ' only servers seen in last hour
         _targetCommLog.Clear()
 
-
-
-        If (Date.UtcNow - masterServerLastUpdate).TotalSeconds > masterServerUpdateInterval Then
-            ' full scan - all known server
-            masterServerQuery.refreshServerList()
-            masterServerLastUpdate = Date.UtcNow
-            masterServerLastPing = Date.UtcNow
-            recentServersTimeRange = 0
-        End If
-
-        If masterServerPingInterval > 0 AndAlso (Date.UtcNow - masterServerLastPing).TotalSeconds > masterServerPingInterval Then
-            ' monitors the other master servers
-            masterServerQuery.pingMasterServers()
-            masterServerLastPing = Date.UtcNow
-        End If
-
-        serversToScan = masterServerQuery.getList()
+        serversToScan = masterServerQuery.GetList()
         Dim serversFromDB = getRecentlyScannedServerList(recentServersTimeRange)
         For Each server As String In serversFromDB
             serversToScan.Add(server)
@@ -401,42 +385,6 @@ Public Class Scanner
         End Try
     End Sub
 
-    Private Sub masterServerQuery_OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo)) Handles masterServerQuery.OnMasterServerManagerRequest
-        log.WriteLine("Master server query...")
-        dyncfg.SetProperty("masterservers.nummasters", masterServers.Count)
-        dyncfg.UnsetProperty("masterservers.server")
-
-    End Sub
-
-    Private Sub masterServerQuery_OnMasterServerManagerRequestComplete(serverList As System.Collections.Generic.List(Of String)) Handles masterServerQuery.OnMasterServerManagerRequestComplete
-        log.WriteLine("Received {0} servers, performing scan...", serverList.Count)
-    End Sub
-
-    Private Sub masterServerQuery_OnMasterServerQuery(serverInfo As MasterServerInfo) Handles masterServerQuery.OnMasterServerQuery
-        log.WriteLine("MasterQuery ( " & serverInfo.serverClassName & " , " & serverInfo.serverIp & ":" & serverInfo.serverPort & " ) ")
-        dyncfg.SetProperty("masterservers.server." & serverInfo.serverId & ".checked", UnixTime())
-        dyncfg.SetProperty("masterservers.server." & serverInfo.serverId & ".info",
-            serverInfo.serverIp & ":" & serverInfo.serverPort)
-    End Sub
-
-
-    Private Sub masterServerQuery_OnMasterServerQueryParsed(serverInfo As MasterServerInfo, serverList As System.Collections.Generic.List(Of String)) Handles masterServerQuery.OnMasterServerQueryListReceived
-        dyncfg.SetProperty("masterservers.server." & serverInfo.serverId & ".lastseen", UnixTime())
-        dyncfg.SetProperty("masterservers.server." & serverInfo.serverId & ".lastsync", UnixTime())
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".serversnum", serverList.Count)
-        log.WriteLine("Got {0} servers.", serverList.Count)
-    End Sub
-    Private Sub masterServerQuery_OnMasterServerQueryFailure(serverInfo As MasterServerInfo, thrownException As System.Exception) Handles masterServerQuery.OnMasterServerQueryFailure
-        log.WriteLine("Query failed for ( {0}:{1} ) : {2}", serverInfo.serverIp, serverInfo.serverPort, thrownException.Message)
-    End Sub
-
-    Private Sub masterServerQuery_OnMasterServerPing(serverInfo As MasterServerInfo, online As Boolean) Handles masterServerQuery.OnMasterServerPing
-        log.DebugWriteLine("PingingRemoteMasterServer: {0}", serverInfo.serverAddress)
-        dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".checked", UnixTime())
-        If online Then
-            dyncfg.setProperty("masterservers.server." & serverInfo.serverId & ".lastseen", UnixTime())
-        End If
-    End Sub
 #Region "Dynconfig"
     Public Function dynconfigGet(key As String)
         Return dyncfg.GetProperty(key)
