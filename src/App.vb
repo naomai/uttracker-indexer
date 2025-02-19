@@ -1,4 +1,5 @@
 Imports System.Data
+Imports System.IO
 Imports System.Net
 Imports System.Reflection
 Imports Microsoft.Extensions.FileProviders
@@ -84,7 +85,6 @@ Module App
         masterManager.ThreadLoop()
 
         Dim dyncfgDbCtx = New Utt2Context(dbconfig)
-        'dyncfg = New DatabasePropsProvider(dyncfgDbCtx, "utt.reaper")
         dyncfg = New DatabasePropsProvider(dyncfgDbCtx).Ns("utt.reaper")
         dyncfg.SetProperty("configsrc", ini.IniName, True)
 
@@ -99,12 +99,6 @@ Module App
             .masterServerManager = masterManager
         End With
         scanner = New Scanner(scannerConfig)
-        'scannerConfig.masterServerManager = Nothing
-        'scannerConfig.db = New MySQLDB(dbconfig)
-        'Dim tinyScanner = New AsyncLittleScanner(scannerConfig)
-
-        Dim nextscan As DateTime
-
 
         If ini.GetProperty("GSMasterServer.Enabled", "0") = 1 Then
             log.WriteLine("Enabling GameSpy Master Server...")
@@ -116,23 +110,11 @@ Module App
             master.LoadGSListFromDict(MasterServerManager.gamespyKeys)
             master.StartServer()
         End If
-        'tinyScanner.asyncBegin()
-        Do
-            log.WriteLine("Update in progress...")
-            nextscan = Date.UtcNow + TimeSpan.FromSeconds(scanner.scanInterval)
-            scanner.performScan()
-            log.WriteLine("Scanned {0}, online: {1}; next: {2}s", scanner.serversCountTotal, scanner.serversCountOnline, Math.Round((nextscan - Date.UtcNow).TotalSeconds))
-            Do While (nextscan - Date.UtcNow).TotalSeconds > 0 AndAlso (nextscan - Date.UtcNow).TotalSeconds <= scanner.scanInterval
-                Threading.Thread.Sleep(50)
-            Loop
-            If (nextscan - Date.UtcNow).TotalSeconds < -7200 Then
-                log.WriteLine("Time travel detected ({0} seconds)", Math.Round(-(nextscan - Date.UtcNow).TotalSeconds))
-            ElseIf (nextscan - Date.UtcNow).TotalSeconds > 7200 Then
-                log.WriteLine("Time travel detected, bios time was reset? Next scan schedule: {0}, offset: {1} seconds.", nextscan, Math.Round((nextscan - Date.UtcNow).TotalSeconds))
-                log.WriteLine("Correct your system time and press ENTER")
-                Console.ReadLine()
-            End If
 
+        scanner.ScannerThread()
+
+        Do
+            Threading.Thread.Sleep(10)
         Loop
     End Sub
 

@@ -13,6 +13,10 @@ Public Class ServerQuery
     Public firstTimeTest, secondTimeTest As Single
     Public firstTimeTestLocal, secondTimeTestLocal, infoSentTimeLocal As DateTime
 
+    Protected nextInfoDeadline As Date = Date.UtcNow
+    Protected nextGameStateDeadline As Date = Date.UtcNow
+    Protected nextVerifyDeadline As Date = Date.UtcNow
+
     Public packetsSent As Integer = 0
     Public packetsReceived As Integer = 0
     Protected challenge As String
@@ -20,6 +24,7 @@ Public Class ServerQuery
     Private state As ServerQueryState
 
     Public isOnline As Boolean
+    Public isActive As Boolean = False
     Public addressQuery As String
     'Public addressQuery2 As String
     Public addressGame As String
@@ -35,6 +40,9 @@ Public Class ServerQuery
     Private formatProvider = CultureInfo.InvariantCulture
 
     Protected packetCharset As Encoding = Encoding.GetEncoding(1252)
+    Const INTERVAL_INFO As Integer = 10 * 60
+    Const INTERVAL_STATE As Integer = 2 * 60
+    Const INTERVAL_VERIFY As Integer = 24 * 60 * 60
 
     Public Sub New(master As Scanner, serverAddress As String)
         addressQuery = serverAddress
@@ -50,13 +58,56 @@ Public Class ServerQuery
             .supportsVariables = True
         End With
 
-        state.starting = True
+        state.starting = False
         state.started = False
 
-        challenge = generateChallenge()
+
     End Sub
 
-    Public Sub tick()
+    Public Sub Update()
+        CheckScanDeadlines()
+        Tick()
+    End Sub
+
+    Protected Sub CheckScanDeadlines()
+        If state.started Or state.starting or isInRequestState() Then
+            Return
+        End If
+
+        Dim actionNeeded = False
+        If nextVerifyDeadline <= Date.UtcNow Then
+            state.hasValidated = False
+            actionNeeded = True
+        End If
+        If nextInfoDeadline <= Date.UtcNow Then
+            With state
+                .hasBasic = False
+                .hasInfo = False
+                .hasInfoExtended = False
+                .hasVariables = False
+            End With
+            nextInfoDeadline = Date.UtcNow.AddSeconds(INTERVAL_INFO)
+            actionNeeded = True
+        End If
+        If nextGameStateDeadline <= Date.UtcNow Then
+            With state
+                .hasInfo = False
+                .hasInfoExtended = False
+                .hasVariables = False
+                .hasPlayers = False
+            End With
+            nextGameStateDeadline = Date.UtcNow.AddSeconds(INTERVAL_STATE)
+            actionNeeded = True
+        End If
+
+        If actionNeeded Then
+            state.done = False
+            state.starting = True
+            resetRequestFlags()
+        End If
+    End Sub
+
+    Public Sub Tick()
         If Not state.done Then
             If state.starting Then
                 state.started = True
@@ -102,9 +153,9 @@ Public Class ServerQuery
 
         With state
             If Not .hasBasic Then
-                .hasValidated = Not IsNothing(serverRecord.LastValidation) AndAlso serverRecord.LastValidation > Date.UtcNow.AddHours(-24)
                 Dim challengeSuffix = ""
                 If Not .hasValidated Then
+                    challenge = generateChallenge()
                     challengeSuffix = "\secure\" & challenge
                 End If
                 serverSend("\basic\" & challengeSuffix)
@@ -116,6 +167,8 @@ Public Class ServerQuery
                 End If
                 serverSend("\info\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
                 .requestingInfo = True
+                sync.state.savedInfo = False
+                sync.state.savedGameInfo = False
                 infoSentTimeLocal = Date.UtcNow
             ElseIf Not .hasInfoExtended AndAlso Not .hasTimeTest AndAlso server.caps.hasPropertyInterface Then
                 firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
@@ -142,10 +195,12 @@ Public Class ServerQuery
                 End If
                 serverSend("\players\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
                 .requestingPlayers = True
+                sync.state.savedPlayers = False
+                sync.state.savedCumulativeStats = False
             ElseIf Not .hasVariables AndAlso server.caps.supportsVariables Then
                 serverSend("\rules\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
                 .requestingVariables = True
-
+                sync.state.savedVariables = False
             Else
                 .done = True
             End If
@@ -210,6 +265,7 @@ Public Class ServerQuery
         If Not state.hasValidated Then
             server.lastValidation = Date.UtcNow
             state.hasValidated = True
+            nextVerifyDeadline = Date.UtcNow.AddSeconds(INTERVAL_VERIFY)
         End If
 
 
@@ -282,7 +338,6 @@ Public Class ServerQuery
             server.caps.timeTestPassed = False
         End If
         state.hasInfo = True
-
     End Sub
 
     Private Sub parseInfoExtended()

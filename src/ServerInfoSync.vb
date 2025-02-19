@@ -1,9 +1,6 @@
-﻿Imports System.Threading
-Imports System.Data
+﻿Imports System.Data
 Imports System.Text.Json
 Imports Naomai.UTT.Indexer.Utt2Database
-Imports Org.BouncyCastle.Asn1.Cms
-Imports Microsoft.EntityFrameworkCore.Internal
 
 Public Class ServerInfoSync
     Protected serverWorker As ServerQuery
@@ -32,7 +29,6 @@ Public Class ServerInfoSync
             Return
         End If
         Try
-            'If Not state.hasDBRecord Then prepareServerRecord()
             If Not state.savedInfo Then TryUpdateInfo()
             If Not state.savedVariables Then TryUpdateVariables()
             If Not state.savedGameInfo Then TryUpdateMatchInfo()
@@ -185,7 +181,6 @@ Public Class ServerInfoSync
             lastMatchCurrentID = previousMatchRecord.ServerPlayeridCounter
             If scannerState.hasInfoExtended Then
                 newMatchByCurrentIDChange =
-                    serverData.info("numplayers") > 0 AndAlso
                     Not IsNothing(lastMatchCurrentID) AndAlso
                     Not IsNothing(thisMatchCurrentID) AndAlso
                     thisMatchCurrentID < lastMatchCurrentID AndAlso
@@ -260,15 +255,15 @@ Public Class ServerInfoSync
                 .ServerPlayeridCounter = thisMatchCurrentID
             }
             serverRecord.ServerMatches.Add(matchRecord)
-            If IsNothing(matchRecord.Id) Then
-                dbCtx.SaveChanges()
-            End If
+            'If IsNothing(matchRecord.Id) Then
+            dbCtx.SaveChanges()
+            'End If
         Else
             If Not IsNothing(thisMatchCurrentID) AndAlso thisMatchCurrentID > lastMatchCurrentID Then
                 ' only update CurrenID in DB
                 'matchRecord = dbCtx.ServerMatches.Single(Function(g) g.Id = thisMatchCurrentID)
                 previousMatchRecord.ServerPlayeridCounter = thisMatchCurrentID
-                'dbCtx.SaveChanges()
+                ' dbCtx.SaveChanges()
             End If
             matchRecord = previousMatchRecord
         End If
@@ -326,7 +321,7 @@ Public Class ServerInfoSync
 
 
         If IsNothing(playerRecord.Id) Then
-            dbCtx.Players.Update(playerRecord)
+            dbCtx.Players.Add(playerRecord)
             '    dbCtx.Players.Add(playerRecord)
             dbCtx.SaveChanges()
         End If

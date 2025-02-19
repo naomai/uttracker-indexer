@@ -1,13 +1,12 @@
 Imports System.Net
 Imports System.Text
-Imports System.Text.Json
 Imports System.Data
 Imports Naomai.UTT.Indexer.Utt2Database
 Imports Microsoft.EntityFrameworkCore.Storage
 Imports System.Environment
-Imports Naomai.UTT.Indexer.JulkinNet
-Imports Microsoft.EntityFrameworkCore.Query.Internal
 Imports Microsoft.SqlServer
+Imports Org.BouncyCastle.Asn1.Ntt
+Imports Mysqlx.Crud
 
 Public Class Scanner
     Implements IDisposable
@@ -35,10 +34,13 @@ Public Class Scanner
     Protected Friend dbCtx As Utt2Context
     Protected Friend dyncfg As IPropsProvider
 
+    Protected serverList As New List(Of String)
+    Protected fullScanDeadline As Date = Date.UtcNow
+
 
     Protected WithEvents masterServerQuery As MasterServerManager
     Protected WithEvents sockets As SocketManager
-    Protected serverWorkers As New Hashtable ' of ServerScannerWorker
+    Protected serverWorkers As New Dictionary(Of String, ServerQuery)
     Protected serverWorkersLock As New Object 'prevent 'For Each mess when collection is modified'
 
     Protected tickCounter As Integer = 0
@@ -61,35 +63,103 @@ Public Class Scanner
             masterServerQuery = .masterServerManager
         End With
 
+        initSockets()
+
         debugWriteLine("ServerScanner ready")
 
     End Sub
 
+    Public Async Function ScannerThread() As Task
+        Dim listRefreshDeadline As Date = Date.UtcNow
+        Dim showStatesDeadline As Date = Date.UtcNow
+
+        Do
+            If Date.UtcNow >= listRefreshDeadline Then
+                Await RefreshServerList()
+                listRefreshDeadline = Date.UtcNow.AddMinutes(5)
+            End If
+
+            For Each worker As ServerQuery In serverWorkers.Values
+                If Not worker.isActive Then
+                    Continue For
+                End If
+                worker.Update()
+                'debugWriteLine("UPD {0}", worker.addressGame)
+            Next
+
+            debugWriteLine("TIK")
+            sockets.Tick()
+
+            If Date.UtcNow >= showStatesDeadline Then
+                debugShowStates()
+                showStatesDeadline = Date.UtcNow.AddSeconds(5)
+            End If
+        Loop
+    End Function
+
+    Public Async Function RefreshServerList() As Task
+        Dim recentServersTimeRange As Integer = 60 * 60 ' hour by default
+        Dim serverAddresses As New List(Of String)
+
+        If fullScanDeadline <= Date.UtcNow Then
+            recentServersTimeRange = 0 ' everything in database
+            fullScanDeadline = Date.UtcNow.AddHours(1)
+        End If
+        serverAddresses.AddRange(masterServerQuery.GetList())
+        serverAddresses.AddRange(
+                Await GetRecentlyScannedServerList(recentServersTimeRange)
+            )
+        serverAddresses.AddRange(
+            Await GetServersPendingQueue()
+        )
+        SyncLock serverList
+            serverList.Clear()
+            serverList.AddRange(serverAddresses.Distinct())
+        End SyncLock
+
+        InitWorkersFromServerList(serverList)
+    End Function
+
+    ''' <summary>
+    ''' Creates ServerQuery worker objects from serverList and
+    ''' marks workers not present in the list as inactive
+    ''' </summary>
+    ''' <param name="serverList"></param>
+    Protected Sub InitWorkersFromServerList(serverList As List(Of String))
+        SyncLock serverWorkersLock
+            For Each worker As ServerQuery In serverWorkers.Values
+                worker.isActive = False
+            Next
+
+            For Each server In serverList
+                Dim worker As ServerQuery
+                If Not serverWorkers.ContainsKey(server) Then
+                    worker = New ServerQuery(Me, server)
+                    serverWorkers(server) = worker
+                    worker.setSocket(sockets)
+                Else
+                    worker = serverWorkers(server)
+                End If
+                worker.isActive = True
+            Next
+        End SyncLock
+    End Sub
+
+
+
+    ''' LEGACY
+
     Public Sub performScan()
-        Dim serversToScan As List(Of String)
-        Dim recentServersTimeRange = 60 * 60 ' only servers seen in last hour
+
         _targetCommLog.Clear()
 
-        serversToScan = masterServerQuery.GetList()
-        Dim serversFromDB = getRecentlyScannedServerList(recentServersTimeRange)
-        For Each server As String In serversFromDB
-            serversToScan.Add(server)
-        Next
-        serversFromDB = getServersPendingQueue()
-        For Each server As String In serversFromDB
-            serversToScan.Add(server)
-        Next
 
         log.autoFlush = False
 
-        debugWriteLine("Scanning using settings: recentServersTimeRange={0}", recentServersTimeRange)
 
-        serversToScan = serversToScan.Distinct().ToList
 
-        RaiseEvent OnScanBegin(serversToScan.Count)
 
         initSockets()
-        initServerWorkers(serversToScan)
 
         scanStart = Date.UtcNow
         scanLastActivity = Date.UtcNow
@@ -168,7 +238,9 @@ Public Class Scanner
 
             target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
             _targetCommLog(target.addressQuery) &= "DDD " & packetString & NewLine
-            target.tick()
+
+            'debugWriteLine("PK {0}", target.addressQuery)
+            target.Tick()
 
             scanLastActivity = Date.UtcNow
             packetBuffer.Clear()
@@ -252,7 +324,7 @@ Public Class Scanner
         debugWriteLine("ScanInfoUpdated")
     End Sub
 
-    Protected Function getRecentlyScannedServerList(Optional seconds As Integer = 86400) As List(Of String)
+    Protected Async Function GetRecentlyScannedServerList(Optional seconds As Integer = 86400) As Task(Of List(Of String))
         Dim scanTimeRange As DateTime
         If seconds = 0 Then
             scanTimeRange = DateTime.Parse("1.01.2009 0:00:00")
@@ -260,8 +332,14 @@ Public Class Scanner
             scanTimeRange = DateTime.UtcNow.AddSeconds(-seconds)
         End If
 
-        Dim listQuery = dbCtx.Servers.Where(
-                Function(p As Server) p.LastSuccess > scanTimeRange
+        Try
+            Await dbCtx.Servers.LoadAsync()
+        Catch e As Exception
+
+        End Try
+
+        Dim listQuery = dbCtx.Servers.Local.Where(
+                Function(p As Server) Not IsNothing(p.LastSuccess) AndAlso p.LastSuccess > scanTimeRange
             )
 
         Dim servers As List(Of Server) = listQuery.ToList()
@@ -269,32 +347,21 @@ Public Class Scanner
         serversListCache = servers
 
         Dim recentServers = New List(Of String)
-        'Dim rules As Hashtable
 
         For Each server In servers
             Dim fullQueryIp = server.AddressQuery
-            'Try
-            '    If Not IsDBNull(server.Variables) AndAlso server.Variables <> "" Then
-            '        rules = JsonSerializer.Deserialize(Of Hashtable)(server.Variables)
-            '        If Not IsNothing(rules) AndAlso rules.ContainsKey("queryport") Then
-            '            Dim ip = GetHost(server.AddressQuery)
-            '            fullQueryIp = ip & ":" & rules("queryport").ToString
-            '        End If
-            '    End If
-            'Catch e As Exception
-            'End Try
 
             recentServers.Add(fullQueryIp)
         Next
         Return recentServers
     End Function
 
-    Protected Function getServersPendingQueue() As List(Of String)
-        Dim recentServers = dbCtx.ScanQueueEntries.ToList()
+    Protected Async Function GetServersPendingQueue() As Task(Of List(Of String))
+        Dim recentServers = Await dbCtx.ScanQueueEntries.ToListAsync()
 
         Dim queueServers = New List(Of String)
         If recentServers.Count > 0 Then
-            dbCtx.ScanQueueEntries.ExecuteDelete()
+            Await dbCtx.ScanQueueEntries.ExecuteDeleteAsync()
 
             For Each server In recentServers
                 queueServers.Add(server.Address)
@@ -313,7 +380,7 @@ Public Class Scanner
                 If currentScanTime < target.deployTimeOffsetMs Then
                     jobsWaitingToDeploy = True
                 Else
-                    target.tick()
+                    target.Tick()
                 End If
 
 
@@ -336,7 +403,7 @@ Public Class Scanner
             End If
 
             If (Date.UtcNow - target.lastActivity).TotalSeconds > 10 Then
-                target.tick()
+                target.Tick()
             End If
         Next
     End Sub
@@ -388,11 +455,11 @@ Public Class Scanner
     End Function
 
     Public Sub dynconfigSet(key As String, data As String, Optional priv As Boolean = False)
-        dyncfg.setProperty(key, data, priv)
+        dyncfg.SetProperty(key, data, priv)
     End Sub
 
-#End Region
 
+#End Region
 #Region "IDisposable"
     Public Sub Dispose() Implements IDisposable.Dispose
         Dispose(True)

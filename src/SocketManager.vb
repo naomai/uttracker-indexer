@@ -10,7 +10,7 @@ Public Class SocketManager
     Protected socket As Socket
     Protected ignoreIps As New List(Of String)
 
-    Protected ipPacketQueue As New Hashtable
+    Protected ipPacketQueue As New Dictionary(Of IPEndPoint, EndpointPacketBuffer)
     Protected lastProcessed As Date
 
     Public updateIntervalMs As Integer = 100
@@ -61,8 +61,8 @@ Public Class SocketManager
         Do
             ReDim buffer(2000)
             receiveResult = Await socket.ReceiveFromAsync(buffer, bindEndpoint)
-            If receiveResult.ReceivedBytes > 0 Then
-                ReDim Preserve buffer(receiveResult.ReceivedBytes)
+            If receiveResult.ReceivedBytes = 0 Then
+                Continue Do
             End If
 
             sourceEndpoint = receiveResult.RemoteEndPoint
@@ -70,9 +70,9 @@ Public Class SocketManager
             If ignoreIps.Contains(sourceIp) Then
                 Continue Do
             End If
-            If buffer.Length > 0 Then
-                EnqueuePacket(sourceEndpoint, buffer)
-            End If
+
+            ReDim Preserve buffer(receiveResult.ReceivedBytes)
+            EnqueuePacket(sourceEndpoint, buffer)
         Loop
     End Sub
 
@@ -88,16 +88,18 @@ Public Class SocketManager
             If Not ipPacketQueue.ContainsKey(sourceEndpoint) Then
                 ipPacketQueue.Add(sourceEndpoint, New EndpointPacketBuffer)
             End If
-            ipPacketQueue(sourceEndpoint).Enqueue(packet)
         End SyncLock
+        ipPacketQueue(sourceEndpoint).Enqueue(packet)
     End Sub
 
     Private Sub DequeueAll()
+        Dim hosts As List(Of IPEndPoint)
         SyncLock ipPacketQueue
-            For Each host In ipPacketQueue.Keys
-                DequeueForHost(host)
-            Next
+            hosts = ipPacketQueue.Keys.ToList()
         End SyncLock
+        For Each host In hosts
+            DequeueForHost(host)
+        Next
     End Sub
 
     Private Sub DequeueForHost(host As IPEndPoint)
@@ -127,13 +129,17 @@ Public Class EndpointPacketBuffer
     Public newPackets As Boolean = False
 
     Public Sub Enqueue(packet As Byte())
-        packetQueue.Enqueue(packet)
+        SyncLock packetQueue
+            packetQueue.Enqueue(packet)
+        End SyncLock
         newPackets = True
     End Sub
 
     Public Function Dequeue() As Byte()
         newPackets = False
-        Return packetQueue.Dequeue()
+        SyncLock packetQueue
+            Return packetQueue.Dequeue()
+        End SyncLock
     End Function
 
 
@@ -165,6 +171,8 @@ Public Class EndpointPacketBuffer
 
     Public Sub Clear()
         newPackets = False
-        packetQueue.Clear()
+        SyncLock packetQueue
+            packetQueue.Clear()
+        End SyncLock
     End Sub
 End Class

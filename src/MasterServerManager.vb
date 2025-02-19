@@ -4,18 +4,10 @@ Imports Microsoft.Extensions.FileProviders
 Imports System.Reflection
 Imports System.Net.Http
 Imports Naomai.UTT.Indexer.UTQueryPacket
-Imports System.Diagnostics.Metrics
 
 Public Class MasterServerManager
     Public cacheFile As String
     Public gslistFile As String
-
-    'Public Event OnMasterServerQuery(serverInfo As MasterServerInfo)
-    'Public Event OnMasterServerQueryListReceived(serverInfo As MasterServerInfo, serverList As List(Of String))
-    'Public Event OnMasterServerQueryFailure(serverInfo As MasterServerInfo, thrownException As Exception)
-    'Public Event OnMasterServerManagerRequest(masterServers As List(Of MasterServerInfo))
-    'Public Event OnMasterServerManagerRequestComplete(serverList As List(Of String))
-    'Public Event OnMasterServerPing(serverInfo As MasterServerInfo, online As Boolean)
 
     Dim masterServers As New List(Of MasterServerInfo)
     Public Shared gamespyKeys As Dictionary(Of String, GamespyGameInfo)
