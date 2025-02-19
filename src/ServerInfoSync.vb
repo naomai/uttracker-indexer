@@ -4,6 +4,56 @@ Imports System.Text.Json
 Imports Naomai.UTT.Indexer.Utt2Database
 Imports Org.BouncyCastle.Asn1.Cms
 Imports Microsoft.EntityFrameworkCore.Internal
+Imports System.Reflection.Metadata
+
+Public Class DbPrefetcher
+    Protected dbCtx As Utt2Context
+    Protected spottedPlayersList As New List(Of String) ' of slug
+    Protected spottedServersList As New List(Of String) ' of addressGame
+
+    Public Sub New(dbCtx As Utt2Context)
+        Me.dbCtx = dbCtx
+    End Sub
+
+    Public Sub spottedPlayer(playerSlug As String)
+        spottedPlayersList.Add(playerSlug)
+    End Sub
+
+    Public Sub spottedServer(addressGame As String)
+        spottedServersList.Add(addressGame)
+    End Sub
+
+    Public Sub prefetchPlayerList()
+        Dim llis = dbCtx.Players _
+            .Include(Function(s) _
+                          s.PlayerLogs _
+                            .OrderByDescending(Function(m) m.MatchId) _
+                            .GroupBy(Function(l) l.ServerId) _
+                            .Take(1)
+                     ) _
+            .Include(Function(s) s.PlayerStats) _
+            .Where(Function(s) spottedPlayersList.Contains(s.Slug)) _
+            .ToList()
+        'Dim playerIds = llis.ConvertAll(Of Integer)(Function(s) s.Id)
+        'Dim llis2 = dbCtx.PlayerLogs.Where(Function(s) playerIds.Contains(s.PlayerId)).ToList()
+        'Dim llis3 = dbCtx.PlayerStats.Where(Function(s) playerIds.Contains(s.PlayerId)).ToList()
+    End Sub
+    Public Sub prefetchServerList()
+        Dim llis = dbCtx.Servers _
+            .Include(
+                Function(s) _
+                    s.ServerMatches _
+                        .OrderByDescending(Function(m) m.StartTime) _
+                        .Take(1)
+            ) _
+            .Where(Function(s) spottedServersList.Contains(s.AddressGame)) _
+            .ToList()
+
+
+        ' Dim serverIds = llis.ConvertAll(Of Integer)(Function(s) s.Id)
+        ' Dim llis2 = dbCtx.ServerMatches.Where(Function(s) serverIds.Contains(s.ServerId)).ToList()
+    End Sub
+End Class
 
 Public Class ServerInfoSync
     Protected serverWorker As ServerQuery
@@ -19,14 +69,26 @@ Public Class ServerInfoSync
     Private serverRecord As Server
     Private matchRecord As ServerMatch
 
+    Private dbPrefetcher As DbPrefetcher
+
     Public Sub New(serverData As ServerInfo, serverWorker As ServerQuery)
         Me.serverData = serverData
         Me.serverWorker = serverWorker
         dbCtx = serverWorker.scannerMaster.dbCtx
+        dbPrefetcher = serverWorker.scannerMaster.prefetcher
         GetServerRecord()
         serverRecord.LastCheck = Date.UtcNow
+
     End Sub
 
+
+
+
+
+
+    ''' <summary>
+    ''' OLD BELOW
+    ''' </summary>
     Public Sub Tick()
         If state.done Then
             Return
@@ -36,9 +98,10 @@ Public Class ServerInfoSync
             If Not state.savedInfo Then TryUpdateInfo()
             If Not state.savedVariables Then TryUpdateVariables()
             If Not state.savedGameInfo Then TryUpdateMatchInfo()
-            If Not state.savedPlayers Then TryUpdatePlayerInfo()
             If Not state.savedCumulativeStats Then TryUpdateCumulativePlayersStats()
+            If Not state.savedPlayers Then TryUpdatePlayerInfo()
             If Not state.savedScanInfo Then UpdateCurrentScanInfo()
+
         Catch e As Exception
             serverWorker.abortScan("Tick Exception")
         End Try
@@ -53,7 +116,7 @@ Public Class ServerInfoSync
             Return serverRecord
         End If
 
-        serverRecord = dbCtx.Servers.Local.SingleOrDefault(Function(s) s.AddressQuery = serverWorker.addressQuery)
+        serverRecord = dbCtx.Servers.Local.SingleOrDefault(Function(s) s.AddressGame = serverWorker.addressGame)
 
         If IsNothing(serverRecord) Then
             serverRecord = New Server() With {
@@ -89,7 +152,7 @@ Public Class ServerInfoSync
 
         dbCtx.Servers.Update(serverRecord)
         Try
-            dbCtx.SaveChanges()
+            'dbCtx.SaveChanges()
         Catch e As DbUpdateException
             ' conflict of AddressGame - one server, many QueryPorts
             Dim reason As String = "Database update fail - " & e.Message
@@ -104,7 +167,7 @@ Public Class ServerInfoSync
             dbCtx.Entry(serverRecord).State = EntityState.Detached
             Return
         End Try
-        uttServerId = serverRecord.Id
+        ' uttServerId = serverRecord.Id
 
 
         uttServerScanTime = serverWorker.infoSentTimeLocal
@@ -134,7 +197,7 @@ Public Class ServerInfoSync
 
         'utt haxes:
         variablesMerged("__uttlastupdate") = UnixTime(uttServerScanTime)
-        variablesMerged("queryport") = Split(serverWorker.addressQuery, ":").Last
+        variablesMerged("queryport") = Split(serverWorker.addressQuery, ": ").Last
         If serverData.caps.hasXSQ Then
             variablesMerged("__uttxserverquery") = "true"
         End If
@@ -261,7 +324,7 @@ Public Class ServerInfoSync
             }
             serverRecord.ServerMatches.Add(matchRecord)
             If IsNothing(matchRecord.Id) Then
-                dbCtx.SaveChanges()
+                'dbCtx.SaveChanges()
             End If
         Else
             If Not IsNothing(thisMatchCurrentID) AndAlso thisMatchCurrentID > lastMatchCurrentID Then
@@ -272,7 +335,7 @@ Public Class ServerInfoSync
             End If
             matchRecord = previousMatchRecord
         End If
-        uttGameId = matchRecord.Id
+        'uttGameId = matchRecord.Id
         state.savedGameInfo = True
 
     End Sub
@@ -289,7 +352,7 @@ Public Class ServerInfoSync
                 Dim uttPlayerSlug As String = GetPlayerSlug(player)
                 Dim playerRecord As Player
 
-                playerRecord = dbCtx.Players.SingleOrDefault(Function(p) p.Slug = uttPlayerSlug)
+                playerRecord = dbCtx.Players.Local.SingleOrDefault(Function(p) p.Slug = uttPlayerSlug)
 
                 player("uttSkinData") = player("mesh") & "|" & player("skin") & "|" & player("face")
 
@@ -328,7 +391,7 @@ Public Class ServerInfoSync
         If IsNothing(playerRecord.Id) Then
             dbCtx.Players.Update(playerRecord)
             '    dbCtx.Players.Add(playerRecord)
-            dbCtx.SaveChanges()
+            'dbCtx.SaveChanges()
         End If
         playerData("uttPlayerId") = playerRecord.Id
     End Sub
@@ -346,27 +409,33 @@ Public Class ServerInfoSync
             playerTimeOffset = -player("time")
         End If
 
-        playerLogRecord = matchRecord.PlayerLogs.FirstOrDefault(
-            Function(p) p.PlayerId = uttPlayerId
-        )
+        'playerLogRecord = matchRecord.PlayerLogs.FirstOrDefault(
+        '    Function(p) p.PlayerId = uttPlayerId
+        ')
+        If Not state.isNewMatch Then
+            playerLogRecord = playerRecord.PlayerLogs.FirstOrDefault(
+                Function(p) p.MatchId = matchRecord.Id
+            )
+        End If
         If IsNothing(playerLogRecord) Then
-            playerLogRecord = New PlayerLog With {
-                .ServerId = serverRecord.Id,
-                .MatchId = matchRecord.Id,
+
+                playerLogRecord = New PlayerLog With {
+                .Server = serverRecord,
+                .Match = matchRecord,
                 .FirstSeenTime = uttServerScanTime.AddSeconds(playerTimeOffset),
-                .PlayerId = playerRecord.Id,
+                .Player = playerRecord,
                 .SeenCount = 0,
                 .PingSum = 0
             }
             playerRecord.PlayerLogs.Add(playerLogRecord)
-        ElseIf isnothing(playerLogRecord.Id) Then
-            ' "MULTIPLE PLAYERS WITH SAME NAME"
-            ' There are some weird servers where all spectators are named 'Player',
-            ' which Indexer treats as one player entity.
-            ' At this point, one local entity was already created a while ago,
-            ' but not yet commited to DB, and further changes
-            ' will break the state of Entity Framework.
-            Return
+            'ElseIf isnothing(playerLogRecord.Id) Then
+            '    ' "MULTIPLE PLAYERS WITH SAME NAME"
+            '    ' There are some weird servers where all spectators are named 'Player',
+            '    ' which Indexer treats as one player entity.
+            '    ' At this point, one local entity was already created a while ago,
+            '    ' but not yet commited to DB, and further changes
+            '    ' will break the state of Entity Framework.
+            '    Return
         End If
 
 
@@ -380,10 +449,10 @@ Public Class ServerInfoSync
             .Team = player("team")
         End With
 
-        If IsNothing(playerLogRecord.Id) Then
-            dbCtx.Update(playerLogRecord)
-            'dbCtx.SaveChanges()
-        End If
+        'If IsNothing(playerLogRecord.Id) Then
+        dbCtx.Update(playerLogRecord)
+        'dbCtx.SaveChanges()
+        ' End If
 
 
 
@@ -394,10 +463,15 @@ Public Class ServerInfoSync
             Return
         End If
 
+        If Not state.isNewMatch Then
+            state.savedCumulativeStats = True
+            Return
+        End If
+
         If state.savedPlayers AndAlso state.savedGameInfo Then
             Dim playerLogsDirty = serverRecord.PlayerLogs.Where(
-                Function(l) l.Finished = False AndAlso l.MatchId <> uttGameId
-            )
+                    Function(l) l.Finished = False
+                )
 
             'Dim playerStatsToUpdate = From stat In dbCtx.Set(Of PlayerStat)
             '                          Join log In playerLogsDirty
@@ -469,7 +543,7 @@ Public Class ServerInfoSync
             serverRecord.LastCheck = serverData.lastActivity
 
             'dbCtx.Servers.Update(serverRecord)
-            dbCtx.SaveChanges()
+            'dbCtx.SaveChanges()
 
             state.savedScanInfo = True
         End If
@@ -492,7 +566,7 @@ Public Class ServerInfoSync
         Return serverRecord.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault()
     End Function
 
-    Private Shared Function GetPlayerSlug(playerInfo As Hashtable) As String
+    Protected Friend Shared Function GetPlayerSlug(playerInfo As Hashtable) As String
         ' For a rare events of two players having the same name, to tell them apart
         ' we append player skin name to the slug.
         ' The more complex names do not need this

@@ -8,6 +8,7 @@ Imports System.Environment
 Imports Naomai.UTT.Indexer.JulkinNet
 Imports Microsoft.EntityFrameworkCore.Query.Internal
 Imports Microsoft.SqlServer
+Imports System.Reflection.Metadata
 
 Public Class Scanner
     Implements IDisposable
@@ -34,6 +35,7 @@ Public Class Scanner
     Protected Friend ini As IniPropsProvider
     Protected Friend dbCtx As Utt2Context
     Protected Friend dyncfg As PropsProvider
+    Protected Friend prefetcher As DbPrefetcher
 
 
     Protected WithEvents masterServerQuery As MasterServerManager
@@ -60,6 +62,8 @@ Public Class Scanner
             dyncfg = .dyncfg
             masterServerQuery = .masterServerManager
         End With
+
+        prefetcher = New DbPrefetcher(dbCtx)
 
         debugWriteLine("ServerScanner ready")
 
@@ -124,7 +128,7 @@ Public Class Scanner
             serversCountOnline = 0
             SyncLock serverWorkersLock
                 For Each target As ServerQuery In serverWorkers.Values
-                    If target.getState().done AndAlso target.isOnline Then
+                    If target.getState().dataCollected AndAlso target.isOnline Then
                         serversCountOnline += 1
                     End If
                 Next
@@ -144,6 +148,11 @@ Public Class Scanner
         End Try
         lastScanOverdueTimeMs = Math.Max(0, GetScanTimeMs() - plannedScanTimeMs)
 
+        prefetcher.prefetchPlayerList()
+        prefetcher.prefetchServerList()
+
+        commitTargets()
+
         debugShowStates()
         disposeTargets()
         disposeSockets()
@@ -159,7 +168,7 @@ Public Class Scanner
         If Not serverWorkers.ContainsKey(ipString) Then Return ' unknown source!! we got packet that wasn't sent by any of the queried servers (haxerz?)
         target = serverWorkers(ipString)
         Try
-            If target.getState().done Then Return ' prevent processing the packets from targets in "done" state
+            If target.getState().dataCollected Then Return ' prevent processing the packets from targets in "done" state
             Dim packet As Byte() = packetBuffer.PeekAll()
 
             packetString = Encoding.Unicode.GetString(Encoding.Convert(target.GetPacketCharset(), Encoding.Unicode, packet))
@@ -208,7 +217,7 @@ Public Class Scanner
                 pl += IIf(st.hasPlayers, 1, 0)
                 ru += IIf(st.hasVariables, 1, 0)
                 tt += IIf(st.hasTimeTest, 1, 0)
-                don += IIf(st.done, 1, 0)
+                don += IIf(st.dataCollected, 1, 0)
                 onl += IIf(t.isOnline, 1, 0)
             Next
         End SyncLock
@@ -259,8 +268,9 @@ Public Class Scanner
         Else
             scanTimeRange = DateTime.UtcNow.AddSeconds(-seconds)
         End If
-
-        Dim listQuery = dbCtx.Servers.Where(
+        Dim listQuery = dbCtx.Servers.Include(
+                Function(s) s.ServerMatches.Where(Function(m) m.StartTime > DateTime.Now.AddDays(-1))
+            ).Where(
                 Function(p As Server) p.LastSuccess > scanTimeRange
             )
 
@@ -341,6 +351,16 @@ Public Class Scanner
         Next
     End Sub
 
+    Public Sub commitTargets()
+        For Each target As ServerQuery In serverWorkers.Values
+            If target.state.dataCollected Then
+                target.state.readyToSync = True
+                target.tick()
+            End If
+        Next
+        dbCtx.SaveChanges()
+    End Sub
+
     Friend Sub logWriteLine(ByVal message As String)
         log.WriteLine("ServerScanner: " & message)
     End Sub
@@ -372,15 +392,15 @@ Public Class Scanner
     End Function
 
     Private Sub ServerScanner_OnScanBegin(serverCount As Integer) Handles Me.OnScanBegin
-        dbTransaction = dbCtx.Database.BeginTransaction()
+        'dbTransaction = dbCtx.Database.BeginTransaction()
     End Sub
 
 
     Private Sub ServerScanner_OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As System.TimeSpan) Handles Me.OnScanComplete
         Try
-            dbTransaction.Commit()
+            'dbTransaction.Commit()
         Finally
-            dbTransaction.Dispose()
+            'dbTransaction.Dispose()
             dbTransaction = Nothing
         End Try
     End Sub
@@ -410,8 +430,8 @@ Public Class Scanner
         End If
 
         If Not IsNothing(dbTransaction) Then
-            dbTransaction.Rollback()
-            dbTransaction.Dispose()
+            'dbTransaction.Rollback()
+            'dbTransaction.Dispose()
             dbTransaction = Nothing
         End If
         disposed = True

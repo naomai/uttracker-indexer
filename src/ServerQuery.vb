@@ -4,6 +4,7 @@ Imports System.Text
 Imports System.Runtime.InteropServices
 Imports Org.BouncyCastle.Asn1.X509
 Imports Org.BouncyCastle.Bcpg
+Imports Naomai.UTT.Indexer.Utt2Database
 
 Public Class ServerQuery
     Dim socket As SocketManager
@@ -17,7 +18,7 @@ Public Class ServerQuery
     Public packetsReceived As Integer = 0
     Protected challenge As String
 
-    Private state As ServerQueryState
+    Protected Friend state As ServerQueryState
 
     Public isOnline As Boolean
     Public addressQuery As String
@@ -30,6 +31,7 @@ Public Class ServerQuery
 
     Protected server As ServerInfo
     Protected sync As ServerInfoSync
+    Protected prefetcher As DbPrefetcher
     Protected gamemodeQuery As GamemodeSpecificQuery
 
     Private formatProvider = CultureInfo.InvariantCulture
@@ -44,6 +46,7 @@ Public Class ServerQuery
         scannerMaster = master
         server = New ServerInfo()
         sync = New ServerInfoSync(server, Me)
+        prefetcher = master.prefetcher
 
         With server.caps
             .hasPropertyInterface = True
@@ -57,7 +60,7 @@ Public Class ServerQuery
     End Sub
 
     Public Sub tick()
-        If Not state.done Then
+        If Not state.dataCollected Then
             If state.starting Then
                 state.started = True
                 state.starting = False
@@ -76,8 +79,10 @@ Public Class ServerQuery
                 End If
             End If
         End If
-        If Not sync.state.done Then
+        If Not sync.state.done And state.readyToSync Then
             sync.Tick()
+            state.done = True
+            'state.readyToSync = False
         End If
     End Sub
 
@@ -147,7 +152,8 @@ Public Class ServerQuery
                 .requestingVariables = True
 
             Else
-                .done = True
+                .dataCollected = True
+                '.done = True
             End If
 
 
@@ -283,6 +289,8 @@ Public Class ServerQuery
         End If
         state.hasInfo = True
 
+        prefetcher.spottedServer(addressGame)
+
     End Sub
 
     Private Sub parseInfoExtended()
@@ -378,6 +386,7 @@ Public Class ServerQuery
                     End If
                 End If
                 server.players.Add(playerinfo)
+                prefetcher.spottedPlayer(ServerInfoSync.GetPlayerSlug(playerinfo))
                 playerid += 1
             Loop
             If buggedPingCount > server.players.Count / 2 Then
@@ -480,7 +489,7 @@ Public Class ServerQuery
                 End If
             End If
 
-            End If
+        End If
     End Sub
 
     Public Function GetPacketCharset() As Encoding
@@ -530,6 +539,8 @@ Public Structure ServerQueryState
     Dim requestingPlayers As Boolean
     Dim requestingVariables As Boolean
 
+    Dim readyToSync As Boolean
+    Dim dataCollected As Boolean
     Dim done As Boolean
 
     Public Overrides Function ToString() As String
@@ -546,7 +557,7 @@ Public Structure ServerQueryState
             ToString &= "requestingInfo"
         ElseIf requestingBasic Then
             ToString &= "requestingBasic"
-        ElseIf done Then
+        ElseIf dataCollected Then
             ToString &= "done"
         Else
             ToString &= "???"

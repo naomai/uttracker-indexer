@@ -38,7 +38,7 @@ namespace Naomai.UTT.Indexer.Utt2Database
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             string connString = MySQLDB.makeConnectionStringFromConfigStruct(dbConfig);
-            optionsBuilder.UseMySQL(connString);
+            optionsBuilder.UseMySQL(connString, options => options.EnableRetryOnFailure());
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
