@@ -26,6 +26,8 @@ Public Class ServerQuery
     Public incomingPacket As Hashtable
     Friend incomingPacketObj As UTQueryPacket
     Private resendAttempts As Integer = 0
+
+    Protected protocolFailures As Integer = 0
     Friend lastActivity As Date
 
     Protected server As ServerInfo
@@ -65,37 +67,46 @@ Public Class ServerQuery
     End Sub
 
     Protected Sub CheckScanDeadlines()
-        If state.started Or state.starting or isInRequestState() Then
+        Dim now = Date.UtcNow
+
+        If protocolFailures >= 3 AndAlso now >= lastActivity.AddMinutes(30) Then
+            protocolFailures = 0
+        End If
+
+        If state.starting OrElse isInRequestState() OrElse protocolFailures >= 3 Then
             Return
         End If
 
         Dim actionNeeded = False
-        If nextVerifyDeadline <= Date.UtcNow Then
+        If nextVerifyDeadline <= now Then
             state.hasValidated = False
+            nextVerifyDeadline = Date.UtcNow.AddSeconds(INTERVAL_VERIFY)
             actionNeeded = True
         End If
-        If nextInfoDeadline <= Date.UtcNow Then
+        If nextInfoDeadline <= now Then
             With state
                 .hasBasic = False
                 .hasInfo = False
                 .hasInfoExtended = False
                 .hasVariables = False
             End With
-            nextInfoDeadline = Date.UtcNow.AddSeconds(INTERVAL_INFO)
+            nextInfoDeadline = now.AddSeconds(INTERVAL_INFO)
             actionNeeded = True
         End If
-        If nextGameStateDeadline <= Date.UtcNow Then
+        If nextGameStateDeadline <= now Then
             With state
                 .hasInfo = False
                 .hasInfoExtended = False
                 .hasVariables = False
                 .hasPlayers = False
             End With
-            nextGameStateDeadline = Date.UtcNow.AddSeconds(INTERVAL_STATE)
+            nextGameStateDeadline = now.AddSeconds(INTERVAL_STATE)
             actionNeeded = True
         End If
 
         If actionNeeded Then
+            logDbg("Wakeup STA=" & state.ToString())
+            state.started = False
             state.done = False
             state.starting = True
             resetRequestFlags()
@@ -164,6 +175,7 @@ Public Class ServerQuery
                 .requestingInfo = True
                 sync.state.savedInfo = False
                 sync.state.savedGameInfo = False
+                sync.state.done = False
                 infoSentTimeLocal = Date.UtcNow
             ElseIf Not .hasInfoExtended AndAlso Not .hasTimeTest AndAlso server.caps.hasPropertyInterface Then
                 firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
@@ -192,12 +204,15 @@ Public Class ServerQuery
                 .requestingPlayers = True
                 sync.state.savedPlayers = False
                 sync.state.savedCumulativeStats = False
+                sync.state.done = False
             ElseIf Not .hasVariables AndAlso server.caps.supportsVariables Then
                 serverSend("\rules\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
                 .requestingVariables = True
                 sync.state.savedVariables = False
+                sync.state.done = False
             Else
                 .done = True
+                protocolFailures = 0
             End If
 
 
@@ -260,7 +275,7 @@ Public Class ServerQuery
         If Not state.hasValidated Then
             server.lastValidation = Date.UtcNow
             state.hasValidated = True
-            nextVerifyDeadline = Date.UtcNow.AddSeconds(INTERVAL_VERIFY)
+
         End If
 
 
@@ -313,7 +328,7 @@ Public Class ServerQuery
             Not incomingPacket.ContainsKey("numplayers") OrElse
             Not incomingPacket.ContainsKey("maxplayers") Then
             'logDbg("MissingFields: " & incomingPacket.ToString)
-            abortScan("Missing required fields in packet")
+            abortScan("Missing required fields in packet", dumpCommLog:=True)
             Return
         End If
         For Each packetKey As String In incomingPacket.Keys
@@ -508,12 +523,14 @@ Public Class ServerQuery
 
     Private Function isInRequestState()
         With state
-            Return .requestingBasic Or
-            .requestingInfo Or
-            .requestingInfoExtended Or
-            .requestingPlayers Or
-            .requestingVariables Or
-            .requestingTimeTest
+            Return Not .done AndAlso (
+                .requestingBasic OrElse
+                .requestingInfo OrElse
+                .requestingInfoExtended OrElse
+                .requestingPlayers OrElse
+                .requestingVariables OrElse
+                .requestingTimeTest
+            )
         End With
     End Function
 
@@ -522,15 +539,17 @@ Public Class ServerQuery
             state.done = True
             sync.state.done = True
             isOnline = False
+            'isActive = False
             If Not state.requestingBasic Then
-                logDbg("Aborting scan (" & reason & ") - " & state.ToString)
+                protocolFailures += 1
+                logDbg("#" & protocolFailures & " Aborting scan (" & reason & ") - " & state.ToString)
                 If dumpCommLog Then
                     logDbg("CommLog: " & System.Environment.NewLine &
                         scannerMaster._targetCommLog(addressQuery))
                 End If
             End If
 
-            End If
+        End If
     End Sub
 
     Public Function GetPacketCharset() As Encoding

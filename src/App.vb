@@ -114,7 +114,7 @@ Module App
         scanner.ScannerThread()
 
         Do
-            Threading.Thread.Sleep(10)
+            Threading.Thread.Sleep(100)
         Loop
     End Sub
 

@@ -151,20 +151,22 @@ Public Class EndpointPacketBuffer
     Public Function PeekAll() As Byte()
         Dim result As Byte()
         Dim bytesTotal As Integer = 0
-        newPackets = False
-        For Each packet In packetQueue
-            bytesTotal += packet.Length
-        Next
-        ReDim result(bytesTotal)
         Dim offset As Integer = 0
-        For Each packet In packetQueue
-            Dim zeroByteOffset = Array.IndexOf(packet, 0)
-            If zeroByteOffset <> -1 Then
-                ReDim Preserve packet(zeroByteOffset)
-            End If
-            packet.CopyTo(result, offset)
-            offset += packet.Length
-        Next
+        newPackets = False
+        SyncLock packetQueue
+            For Each packet In packetQueue
+                bytesTotal += packet.Length
+            Next
+            ReDim result(bytesTotal)
+            For Each packet In packetQueue
+                Dim zeroByteOffset = Array.IndexOf(packet, 0)
+                If zeroByteOffset <> -1 Then
+                    ReDim Preserve packet(zeroByteOffset)
+                End If
+                packet.CopyTo(result, offset)
+                offset += packet.Length
+            Next
+        End SyncLock
         ReDim Preserve result(offset)
         Return result
     End Function
@@ -175,4 +177,8 @@ Public Class EndpointPacketBuffer
             packetQueue.Clear()
         End SyncLock
     End Sub
+
+    Public Function ToString() As String
+        Return "PB:CT=" + packetQueue.Count
+    End Function
 End Class

@@ -94,6 +94,7 @@ Public Class ServerInfoSync
                 Dim dbEx As MySqlException = e.InnerException
                 If dbEx.Number = 1062 Then
                     reason = "One server-multiple query ports"
+                    serverWorker.isActive = False
                 End If
             End If
             serverWorker.abortScan(reason)
@@ -354,7 +355,7 @@ Public Class ServerInfoSync
                 .PingSum = 0
             }
             playerRecord.PlayerLogs.Add(playerLogRecord)
-        ElseIf isnothing(playerLogRecord.Id) Then
+        ElseIf IsNothing(playerLogRecord.Id) Then
             ' "MULTIPLE PLAYERS WITH SAME NAME"
             ' There are some weird servers where all spectators are named 'Player',
             ' which Indexer treats as one player entity.

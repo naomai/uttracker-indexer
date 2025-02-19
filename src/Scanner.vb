@@ -70,15 +70,17 @@ Public Class Scanner
                     Continue For
                 End If
                 worker.Update()
+                sockets.Tick()
                 scanLastTouchAll = Date.UtcNow
             Next
 
-            sockets.Tick()
 
             If Date.UtcNow >= showStatesDeadline Then
                 debugShowStates()
                 showStatesDeadline = Date.UtcNow.AddSeconds(5)
             End If
+
+            Await Task.Delay(10)
         Loop
     End Function
 
@@ -162,7 +164,7 @@ Public Class Scanner
         Catch ex As UTQueryInvalidResponseException ' we found a port that belongs to other service, so we're not going to bother it anymore
             'target.logDbg("InvalidQuery: found unknown service")
             _targetCommLog(target.addressQuery) &= "Dxx " & packetString & NewLine
-            target.abortScan("Unknown service")
+            target.abortScan("Unknown service", dumpCommLog:=True)
             sockets.AddIgnoredIp(target.addressQuery)
         End Try
         'debugShowStates()
