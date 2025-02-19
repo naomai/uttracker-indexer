@@ -41,6 +41,12 @@ Namespace Tests
             Assert.That(packet("numplayers"), [Is].EqualTo("0"))
             Assert.That(packet("gamespeed"), [Is].EqualTo("1.000000"))
             Assert.That(packet("remainingtime"), [Is].EqualTo(""))
+
+            packet = New UTQueryPacket("\player_0\Part1cl3\frags_0\0\ping_0\ 50\team_0\255\skin_0\Sonya\mesh_0\Female2\final\\queryid\14.1\player_1\WebAdmin\frags_1\0\ping_1\\team_1\255\skin_1\None\mesh_1\None\queryid\14.2")
+            Assert.That(packet("player_0"), [Is].EqualTo("Part1cl3"))
+            Assert.That(packet("player_1"), [Is].EqualTo("WebAdmin"))
+            Assert.That(packet("ping_1"), [Is].EqualTo(""))
+
         End Sub
 
         <TestCase("\validate\gYL/pHpg\final\\queryid\68.2")>

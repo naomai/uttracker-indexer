@@ -218,7 +218,7 @@ Public Class UTQueryPacket
         Try
 
             Dim keyName As String, value As String
-            Dim packetId As Integer?
+            Dim packetId As Integer = Nothing
 
             Dim response = PacketUnserialize(responseString)
 
@@ -245,6 +245,10 @@ Public Class UTQueryPacket
                             Throw New UTQueryInvalidResponseException("QueryID is not expected from Master Server")
                         End If
                         Dim sequenceIdChunks As String() = value.Split(".")
+                        If Not IsNothing(responseId) AndAlso sequenceIdChunks(0) <> responseId Then
+                            ' discard current packet - different response ID
+                            packetContent.Clear()
+                        End If
                         responseId = sequenceIdChunks(0)
                         packetId = sequenceIdChunks(1)
                         'prop.value = responseId
@@ -261,7 +265,7 @@ Public Class UTQueryPacket
                                 Next
                                 Return responseResult
                             End If
-                            packetExpectedCount = packetId
+                            packetExpectedCount = Math.Max(packetId, packetExpectedCount)
                             isFinalPacket = False
                         End If
                         packetsSequence(packetId) = packetContent.Clone()
@@ -314,7 +318,7 @@ Public Class UTQueryPacket
             End If
 
             ' incomplete/malformed response checks
-            If packetExpectedCount = 0 OrElse receivedCount <> packetExpectedCount Then
+            If packetExpectedCount = 0 OrElse receivedCount < packetExpectedCount Then
                 If IsNothing(packetId) OrElse (Not IsNothing(packetsSequence(packetId)) AndAlso packetsSequence(packetId).Count = 0) Then
                     ' TODO investigate
                     'packetContent("queryid") = responseId
