@@ -1,15 +1,11 @@
 ﻿Imports System.Net
 Imports System.Globalization
 Imports System.Text
-Imports System.Runtime.InteropServices
-Imports Org.BouncyCastle.Asn1.X509
-Imports Org.BouncyCastle.Bcpg
 
 Public Class ServerQuery
     Dim socket As SocketManager
     Public scannerMaster As Scanner
 
-    Public deployTimeOffsetMs As Integer
     Public firstTimeTest, secondTimeTest As Single
     Public firstTimeTestLocal, secondTimeTestLocal, infoSentTimeLocal As DateTime
 
@@ -26,7 +22,6 @@ Public Class ServerQuery
     Public isOnline As Boolean
     Public isActive As Boolean = False
     Public addressQuery As String
-    'Public addressQuery2 As String
     Public addressGame As String
     Public incomingPacket As Hashtable
     Friend incomingPacketObj As UTQueryPacket
