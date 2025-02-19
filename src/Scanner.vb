@@ -372,17 +372,14 @@ Public Class Scanner
     End Function
 
     Private Sub ServerScanner_OnScanBegin(serverCount As Integer) Handles Me.OnScanBegin
-        dbTransaction = dbCtx.Database.BeginTransaction()
+        'dbTransaction = dbCtx.Database.BeginTransaction()
     End Sub
 
 
     Private Sub ServerScanner_OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As System.TimeSpan) Handles Me.OnScanComplete
-        Try
-            dbTransaction.Commit()
-        Finally
-            dbTransaction.Dispose()
-            dbTransaction = Nothing
-        End Try
+        'dbTransaction.Commit()
+        dbTransaction.Dispose()
+        dbTransaction = Nothing
     End Sub
 
 #Region "Dynconfig"
