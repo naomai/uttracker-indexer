@@ -19,20 +19,16 @@ public class DatabasePropsProvider : PropsProvider
 {
 	protected Utt2Context _dbCtx;
 
-	public DatabasePropsProvider(Utt2Context context, string ns = "")
+	public DatabasePropsProvider(Utt2Context context)
 	{
 		_dbCtx = context;
-		_nsName = ns;
-		_dbCtx.ConfigProps.Load();
-
-    }
+	}
 
 
 	public override string? GetProperty(string key)
 	{
-		string keyFull = GetFullyQualifiedName(key);
 		ConfigProp? prop = _dbCtx.ConfigProps.SingleOrDefault(
-			p => p.Key == keyFull, 
+			p => p.Key == key, 
 			null
 		);
 
@@ -46,14 +42,12 @@ public class DatabasePropsProvider : PropsProvider
 
 	public override void SetProperty(string key, string data, bool priv=false)
 	{
-		string keyFull = GetFullyQualifiedName(key);
-
-		ConfigProp? prop = _dbCtx.ConfigProps.Local.SingleOrDefault(p => p.Key == keyFull);
+		ConfigProp? prop = _dbCtx.ConfigProps.SingleOrDefault(p => p.Key == key);
 
 		if (prop == null)
 		{
 			prop = new ConfigProp { 
-				Key = keyFull, 
+				Key = key, 
 				Data = data, 
 				IsPrivate = priv 
 			};
@@ -69,24 +63,13 @@ public class DatabasePropsProvider : PropsProvider
 	}
 	public override void UnsetProperty(string key)
 	{
-		string keyFull = GetFullyQualifiedName(key);
-		string keyGroupPrefix = keyFull + ".%";
+		string keyGroupPrefix = key + ".%";
 
 		List<ConfigProp> propAffected = _dbCtx.ConfigProps.Where(
-			p=> p.Key==keyFull || EF.Functions.Like(p.Key, keyGroupPrefix)
+			p=> p.Key== key || EF.Functions.Like(p.Key, keyGroupPrefix)
 		).ToList();
 
 		_dbCtx.ConfigProps.RemoveRange(propAffected);
 		_dbCtx.SaveChanges();
 	}
-
-
-	protected override DatabasePropsProvider Clone()
-	{
-		DatabasePropsProvider newInstance = new DatabasePropsProvider(_dbCtx);
-		return newInstance;
-
-    }
-
-
 }

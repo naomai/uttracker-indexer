@@ -33,7 +33,7 @@ Public Class Scanner
     Protected Friend log As Logger
     Protected Friend ini As IniPropsProvider
     Protected Friend dbCtx As Utt2Context
-    Protected Friend dyncfg As PropsProvider
+    Protected Friend dyncfg As IPropsProvider
 
 
     Protected WithEvents masterServerQuery As MasterServerManager
@@ -426,7 +426,7 @@ Public Structure ServerScannerConfig
     Dim masterServerManager As MasterServerManager
     Dim log As Logger
     Dim dbCtx As Utt2Context
-    Dim dyncfg As PropsProvider
+    Dim dyncfg As IPropsProvider
     Dim iniFile As String
 End Structure
 

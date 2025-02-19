@@ -1,5 +1,7 @@
 Imports System.Data
 Imports System.Net
+Imports System.Reflection
+Imports Microsoft.Extensions.FileProviders
 Imports Naomai.UTT.Indexer.Utt2Database
 
 Module App
@@ -10,11 +12,11 @@ Module App
     Dim ini As IniPropsProvider
     Dim log As Logger
     Dim dbCtx As Utt2Context
-    Dim dyncfg As PropsProvider
+    Dim dyncfg As IPropsProvider
 
     Sub Main()
         Dim appName = System.Reflection.Assembly.GetEntryAssembly.GetName.Name
-        ini = New IniDeployablePropsProvider()
+        ini = GetIniConfig()
         log = New Logger()
 
         log.consoleLoggingLevel = (LoggerLevel.err Or LoggerLevel.out Or LoggerLevel.debug)
@@ -28,7 +30,7 @@ Module App
         log.ErrorWriteLine("UTTracker Scanner")
         log.ErrorWriteLine("2009-24 naomai")
         log.ErrorWriteLine("")
-        log.ErrorWriteLine("Loading config file from: {0}", ini.iniName)
+        log.ErrorWriteLine("Loading config file from: {0}", ini.IniName)
 
 
         Dim dbconfig As MySQLDBConfig
@@ -51,7 +53,7 @@ Module App
         'dbconfig.charset = "utf16"
 
         If dbconfig.host = "changeme!!" Then
-            Throw New Exception("Please configure the scanner first (" & ini.iniName & ")")
+            Throw New Exception("Please configure the scanner first (" & ini.IniName & ")")
         End If
 
         dbCtx = New Utt2Context(dbconfig)
@@ -82,8 +84,9 @@ Module App
         masterManager.ThreadLoop()
 
         Dim dyncfgDbCtx = New Utt2Context(dbconfig)
-        dyncfg = New DatabasePropsProvider(dyncfgDbCtx, "utt.reaper")
-        dyncfg.SetProperty("configsrc", ini.iniName, True)
+        'dyncfg = New DatabasePropsProvider(dyncfgDbCtx, "utt.reaper")
+        dyncfg = New DatabasePropsProvider(dyncfgDbCtx).Ns("utt.reaper")
+        dyncfg.SetProperty("configsrc", ini.IniName, True)
 
         Dim scannerConfig As ServerScannerConfig
         With scannerConfig
@@ -92,7 +95,7 @@ Module App
             .dyncfg = dyncfg.Ns("scanner")
             .masterServerUpdateInterval = ini.GetProperty("MasterServer.RefreshIntervalMins", "120") * 60
             .scanInterval = ini.GetProperty("General.IntervalMins", "2") * 60
-            .iniFile = ini.iniName
+            .iniFile = ini.IniName
             .masterServerManager = masterManager
         End With
         scanner = New Scanner(scannerConfig)
@@ -165,5 +168,22 @@ Module App
     Private Sub scanner_OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As System.TimeSpan) Handles scanner.OnScanComplete
         log.DebugWriteLine("Scan complete: {0}/{1} in {2} seconds", onlineServerCount, scannedServerCount, Math.Round(elapsedTime.TotalSeconds))
     End Sub
+
+    Private Function GetIniConfig() As IniPropsProvider
+        Dim bundledConfigProvider = New EmbeddedFileProvider(Assembly.GetExecutingAssembly(), "Naomai.UTT.Indexer")
+        Dim bundledConfigFile = bundledConfigProvider.GetFileInfo("ConfigDist.ini")
+        Dim bundledConfigStream As Stream = Nothing
+
+        If bundledConfigFile.Exists Then
+            bundledConfigStream = bundledConfigFile.CreateReadStream()
+
+        End If
+
+        Return New IniPropsProvider(
+            Assembly.GetEntryAssembly.GetName.Name & ".ini"
+        ) With {
+            .templateFileStream = bundledConfigStream
+        }
+    End Function
 
 End Module

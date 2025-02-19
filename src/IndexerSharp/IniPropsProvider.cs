@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Configuration;
 using System.Diagnostics;
+using System.Reflection;
 using System.Security.Cryptography;
 using Google.Protobuf.WellKnownTypes;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
@@ -12,8 +13,10 @@ namespace Naomai.UTT.Indexer;
 
 public class IniPropsProvider : PropsProvider
 {
-    public string IniName;
-    public IniConfigurationProvider IniProvider;
+    public string? IniName;
+    public IniConfigurationProvider? IniProvider;
+
+    public Stream? templateFileStream;
 
     public IniPropsProvider(string? sourceFile = null)
     {
@@ -24,7 +27,7 @@ public class IniPropsProvider : PropsProvider
     }
 
     public override string? GetProperty(string prop) {
-        string? result = null;
+        string? result;
 
         string propertyAccessor = GetPropertyAccessorString(prop);
         bool hasValue = IniProvider.TryGet(propertyAccessor, out result);
@@ -43,11 +46,6 @@ public class IniPropsProvider : PropsProvider
         IniProvider.Set(propertyAccessor, null);
     }
 
-    protected override IniPropsProvider Clone()
-    {
-        return new IniPropsProvider(IniName);
-    }
-
     public bool PropertyExists(string prop) {
         string propertyAccessor = GetPropertyAccessorString(prop);
         string value;
@@ -61,6 +59,12 @@ public class IniPropsProvider : PropsProvider
         string sourceFileDir = Path.GetDirectoryName(sourceFileReal);
         string sourceFileName = Path.GetFileName(sourceFileReal);
 
+        IniName = sourceFileReal;
+
+        if (!File.Exists(IniName)) {
+            CreateDefaultConfigFile();
+        }
+
         IniConfigurationSource iniSrc = new IniConfigurationSource
         {
             FileProvider = new PhysicalFileProvider(sourceFileDir),
@@ -70,7 +74,6 @@ public class IniPropsProvider : PropsProvider
         IniProvider = new IniConfigurationProvider(iniSrc);
         IniProvider.Load();
 
-        IniName = sourceFileReal;
     }
 
     protected static string GetPropertyAccessorString(string propertyString){
@@ -81,6 +84,16 @@ public class IniPropsProvider : PropsProvider
 
     }
 
+    private void CreateDefaultConfigFile()
+    {
+        if(templateFileStream == null)
+        {
+            return;
+        }
+        templateFileStream.CopyTo(File.Create(IniName));
+    }
 
-    
+
+
+
 }
