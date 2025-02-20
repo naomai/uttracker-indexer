@@ -61,9 +61,6 @@ Public Class SocketManager
         Do
             ReDim buffer(2000)
             receiveResult = Await socket.ReceiveFromAsync(buffer, bindEndpoint)
-            If receiveResult.ReceivedBytes = 0 Then
-                Continue Do
-            End If
 
             sourceEndpoint = receiveResult.RemoteEndPoint
             sourceIp = sourceEndpoint.ToString
