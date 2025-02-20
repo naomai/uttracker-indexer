@@ -1,6 +1,7 @@
 ﻿Imports System.Net
 Imports System.Globalization
 Imports System.Text
+Imports Naomai.UTT.Indexer.Utt2Database
 
 Public Class ServerQuery
     Dim socket As SocketManager
@@ -105,7 +106,7 @@ Public Class ServerQuery
         End If
 
         If actionNeeded Then
-            logDbg("Wakeup STA=" & state.ToString())
+            'logDbg("Wakeup STA=" & state.ToString())
             state.started = False
             state.done = False
             state.starting = True
@@ -157,6 +158,8 @@ Public Class ServerQuery
 
         If isInRequestState() Then Return ' remove this when implementing resend feature
 
+
+
         With state
             If Not .hasBasic Then
                 Dim challengeSuffix = ""
@@ -164,19 +167,19 @@ Public Class ServerQuery
                     challenge = generateChallenge()
                     challengeSuffix = "\secure\" & challenge
                 End If
-                serverSend("\basic\" & challengeSuffix)
                 .requestingBasic = True
+                serverSend("\basic\" & challengeSuffix)
 
             ElseIf Not .hasInfo Then
                 If server.caps.hasCp437Info Then
                     packetCharset = Encoding.GetEncoding(437)
                 End If
-                serverSend("\info\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
                 .requestingInfo = True
                 sync.state.savedInfo = False
                 sync.state.savedGameInfo = False
                 sync.state.done = False
                 infoSentTimeLocal = Date.UtcNow
+                serverSend("\info\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
             ElseIf Not .hasInfoExtended AndAlso Not .hasTimeTest AndAlso server.caps.hasPropertyInterface Then
                 firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
                 gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(server)
@@ -189,27 +192,27 @@ Public Class ServerQuery
                     otherAdditionalRequests &= "\game_property\TimeLimit\"
                 End If
 
+                .requestingInfoExtended = True
                 serverSend("\game_property\NumPlayers\\game_property\NumSpectators\" _
                            & "\game_property\GameSpeed\\game_property\CurrentID\" _
                            & "\game_property\bGameEnded\\game_property\bOvertime\" _
                            & "\game_property\ElapsedTime\\game_property\RemainingTime\" _
                            & otherAdditionalRequests _
                            & gamemodeAdditionalRequests)
-                .requestingInfoExtended = True
             ElseIf Not .hasPlayers AndAlso server.info("numplayers") <> 0 AndAlso Not server.caps.fakePlayers Then
                 If server.caps.hasUtf8PlayerList Then
                     packetCharset = Encoding.UTF8
                 End If
-                serverSend("\players\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
                 .requestingPlayers = True
                 sync.state.savedPlayers = False
                 sync.state.savedCumulativeStats = False
                 sync.state.done = False
+                serverSend("\players\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
             ElseIf Not .hasVariables AndAlso server.caps.supportsVariables Then
-                serverSend("\rules\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
                 .requestingVariables = True
                 sync.state.savedVariables = False
                 sync.state.done = False
+                serverSend("\rules\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
             Else
                 .done = True
                 protocolFailures = 0
@@ -226,6 +229,8 @@ Public Class ServerQuery
             socket.SendTo(addressQuery, packet)
             packetsSent += 1
             scannerMaster._targetCommLog(addressQuery) &= "UUU " & packet & System.Environment.NewLine
+            ' logDbg("Send STA=" & state.ToString() & " RQ=" & packet)
+
         Catch e As Sockets.SocketException
             abortScan("ServerSendException: " & e.Message)
         End Try
@@ -617,6 +622,10 @@ Public Structure ServerQueryState
             ToString &= "requestingBasic"
         ElseIf done Then
             ToString &= "done"
+        ElseIf starting Then
+            ToString &= "starting"
+        ElseIf started Then
+            ToString &= "started"
         Else
             ToString &= "???"
         End If

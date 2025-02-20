@@ -13,7 +13,7 @@ Public Class SocketManager
     Protected ipPacketQueue As New Dictionary(Of IPEndPoint, EndpointPacketBuffer)
     Protected lastProcessed As Date
 
-    Public updateIntervalMs As Integer = 100
+    Public updateIntervalMs As Integer = 500
     Public packetReceiveThread As Thread
 
     Public Event NewDataReceived(packetBuffer As EndpointPacketBuffer, source As IPEndPoint)

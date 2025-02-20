@@ -22,6 +22,8 @@ Public Class Scanner
     Protected Friend dyncfg As IPropsProvider
 
     Protected serverList As New List(Of String)
+    Public serverRecords As New Dictionary(Of String, Server)
+
     Protected fullScanDeadline As Date = Date.UtcNow
 
 
@@ -55,13 +57,13 @@ Public Class Scanner
 
     End Sub
 
-    Public Async Function ScannerThread() As Task
+    Public Sub ScannerThread()
         Dim listRefreshDeadline As Date = Date.UtcNow
         Dim showStatesDeadline As Date = Date.UtcNow
 
         Do
             If Date.UtcNow >= listRefreshDeadline Then
-                Await RefreshServerList()
+                RefreshServerList().Wait()
                 listRefreshDeadline = Date.UtcNow.AddMinutes(5)
             End If
 
@@ -72,17 +74,17 @@ Public Class Scanner
                 worker.Update()
                 sockets.Tick()
                 scanLastTouchAll = Date.UtcNow
+                If scanLastTouchAll >= showStatesDeadline Then
+                    debugShowStates()
+                    showStatesDeadline = scanLastTouchAll.AddSeconds(5)
+                End If
             Next
 
+            taskSleep()
 
-            If Date.UtcNow >= showStatesDeadline Then
-                debugShowStates()
-                showStatesDeadline = Date.UtcNow.AddSeconds(5)
-            End If
-
-            Await Task.Delay(10)
+            'Threading.Thread.Sleep(10)
         Loop
-    End Function
+    End Sub
 
     Public Async Function RefreshServerList() As Task
         Dim recentServersTimeRange As Integer = 60 * 60 ' hour by default
@@ -144,8 +146,13 @@ Public Class Scanner
         If Not serverWorkers.ContainsKey(ipString) Then Return ' unknown source!! we got packet that wasn't sent by any of the queried servers (haxerz?)
         target = serverWorkers(ipString)
         Try
-            If target.getState().done Then Return ' prevent processing the packets from targets in "done" state
+            If target.getState().done Then
+                ' prevent processing the packets from targets in "done" state
+                packetBuffer.Clear()
+                Return
+            End If
             Dim packet As Byte() = packetBuffer.PeekAll()
+            packetBuffer.Clear()
 
             packetString = Encoding.Unicode.GetString(Encoding.Convert(target.GetPacketCharset(), Encoding.Unicode, packet))
 
@@ -156,7 +163,6 @@ Public Class Scanner
 
             target.Tick()
 
-            packetBuffer.Clear()
 
         Catch ex As UTQueryResponseIncompleteException
             ' let's try another time, maybe the missing pieces will join us
@@ -210,7 +216,19 @@ Public Class Scanner
         End If
 
         Try
-            Await dbCtx.Servers.LoadAsync()
+            Await dbCtx.Servers _
+                .Select(Function(s) New With {
+                    s,
+                    .LatestMatch = s.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault()
+                }) _
+            .ToListAsync()
+
+            For Each server In dbCtx.Servers.Local
+                If Not serverRecords.ContainsKey(server.AddressQuery) Then
+                    serverRecords(server.AddressQuery) = server
+                End If
+            Next
+
         Catch e As Exception
 
         End Try

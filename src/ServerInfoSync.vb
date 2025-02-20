@@ -1,4 +1,5 @@
 ﻿Imports System.Data
+Imports System.Reflection.Metadata
 Imports System.Text.Json
 Imports Naomai.UTT.Indexer.Utt2Database
 
@@ -49,13 +50,16 @@ Public Class ServerInfoSync
             Return serverRecord
         End If
 
-        serverRecord = dbCtx.Servers.Local.SingleOrDefault(Function(s) s.AddressQuery = serverWorker.addressQuery)
+        'serverRecord = dbCtx.Servers.Local.SingleOrDefault(Function(s) s.AddressQuery = serverWorker.addressQuery)
+        Dim records = serverWorker.scannerMaster.serverRecords
 
-        If IsNothing(serverRecord) Then
+        If Not records.ContainsKey(serverWorker.addressQuery) Then
             serverRecord = New Server() With {
                 .AddressQuery = serverWorker.addressQuery,
                 .AddressGame = serverWorker.addressGame
             }
+        Else
+            serverRecord = records(serverWorker.addressQuery)
         End If
         state.hasDBRecord = True
 
@@ -257,7 +261,7 @@ Public Class ServerInfoSync
             }
             serverRecord.ServerMatches.Add(matchRecord)
             'If IsNothing(matchRecord.Id) Then
-            dbCtx.SaveChanges()
+            'dbCtx.SaveChanges()
             'End If
         Else
             If Not IsNothing(thisMatchCurrentID) AndAlso thisMatchCurrentID > lastMatchCurrentID Then
@@ -267,8 +271,9 @@ Public Class ServerInfoSync
                 ' dbCtx.SaveChanges()
             End If
             matchRecord = previousMatchRecord
+
         End If
-        uttGameId = matchRecord.Id
+        'uttGameId = matchRecord.Id
         state.savedGameInfo = True
 
     End Sub
@@ -324,7 +329,7 @@ Public Class ServerInfoSync
         If IsNothing(playerRecord.Id) Then
             dbCtx.Players.Add(playerRecord)
             '    dbCtx.Players.Add(playerRecord)
-            dbCtx.SaveChanges()
+            'dbCtx.SaveChanges()
         End If
         playerData("uttPlayerId") = playerRecord.Id
     End Sub
@@ -332,7 +337,7 @@ Public Class ServerInfoSync
     Private Sub UpdatePlayerHistoryEntry(playerRecord As Player, player As Hashtable) ' `playerhistory` table
         Dim playerTimeOffset As Integer = 0
         Dim playerLogRecord As PlayerLog
-        Dim uttPlayerId As Int32 = player("uttPlayerId")
+        'Dim uttPlayerId As Int32 = player("uttPlayerId")
 
         If Not state.hasServerId Then
             Return
@@ -343,14 +348,14 @@ Public Class ServerInfoSync
         End If
 
         playerLogRecord = matchRecord.PlayerLogs.FirstOrDefault(
-            Function(p) p.PlayerId = uttPlayerId
+            Function(p) p.PlayerId.Equals(playerRecord.Id) OrElse p.Player.Equals(playerRecord)
         )
         If IsNothing(playerLogRecord) Then
             playerLogRecord = New PlayerLog With {
-                .ServerId = serverRecord.Id,
-                .MatchId = matchRecord.Id,
+                .Server = serverRecord,
+                .Match = matchRecord,
                 .FirstSeenTime = uttServerScanTime.AddSeconds(playerTimeOffset),
-                .PlayerId = playerRecord.Id,
+                .Player = playerRecord,
                 .SeenCount = 0,
                 .PingSum = 0
             }
@@ -391,9 +396,18 @@ Public Class ServerInfoSync
         End If
 
         If state.savedPlayers AndAlso state.savedGameInfo Then
-            Dim playerLogsDirty = serverRecord.PlayerLogs.Where(
-                Function(l) l.Finished = False AndAlso l.MatchId <> uttGameId
-            )
+
+            Dim playerLogsDirty As IEnumerable(Of PlayerLog)
+
+            If Not IsNothing(matchRecord.Id) Then
+                playerLogsDirty = serverRecord.PlayerLogs.Where(
+                    Function(l) l.Finished = False AndAlso l.MatchId <> matchRecord.Id
+                )
+            Else
+                playerLogsDirty = serverRecord.PlayerLogs.Where(
+                    Function(l) l.Finished = False
+                )
+            End If
 
             'Dim playerStatsToUpdate = From stat In dbCtx.Set(Of PlayerStat)
             '                          Join log In playerLogsDirty
@@ -413,9 +427,9 @@ Public Class ServerInfoSync
 
                 If IsNothing(playerStatRecord) Then
                     playerStatRecord = New PlayerStat With {
-                        .PlayerId = playerLog.PlayerId,
-                        .ServerId = playerLog.ServerId,
-                        .LastMatchId = playerLog.MatchId ' mandatory, db constraint
+                        .Player = playerLog.Player,
+                        .Server = playerLog.Server,
+                        .LastMatch = playerLog.Match ' mandatory, db constraint
                     }
                     'dbCtx.PlayerStats.Add(playerStatRecord)
                     'dbCtx.SaveChanges()
@@ -434,14 +448,14 @@ Public Class ServerInfoSync
                         .Deaths += deaths
                     End If
                     .Score += playerLog.ScoreThisMatch
-                    .LastMatchId = playerLog.MatchId
+                    .LastMatch = playerLog.Match
                 End With
 
 
                 playerLog.Finished = True
-                dbCtx.Update(playerLog)
+                'dbCtx.Update(playerLog)
                 If IsNothing(playerStatRecord.Id) Then
-                    dbCtx.Update(playerStatRecord)
+                    dbCtx.Add(playerStatRecord)
                     'dbCtx.SaveChanges()
                 End If
             Next
@@ -465,6 +479,7 @@ Public Class ServerInfoSync
             serverRecord.LastCheck = serverData.lastActivity
 
             'dbCtx.Servers.Update(serverRecord)
+
             dbCtx.SaveChanges()
 
             state.savedScanInfo = True
@@ -485,7 +500,13 @@ Public Class ServerInfoSync
     End Sub
 
     Private Function GetLastMatchInfo() As ServerMatch
-        Return serverRecord.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault()
+        Dim match = serverRecord.ServerMatches.FirstOrDefault()
+        dbCtx.Entry(match) _
+            .Collection(Function(m) m.PlayerLogs) _
+            .Load()
+        Return match
+
+        'Return serverRecord.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault()
     End Function
 
     Private Shared Function GetPlayerSlug(playerInfo As Hashtable) As String

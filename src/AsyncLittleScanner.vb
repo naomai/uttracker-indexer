@@ -6,8 +6,8 @@ Imports System.Data
 ' to get accurate frags count at the end of games
 Public Class AsyncLittleScanner
     Inherits Scanner
-    Dim scannerThread, checkerThread As Thread
-    Dim forceStop As Boolean = False
+    'Dim scannerThread, checkerThread As Thread
+    'Dim forceStop As Boolean = False
 
 
     Public Sub New(config As ServerScannerConfig)

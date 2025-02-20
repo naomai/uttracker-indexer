@@ -19,7 +19,7 @@ Public Class MasterServerManager
     Public Async Sub ThreadLoop()
         Do
             Refresh()
-            Await Task.Delay(1000)
+            Await Task.Delay(100)
         Loop
     End Sub
 
