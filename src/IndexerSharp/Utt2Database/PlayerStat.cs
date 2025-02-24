@@ -11,4 +11,9 @@ public class PlayerStat
     public ServerMatch LastMatch { get; set; }
     public Player Player { get; set; }
     public Server Server { get; set; }
+
+    public override string ToString()
+    {
+        return "PS" + PlayerId + "@S" + ServerId;
+    }
 }
