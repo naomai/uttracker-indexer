@@ -400,24 +400,32 @@ Public Class ServerInfoSync
             Dim playerLogsDirty As IEnumerable(Of PlayerLog)
 
             If Not IsNothing(matchRecord.Id) Then
-                playerLogsDirty = serverRecord.PlayerLogs.Where(
-                    Function(l) l.Finished = False AndAlso l.MatchId <> matchRecord.Id
-                )
+                playerLogsDirty = dbCtx.Entry(serverRecord) _
+                    .Collection(Function(r) r.PlayerLogs) _
+                    .Query() _
+                    .Where(
+                        Function(l) l.Finished = False AndAlso l.MatchId <> matchRecord.Id
+                    ) _
+                    .OrderBy(Function(l) l.PlayerId) _
+                    .ToList()
             Else
-                playerLogsDirty = serverRecord.PlayerLogs.Where(
-                    Function(l) l.Finished = False
-                )
+                playerLogsDirty = dbCtx.Entry(serverRecord) _
+                    .Collection(Function(r) r.PlayerLogs) _
+                    .Query() _
+                    .Where(
+                        Function(l) l.Finished = False
+                    ) _
+                    .OrderBy(Function(l) l.PlayerId) _
+                    .ToList()
             End If
 
-            'Dim playerStatsToUpdate = From stat In dbCtx.Set(Of PlayerStat)
-            '                          Join log In playerLogsDirty
-            '                              On stat.Player Equals log.Player And
-            '                              stat.Server Equals log.Server
-            '                          Select stat
+            Dim logPlayers = playerLogsDirty.Select(Of Integer)(Function(l) l.PlayerId).Distinct().ToList()
 
-            'If playerLogsDirty.Count > 0 Then Debugger.Break()
-            For Each playerLog In playerLogsDirty.ToList()
-                Dim playerStatRecord As PlayerStat = dbCtx.PlayerStats.SingleOrDefault(
+            dbCtx.PlayerStats.Where(Function(s) logPlayers.Contains(s.PlayerId)).Load()
+
+
+            For Each playerLog In playerLogsDirty
+                Dim playerStatRecord As PlayerStat = dbCtx.PlayerStats.Local.SingleOrDefault(
                     Function(s) s.PlayerId = playerLog.PlayerId AndAlso
                     s.ServerId = playerLog.ServerId
                 )
@@ -428,10 +436,14 @@ Public Class ServerInfoSync
                 If IsNothing(playerStatRecord) Then
                     playerStatRecord = New PlayerStat With {
                         .Player = playerLog.Player,
+                        .PlayerId = playerLog.PlayerId,
                         .Server = playerLog.Server,
-                        .LastMatch = playerLog.Match ' mandatory, db constraint
+                        .ServerId = playerLog.ServerId,
+                        .LastMatch = playerLog.Match, ' mandatory, db constraint
+                        .LastMatchId = playerLog.MatchId
                     }
-                    'dbCtx.PlayerStats.Add(playerStatRecord)
+                    dbCtx.PlayerStats.Add(playerStatRecord)
+                    dbCtx.PlayerStats.Local.Add(playerStatRecord)
                     'dbCtx.SaveChanges()
                 End If
 
@@ -448,19 +460,24 @@ Public Class ServerInfoSync
                         .Deaths += deaths
                     End If
                     .Score += playerLog.ScoreThisMatch
-                    .LastMatch = playerLog.Match
+                    .LastMatchId = playerLog.MatchId
                 End With
 
 
                 playerLog.Finished = True
                 'dbCtx.Update(playerLog)
-                If IsNothing(playerStatRecord.Id) Then
-                    dbCtx.Add(playerStatRecord)
-                    'dbCtx.SaveChanges()
-                End If
+                'If IsNothing(playerStatRecord.Id) Then
+                ' dbCtx.Add(playerStatRecord)
+                'dbCtx.PlayerStats.Add(playerStatRecord)
+                'dbCtx.SaveChanges()
+                'End If
             Next
 
-            'dbCtx.SaveChanges()
+            Try
+                dbCtx.SaveChanges()
+            Catch e As Exception
+                'Console.WriteLine("AA")
+            End Try
 
             state.savedCumulativeStats = True
         End If
