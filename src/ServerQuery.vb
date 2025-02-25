@@ -212,7 +212,7 @@ Public Class ServerQuery
                 .requestingVariables = True
                 sync.state.savedVariables = False
                 sync.state.done = False
-                serverSend("\rules\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
+                serverSend("\rules\")
             Else
                 .done = True
                 protocolFailures = 0
@@ -495,16 +495,11 @@ Public Class ServerQuery
                 server.caps.hasXSQ = False
                 sendRequest()
                 Return True
-            ElseIf .requestingPlayers AndAlso server.caps.hasXSQ Then
-                .requestingPlayers = False
-                server.caps.hasXSQ = False
-                sendRequest()
-                Return True
-            ElseIf .requestingVariables AndAlso server.caps.hasXSQ Then
-                .requestingVariables = False
-                server.caps.hasXSQ = False
-                sendRequest()
-                Return True
+                'ElseIf .requestingPlayers AndAlso server.caps.hasXSQ Then
+                '    .requestingPlayers = False
+                '    server.caps.hasXSQ = False
+                '    sendRequest()
+                '    Return True
 
             ElseIf .requestingVariables Then
                 .requestingVariables = False
