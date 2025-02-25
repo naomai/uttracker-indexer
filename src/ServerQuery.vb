@@ -348,9 +348,12 @@ Public Class ServerQuery
         End If
         server.caps.hasXSQ = incomingPacket.ContainsKey("xserverquery")
         If server.caps.hasXSQ Then
-            Integer.TryParse(Replace(incomingPacket("xserverquery"), ".", ""), formatProvider, server.caps.XSQVersion)
-            server.caps.hasPropertyInterface = False
+            Dim xsqVersion As Integer
+            Integer.TryParse(Replace(incomingPacket("xserverquery"), ".", ""), formatProvider, xsqVersion)
+            ' property interface brought back in XServerQuery 211fix4
+            server.caps.hasPropertyInterface = xsqVersion >= 211
             server.caps.timeTestPassed = False
+            server.caps.XSQVersion = xsqVersion
         End If
         state.hasInfo = True
     End Sub
