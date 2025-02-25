@@ -176,6 +176,9 @@ Public Class ServerInfoSync
         Dim thisMatchCurrentID As Int32? = Nothing, lastMatchCurrentID As Int32?
         Dim newMatchByCurrentIDChange As Boolean = False
 
+        Dim changedMapName = False
+        Dim hasPlayers = serverData.info("numplayers") > 0
+
         If scannerState.hasInfoExtended Then
             thisMatchCurrentID = Integer.Parse(serverData.info("__uttgamecurrentid"))
         End If
@@ -184,12 +187,13 @@ Public Class ServerInfoSync
             state.isNewMatch = True
         Else
             lastMatchCurrentID = previousMatchRecord.ServerPlayeridCounter
+            changedMapName = previousMatchRecord.MapName <> serverData.info("mapname")
             If scannerState.hasInfoExtended Then
                 newMatchByCurrentIDChange =
                     Not IsNothing(lastMatchCurrentID) AndAlso
                     Not IsNothing(thisMatchCurrentID) AndAlso
                     thisMatchCurrentID < lastMatchCurrentID AndAlso
-                    previousMatchRecord.MapName = serverData.info("mapname")
+                    changedMapName
 
             End If
 
@@ -209,7 +213,7 @@ Public Class ServerInfoSync
 
             Dim correctTimeLimit = IsNumeric(serverData.info("timelimit")) AndAlso
                 serverData.info("timelimit") > 0 AndAlso
-                (serverData.info("timelimit") * 60) - serverData.info("remainingtime") > 60
+                (serverData.info("timelimit") * 60) - serverData.info("remainingtime") > 0
 
             Dim secondsElapsed As Integer = Nothing
 
@@ -217,6 +221,7 @@ Public Class ServerInfoSync
             If correctElapsedTime Then
                 secondsElapsed = serverData.info("elapsedtime")
             ElseIf correctTimeLimit Then
+                secondsElapsed = (serverData.info("timelimit") * 60) - serverData.info("remainingtime")
             Else
                 secondsElapsed = Nothing
             End If
@@ -225,22 +230,31 @@ Public Class ServerInfoSync
                 timeMatchStart = serverWorker.firstTimeTestLocal.AddSeconds(-secondsElapsed)
             End If
 
-
-            state.isNewMatch = state.isNewMatch OrElse
-            (
-                serverData.info("numplayers") > 0 AndAlso
-                Not IsNothing(timeMatchStart) AndAlso
+            ' if server shares the game times, we'll take them into account
+            Dim newMatchByReportedTime = Not IsNothing(timeMatchStart) AndAlso
+                hasPlayers AndAlso
                 previousMatchRecord.StartTime < timeMatchStart AndAlso
-                Math.Abs((previousMatchRecord.StartTime - timeMatchStart).TotalSeconds) > 240
-            ) OrElse
-            previousMatchRecord.MapName <> serverData.info("mapname")
+                Math.Abs((previousMatchRecord.StartTime - timeMatchStart).TotalSeconds) > 120 ' jitter
+
+            ' if not, we'll assume the longest match time on one map of 6 hours
+            Dim newMatchByEstimatedlTimeout = IsNothing(timeMatchStart) AndAlso
+                hasPlayers AndAlso
+                Not changedMapName AndAlso
+                previousMatchRecord.StartTime.AddHours(6) < serverWorker.infoSentTimeLocal
+
+
+
+            state.isNewMatch = state.isNewMatch _
+                OrElse newMatchByReportedTime _
+                OrElse newMatchByEstimatedlTimeout _
+                OrElse changedMapName
         Else
             state.isNewMatch = state.isNewMatch OrElse
             (
-                serverData.info("numplayers") > 0 AndAlso
-                (serverWorker.infoSentTimeLocal - previousMatchRecord.StartTime).TotalSeconds > 3600 * 4
+                hasPlayers AndAlso
+                previousMatchRecord.StartTime.AddHours(6) < serverWorker.infoSentTimeLocal
             ) OrElse
-            previousMatchRecord.MapName <> serverData.info("mapname")
+            changedMapName
 
             If state.isNewMatch Then
                 timeMatchStart = serverWorker.infoSentTimeLocal
@@ -252,6 +266,10 @@ Public Class ServerInfoSync
         If state.isNewMatch Then
             If timeMatchStart = Nothing Then
                 timeMatchStart = Date.UtcNow
+            End If
+
+            If Not IsNothing(previousMatchRecord) AndAlso previousMatchRecord.MapName = serverData.info("mapname") Then
+                'Debugger.Break()
             End If
 
             matchRecord = New ServerMatch With {
@@ -348,7 +366,8 @@ Public Class ServerInfoSync
         End If
 
         playerLogRecord = matchRecord.PlayerLogs.FirstOrDefault(
-            Function(p) p.PlayerId.Equals(playerRecord.Id) OrElse p.Player.Equals(playerRecord)
+            Function(p) p.PlayerId.Equals(playerRecord.Id) OrElse
+                (Not IsNothing(p.Player) AndAlso p.Player.Equals(playerRecord))
         )
         If IsNothing(playerLogRecord) Then
             playerLogRecord = New PlayerLog With {
@@ -417,6 +436,11 @@ Public Class ServerInfoSync
                     ) _
                     .OrderBy(Function(l) l.PlayerId) _
                     .ToList()
+            End If
+
+            If playerLogsDirty.Count = 0 Then
+                state.savedCumulativeStats = True
+                Return
             End If
 
             Dim logPlayers = playerLogsDirty.Select(Of Integer)(Function(l) l.PlayerId).Distinct().ToList()
@@ -518,6 +542,9 @@ Public Class ServerInfoSync
 
     Private Function GetLastMatchInfo() As ServerMatch
         Dim match = serverRecord.ServerMatches.FirstOrDefault()
+        If IsNothing(match) Then
+            Return Nothing
+        End If
         dbCtx.Entry(match) _
             .Collection(Function(m) m.PlayerLogs) _
             .Load()
