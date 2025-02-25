@@ -228,7 +228,7 @@ Public Class ServerQuery
         Try
             socket.SendTo(addressQuery, packet)
             packetsSent += 1
-            scannerMaster._targetCommLog(addressQuery) &= "UUU " & packet & System.Environment.NewLine
+            scannerMaster.commLogWrite(addressQuery, "UUU", packet)
             ' logDbg("Send STA=" & state.ToString() & " RQ=" & packet)
 
         Catch e As Sockets.SocketException

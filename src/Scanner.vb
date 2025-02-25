@@ -159,17 +159,17 @@ Public Class Scanner
             target.incomingPacketObj = New UTQueryPacket(packetString)
 
             target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
-            _targetCommLog(target.addressQuery) &= "DDD " & packetString & NewLine
+            commLogWrite(target.addressQuery, "DDD", packetString)
 
-            target.Tick()
+            'target.Tick()
 
 
         Catch ex As UTQueryResponseIncompleteException
             ' let's try another time, maybe the missing pieces will join us
-            _targetCommLog(target.addressQuery) &= "Dxx " & packetString & NewLine
+            commLogWrite(target.addressQuery, "Dxx", packetString)
         Catch ex As UTQueryInvalidResponseException ' we found a port that belongs to other service, so we're not going to bother it anymore
             'target.logDbg("InvalidQuery: found unknown service")
-            _targetCommLog(target.addressQuery) &= "Dxx " & packetString & NewLine
+            commLogWrite(target.addressQuery, "Dxx", packetString)
             target.abortScan("Unknown service", dumpCommLog:=True)
             sockets.AddIgnoredIp(target.addressQuery)
         End Try
@@ -287,6 +287,11 @@ Public Class Scanner
         ' todo: replace with timer queue api for more predictable execution times
         ' and NO, timeBeginPeriod(1) is not a good solution!!
         System.Threading.Thread.CurrentThread.Join(10)
+    End Sub
+
+    Protected Friend Sub commLogWrite(targetHost As String, tag As String, packet As String)
+        Dim dateNow = Now.ToString("HH:mm:ss")
+        _targetCommLog(targetHost) &= $"[{dateNow}] {tag}: {packet}" & NewLine
     End Sub
 
     Protected Sub taskSleepLonger()
