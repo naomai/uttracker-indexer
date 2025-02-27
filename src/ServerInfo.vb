@@ -39,13 +39,13 @@ Public Structure ServerCapabilities
     Dim fakePlayers As Boolean
     Dim hasUtf8PlayerList As Boolean ' UT 469+
     Dim hasCp437Info As Boolean ' Unreal
+    Dim quickNumPlayers As Boolean ' depends on hasPropertyInterface
 
     Public Overrides Function ToString() As String
         ToString = "ServerCapabilities{ "
         If gameName <> "" Then ToString &= "isOnline gameName=" & gameName & " version=" & version & " "
         If hasXSQ Then ToString &= "hasXSQ=" & XSQVersion & " "
         If hasPropertyInterface Then ToString &= "hasPropertyInterface "
-        If timeTestPassed Then ToString &= "timeTestPassed gameSpeed=" & gameSpeed & " "
         ToString &= "}"
     End Function
 End Structure

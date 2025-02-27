@@ -70,6 +70,7 @@ Public Class SocketManager
 
             ReDim Preserve buffer(receiveResult.ReceivedBytes)
             EnqueuePacket(sourceEndpoint, buffer)
+            Tick()
         Loop
     End Sub
 

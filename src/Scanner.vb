@@ -72,13 +72,13 @@ Public Class Scanner
                     Continue For
                 End If
                 worker.Update()
-                sockets.Tick()
-                scanLastTouchAll = Date.UtcNow
-                If scanLastTouchAll >= showStatesDeadline Then
-                    debugShowStates()
-                    showStatesDeadline = scanLastTouchAll.AddSeconds(5)
-                End If
+                'sockets.Tick()
             Next
+            scanLastTouchAll = Date.UtcNow
+            If scanLastTouchAll >= showStatesDeadline Then
+                debugShowStates()
+                showStatesDeadline = scanLastTouchAll.AddSeconds(5)
+            End If
 
             taskSleep()
 
@@ -152,7 +152,6 @@ Public Class Scanner
                 Return
             End If
             Dim packet As Byte() = packetBuffer.PeekAll()
-            packetBuffer.Clear()
 
             packetString = Encoding.Unicode.GetString(Encoding.Convert(target.GetPacketCharset(), Encoding.Unicode, packet))
 
@@ -160,8 +159,9 @@ Public Class Scanner
 
             target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
             commLogWrite(target.addressQuery, "DDD", packetString)
+            packetBuffer.Clear()
 
-            'target.Tick()
+            target.Tick()
 
 
         Catch ex As UTQueryResponseIncompleteException
@@ -198,12 +198,11 @@ Public Class Scanner
                 infex += IIf(st.hasInfoExtended, 1, 0)
                 pl += IIf(st.hasPlayers, 1, 0)
                 ru += IIf(st.hasVariables, 1, 0)
-                tt += IIf(st.hasTimeTest, 1, 0)
                 don += IIf(st.done, 1, 0)
                 onl += IIf(t.isOnline, 1, 0)
             Next
         End SyncLock
-        debugWriteLine("States: STA {9} BAS {0} INF {1} INFEX {2} PL {3} RU {4} TT {5} TTP {8} DO {6} ON {7}", bas, inf, infex, pl, ru, tt, don, onl, ttp, sta)
+        debugWriteLine("States: STA {9} BAS {0} INF {1} INFEX {2} PL {3} RU {4} DO {6} ON {7}", bas, inf, infex, pl, ru, tt, don, onl, ttp, sta)
     End Sub
 
 

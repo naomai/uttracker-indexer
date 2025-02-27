@@ -10,6 +10,9 @@ Public Class ServerQuery
     Public firstTimeTest, secondTimeTest As Single
     Public firstTimeTestLocal, secondTimeTestLocal, infoSentTimeLocal As DateTime
 
+    Protected networkCapNextSendDeadline As Date = Date.UtcNow
+    Protected networkTimeoutDeadline As Date? = Nothing
+
     Protected nextInfoDeadline As Date = Date.UtcNow
     Protected nextGameStateDeadline As Date = Date.UtcNow
     Protected nextVerifyDeadline As Date = Date.UtcNow
@@ -42,6 +45,9 @@ Public Class ServerQuery
     Const INTERVAL_STATE As Integer = 2 * 60
     Const INTERVAL_VERIFY As Integer = 24 * 60 * 60
 
+    Const NETWORKCAP_SECONDS As Integer = 5 ' interval between requests
+    Const NETWORK_TIMEOUT_SECONDS As Integer = 15
+
     Public Sub New(master As Scanner, serverAddress As String)
         addressQuery = serverAddress
         addressGame = JulkinNet.GetHost(serverAddress) & ":" &
@@ -65,6 +71,9 @@ Public Class ServerQuery
     Public Sub Update()
         CheckScanDeadlines()
         Tick()
+        If Not sync.state.done Then
+            sync.Tick()
+        End If
     End Sub
 
     Protected Sub CheckScanDeadlines()
@@ -78,6 +87,7 @@ Public Class ServerQuery
             Return
         End If
 
+        Dim jitterMs As Integer = 500 - rand(0, 1000)
         Dim actionNeeded = False
         If nextVerifyDeadline <= now Then
             state.hasValidated = False
@@ -91,17 +101,19 @@ Public Class ServerQuery
                 .hasInfoExtended = False
                 .hasVariables = False
             End With
-            nextInfoDeadline = now.AddSeconds(INTERVAL_INFO)
+            nextInfoDeadline = now.AddSeconds(INTERVAL_INFO).AddMilliseconds(jitterMs)
             actionNeeded = True
         End If
         If nextGameStateDeadline <= now Then
             With state
                 .hasInfo = False
-                .hasInfoExtended = False
-                .hasVariables = False
-                .hasPlayers = False
+                If server.caps.quickNumPlayers Then
+                    .hasInfoExtended = False
+                Else
+                    .hasPlayers = False
+                End If
             End With
-            nextGameStateDeadline = now.AddSeconds(INTERVAL_STATE)
+            nextGameStateDeadline = now.AddSeconds(INTERVAL_STATE).AddMilliseconds(jitterMs)
             actionNeeded = True
         End If
 
@@ -121,22 +133,27 @@ Public Class ServerQuery
                 state.starting = False
                 sendRequest()
             Else
-
                 If Not IsNothing(incomingPacket) Then ' we received a full response from server
-                    packetReceived()
-                    sendRequest()
-                Else ' haven't got anything, just checking for timeouts
-                    If (Date.UtcNow - lastActivity).TotalSeconds > 20 AndAlso (Date.UtcNow - scannerMaster.scanLastTouchAll).TotalSeconds < 5 Then
-                        If Not skipStepIfOptional() Then
-                            abortScan("No response for required data", dumpCommLog:=True)
-                        End If
-                    End If
+                    Dim packet = incomingPacket.Clone
+                    incomingPacket = Nothing
+                    packetReceived(packet)
                 End If
+
+                Dim isTimedOut = Not IsNothing(networkTimeoutDeadline) _
+                        AndAlso Date.UtcNow >= networkTimeoutDeadline _
+                        AndAlso (Date.UtcNow - scannerMaster.scanLastTouchAll).TotalSeconds < 10
+
+                If isTimedOut Then
+                    If Not skipStepIfOptional() Then
+                        abortScan("No response for required data", dumpCommLog:=True)
+                    End If
+                    Return
+                End If
+
+                sendRequest()
             End If
         End If
-        If Not sync.state.done Then
-            sync.Tick()
-        End If
+
     End Sub
 
     Public Function isDone()
@@ -153,12 +170,14 @@ Public Class ServerQuery
 
     Private Sub sendRequest()
         Const xsqSuffix = "XServerQuery"
-        Dim serverRecord = sync.GetServerRecord()
-
 
         If isInRequestState() Then Return ' remove this when implementing resend feature
 
+        If Date.UtcNow < networkCapNextSendDeadline Then
+            Return
+        End If
 
+        Dim serverRecord = sync.GetServerRecord()
 
         With state
             If Not .hasBasic Then
@@ -180,7 +199,7 @@ Public Class ServerQuery
                 sync.state.done = False
                 infoSentTimeLocal = Date.UtcNow
                 serverSend("\info\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
-            ElseIf Not .hasInfoExtended AndAlso Not .hasTimeTest AndAlso server.caps.hasPropertyInterface Then
+            ElseIf Not .hasInfoExtended AndAlso server.caps.hasPropertyInterface Then
                 firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
                 gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(server)
                 Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
@@ -216,12 +235,14 @@ Public Class ServerQuery
             Else
                 .done = True
                 protocolFailures = 0
+                networkTimeoutDeadline = Nothing
             End If
 
 
         End With
         lastActivity = Date.UtcNow
         server.lastActivity = lastActivity
+        networkCapNextSendDeadline = Date.UtcNow.AddSeconds(NETWORKCAP_SECONDS)
     End Sub
 
     Private Sub serverSend(packet As String)
@@ -230,50 +251,52 @@ Public Class ServerQuery
             packetsSent += 1
             scannerMaster.commLogWrite(addressQuery, "UUU", packet)
             ' logDbg("Send STA=" & state.ToString() & " RQ=" & packet)
+            networkTimeoutDeadline = Date.UtcNow.AddSeconds(NETWORK_TIMEOUT_SECONDS)
 
         Catch e As Sockets.SocketException
             abortScan("ServerSendException: " & e.Message)
         End Try
     End Sub
 
-    Private Sub packetReceived()
+    Private Sub packetReceived(packet As Hashtable)
         With state
             If .requestingBasic Then
-                parseBasic()
+                parseBasic(packet)
             ElseIf .requestingInfo Then
-                parseInfo()
+                parseInfo(packet)
             ElseIf .requestingInfoExtended Then
-                parseInfoExtended()
+                parseInfoExtended(packet)
             ElseIf .requestingPlayers Then
-                parsePlayers()
+                parsePlayers(packet)
             ElseIf .requestingVariables Then
-                parseVariables()
+                parseVariables(packet)
             Else
                 'Debugger.Break()
             End If
         End With
         lastActivity = Date.UtcNow
-        incomingPacket = Nothing
+        networkTimeoutDeadline = Nothing
+        ' incomingPacket = Nothing
         resetRequestFlags()
         packetsReceived += 1
     End Sub
 
-    Private Sub parseBasic()
-        If Not incomingPacket.ContainsKey("gamename") Then
-            'logDbg("NoGamename: " & incomingPacketObj.ToString)
+    Private Sub parseBasic(packet As Hashtable)
+        If Not packet.ContainsKey("gamename") Then
+            'logDbg("NoGamename: " & packetObj.ToString)
             abortScan("No GameName")
             Return
         End If
 
         'Dim serverRecord = sync.GetServerRecord()
-        Dim gameName = incomingPacket("gamename").ToString().ToLower()
+        Dim gameName = packet("gamename").ToString().ToLower()
         Dim validServer As Boolean = False
 
         ' validate
-        validServer = ValidateServer(gameName)
+        validServer = ValidateServer(packet, gameName)
 
         If Not validServer Then
-            'logDbg("InvalidServer: " & incomingPacketObj.ToString)
+            'logDbg("InvalidServer: " & packetObj.ToString)
             abortScan("Challenge validation failed")
         End If
 
@@ -284,14 +307,14 @@ Public Class ServerQuery
         End If
 
 
-        server.info("gamename") = incomingPacket("gamename")
-        server.info("gamever") = incomingPacket("gamever")
-        If incomingPacket.ContainsKey("minnetver") Then
-            server.info("minnetver") = incomingPacket("minnetver")
-        ElseIf incomingPacket.ContainsKey("mingamever") Then
-            server.info("minnetver") = incomingPacket("mingamever")
+        server.info("gamename") = packet("gamename")
+        server.info("gamever") = packet("gamever")
+        If packet.ContainsKey("minnetver") Then
+            server.info("minnetver") = packet("minnetver")
+        ElseIf packet.ContainsKey("mingamever") Then
+            server.info("minnetver") = packet("mingamever")
         End If
-        server.info("location") = incomingPacket("location")
+        server.info("location") = packet("location")
         state.hasBasic = True
         isOnline = True
         server.caps.version = server.info("gamever")
@@ -306,130 +329,139 @@ Public Class ServerQuery
 
     End Sub
 
-    Private Function ValidateServer(gameName As String) As Boolean
+    Private Function ValidateServer(packet As Hashtable, gameName As String) As Boolean
         If state.hasValidated Then
             Return True
         End If
 
         Dim validServer As Boolean
 
-        If Not incomingPacket.ContainsKey("validate") Then
+        If Not packet.ContainsKey("validate") Then
             validServer = False
-        ElseIf incomingPacket("validate") = "Orange" Then ' dunno where does this come from
+        ElseIf packet("validate") = "Orange" Then ' dunno where does this come from
             validServer = True
-        ElseIf Len(incomingPacket("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(gameName) Then
+        ElseIf Len(packet("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(gameName) Then
             validServer = False
         Else
             Dim expectedResponse = GsGetChallengeResponse(challenge, MasterServerManager.gamespyKeys(gameName).encKey)
-            validServer = (expectedResponse = incomingPacket("validate"))
+            validServer = (expectedResponse = packet("validate"))
         End If
 
         Return validServer
     End Function
 
-    Private Sub parseInfo()
-        If Not incomingPacket.ContainsKey("hostname") OrElse
-            Not incomingPacket.ContainsKey("mapname") OrElse
-            Not incomingPacket.ContainsKey("numplayers") OrElse
-            Not incomingPacket.ContainsKey("maxplayers") Then
-            'logDbg("MissingFields: " & incomingPacket.ToString)
+    Private Sub parseInfo(packet As Hashtable)
+        If Not packet.ContainsKey("hostname") OrElse
+            Not packet.ContainsKey("mapname") OrElse
+            Not packet.ContainsKey("numplayers") OrElse
+            Not packet.ContainsKey("maxplayers") Then
+            'logDbg("MissingFields: " & packet.ToString)
             abortScan("Missing required fields in packet", dumpCommLog:=True)
             Return
         End If
-        For Each packetKey As String In incomingPacket.Keys
+        For Each packetKey As String In packet.Keys
             If packetKey.Substring(0, 2) = "__" Then
                 Continue For
             End If
-            server.info(packetKey) = incomingPacket(packetKey)
+            server.info(packetKey) = packet(packetKey)
         Next
-        If incomingPacket.ContainsKey("hostport") AndAlso IsNumeric(incomingPacket("hostport")) Then
+        If packet.ContainsKey("hostport") AndAlso IsNumeric(packet("hostport")) Then
             addressGame = JulkinNet.GetHost(addressQuery) & ":" &
-                Integer.Parse(incomingPacket("hostport"))
+                Integer.Parse(packet("hostport"))
         End If
-        server.caps.hasXSQ = incomingPacket.ContainsKey("xserverquery")
+        server.caps.hasXSQ = packet.ContainsKey("xserverquery")
         If server.caps.hasXSQ Then
             Dim xsqVersion As Integer
-            Integer.TryParse(Replace(incomingPacket("xserverquery"), ".", ""), formatProvider, xsqVersion)
+            Integer.TryParse(Replace(packet("xserverquery"), ".", ""), formatProvider, xsqVersion)
             ' property interface brought back in XServerQuery 211fix4
             server.caps.hasPropertyInterface = xsqVersion >= 211
-            server.caps.timeTestPassed = False
             server.caps.XSQVersion = xsqVersion
         End If
+
+        server.info("__uttrealplayers") = packet("numplayers") ' might be overwritten later
         state.hasInfo = True
+        state.hasNumPlayers = True
     End Sub
 
-    Private Sub parseInfoExtended()
+    Private Sub parseInfoExtended(packet As Hashtable)
         Try
-            If Not incomingPacket.ContainsKey("gamespeed") OrElse incomingPacket("numplayers") = "*Private*" Then
+            server.caps.quickNumPlayers = IsNumeric(packet("numplayers"))
+
+            If Not packet.ContainsKey("gamespeed") OrElse Not server.caps.quickNumPlayers Then
                 Throw New Exception("Incorrect extended info (gamespeed/numplayers)")
             End If
-            Single.TryParse(incomingPacket("gamespeed"), formatProvider, server.caps.gameSpeed)
+            Single.TryParse(packet("gamespeed"), formatProvider, server.caps.gameSpeed)
             If server.caps.gameSpeed = 0 Then
                 Throw New Exception("Incorrect extended info (gamespeed=0)")
             End If
 
-            server.info("__uttrealplayers") = incomingPacket("numplayers")
-            server.info("__uttspectators") = incomingPacket("numspectators")
-            server.info("__uttgamespeed") = incomingPacket("gamespeed")
-            server.info("__uttgamecurrentid") = incomingPacket("currentid")
-            server.info("bgameended") = incomingPacket("bgameended")
-            server.info("bovertime") = incomingPacket("bovertime")
-            server.info("elapsedtime") = incomingPacket("elapsedtime")
-            server.info("remainingtime") = incomingPacket("remainingtime")
-            If incomingPacket.ContainsKey("timelimit") Then
-                server.info("timelimit") = incomingPacket("timelimit")
+            Dim needsUpdatingPlayerList = packet("numplayers") > 0 OrElse
+                packet("numspectators") > 0
+
+            If needsUpdatingPlayerList Then
+                state.hasPlayers = False
+            End If
+
+            server.info("__uttrealplayers") = packet("numplayers")
+            server.info("__uttspectators") = packet("numspectators")
+            server.info("__uttgamespeed") = packet("gamespeed")
+            server.info("__uttgamecurrentid") = packet("currentid")
+            server.info("bgameended") = packet("bgameended")
+            server.info("bovertime") = packet("bovertime")
+            server.info("elapsedtime") = packet("elapsedtime")
+            server.info("remainingtime") = packet("remainingtime")
+            If packet.ContainsKey("timelimit") Then
+                server.info("timelimit") = packet("timelimit")
             End If
 
             state.hasInfoExtended = True
-            state.hasTimeTest = True
-            server.caps.timeTestPassed = True
 
             ' fake players detection
-            If server.info("numplayers") > incomingPacket("numplayers") + incomingPacket("numspectators") Then
+            If server.info("numplayers") > packet("numplayers") + packet("numspectators") Then
                 server.caps.fakePlayers = True
             End If
 
             If server.caps.gamemodeExtendedInfo Then
-                gamemodeQuery.ParseInfoPacket(incomingPacket)
+                gamemodeQuery.ParseInfoPacket(packet)
             End If
+
+            state.hasNumPlayers = True
         Catch e As Exception
-            state.hasTimeTest = True
-            server.caps.timeTestPassed = False
             server.caps.hasPropertyInterface = False
         End Try
     End Sub
 
-    Private Sub parsePlayers()
+    Private Sub parsePlayers(packet As Hashtable)
         Dim playerid As Integer = 0, suffix As String, playerinfo As Hashtable
         Dim buggedPingCount As Integer = 0 ' 2016-03-18: skip scanning of broken servers (all players with ping 9999)
 
         Try
-            Do While incomingPacket.ContainsKey("player_" & playerid)
+            Do While packet.ContainsKey("player_" & playerid)
                 suffix = "_" & playerid
 
                 ' validate
                 Dim parsedTmp As Long
-                If Not incomingPacket.ContainsKey("player" & suffix) OrElse
-                    Not incomingPacket.ContainsKey("team" & suffix) OrElse
-                    Not Long.TryParse(incomingPacket("team" & suffix), parsedTmp) Then
+                If Not packet.ContainsKey("player" & suffix) OrElse
+                    Not packet.ContainsKey("team" & suffix) OrElse
+                    Not Long.TryParse(packet("team" & suffix), parsedTmp) Then
                     abortScan("Player response is invalid ")
                 End If
 
 
                 playerinfo = New Hashtable
-                playerinfo("name") = incomingPacket("player" & suffix)
-                playerinfo("team") = incomingPacket("team" & suffix)
-                playerinfo("frags") = incomingPacket("frags" & suffix)
+                playerinfo("name") = packet("player" & suffix)
+                playerinfo("team") = packet("team" & suffix)
+                playerinfo("frags") = packet("frags" & suffix)
                 If playerinfo("team") = "255" Then
                     playerinfo("frags") = 0
                 End If
-                playerinfo("mesh") = incomingPacket("mesh" & suffix)
-                playerinfo("skin") = incomingPacket("skin" & suffix)
-                playerinfo("face") = incomingPacket("face" & suffix)
+                playerinfo("mesh") = packet("mesh" & suffix)
+                playerinfo("skin") = packet("skin" & suffix)
+                playerinfo("face") = packet("face" & suffix)
 
 
                 Dim ping As Long
-                Dim pingString As String = incomingPacket("ping" & suffix)
+                Dim pingString As String = packet("ping" & suffix)
 
                 If IsNothing(pingString) OrElse Not Long.TryParse(pingString, ping) Then
                     ping = 0
@@ -442,12 +474,12 @@ Public Class ServerQuery
                 End If
 
                 If server.caps.hasXSQ Then
-                    playerinfo("countryc") = incomingPacket("countryc" & suffix)
-                    playerinfo("deaths") = incomingPacket("deaths" & suffix)
+                    playerinfo("countryc") = packet("countryc" & suffix)
+                    playerinfo("deaths") = packet("deaths" & suffix)
                     If server.caps.XSQVersion >= 200 Then
-                        playerinfo("time") = incomingPacket("time" & suffix)
+                        playerinfo("time") = packet("time" & suffix)
                     Else
-                        playerinfo("time") = incomingPacket("time" & suffix) * 60
+                        playerinfo("time") = packet("time" & suffix) * 60
                     End If
                 End If
                 server.players.Add(playerinfo)
@@ -462,11 +494,10 @@ Public Class ServerQuery
         state.hasPlayers = True
     End Sub
 
-    Private Sub parseVariables()
-        server.variables = incomingPacket.Clone()
+    Private Sub parseVariables(packet As Hashtable)
+        server.variables = packet.Clone()
 
         server.info("__utthaspropertyinterface") = server.caps.hasPropertyInterface
-        server.info("__utttimetestpassed") = server.caps.timeTestPassed
 
         state.hasVariables = True
     End Sub
@@ -475,16 +506,12 @@ Public Class ServerQuery
         With state
             If .requestingInfoExtended Then
                 .requestingInfoExtended = False
-                .hasTimeTest = True
                 server.caps.hasPropertyInterface = False
-                server.caps.timeTestPassed = False
                 lastActivity = Date.UtcNow
                 sendRequest()
                 Return True
             ElseIf .requestingTimeTest Then
                 .requestingTimeTest = False
-                .hasTimeTest = True
-                server.caps.timeTestPassed = False
                 lastActivity = Date.UtcNow
                 sendRequest()
                 Return True
@@ -590,6 +617,8 @@ Public Structure ServerQueryState
     Dim hasValidated As Boolean
     Dim hasBasic As Boolean
     Dim hasInfo As Boolean
+    Dim hasNumPlayers As Boolean
+    Dim hasTeams As Boolean
     Dim hasInfoExtended As Boolean
     Dim hasTimeTest As Boolean
     Dim hasPlayers As Boolean
@@ -597,6 +626,7 @@ Public Structure ServerQueryState
 
     Dim requestingBasic As Boolean
     Dim requestingInfo As Boolean
+    Dim requestingInfoShort As Boolean
     Dim requestingInfoExtended As Boolean
     Dim requestingTimeTest As Boolean
     Dim requestingPlayers As Boolean
@@ -614,6 +644,8 @@ Public Structure ServerQueryState
             ToString &= "requestingTimeTest"
         ElseIf requestingInfoExtended Then
             ToString &= "requestingInfoExtended"
+        ElseIf requestingInfoShort Then
+            ToString &= "requestingInfoShort"
         ElseIf requestingInfo Then
             ToString &= "requestingInfo"
         ElseIf requestingBasic Then
