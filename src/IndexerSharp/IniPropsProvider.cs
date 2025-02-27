@@ -16,10 +16,11 @@ public class IniPropsProvider : PropsProvider
     public string? IniName;
     public IniConfigurationProvider? IniProvider;
 
-    public Stream? templateFileStream;
+    protected Stream? templateFileStream;
 
-    public IniPropsProvider(string? sourceFile = null)
+    public IniPropsProvider(string? sourceFile = null, Stream? template = null)
     {
+        templateFileStream = template;
         if(sourceFile != null)
         {
             LoadFile(sourceFile);
@@ -90,7 +91,10 @@ public class IniPropsProvider : PropsProvider
         {
             return;
         }
-        templateFileStream.CopyTo(File.Create(IniName));
+        FileStream configFile = File.Create(IniName);
+        templateFileStream.CopyTo(configFile);
+        configFile.Close();
+
     }
 
 
