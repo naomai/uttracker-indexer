@@ -291,7 +291,7 @@ Public Class Scanner
 
     Protected Friend Sub commLogWrite(targetHost As String, tag As String, packet As String)
         Dim dateNow = Now.ToString("HH:mm:ss")
-        _targetCommLog(targetHost) &= $"[{dateNow}] {tag}: {packet}" & NewLine
+        '_targetCommLog(targetHost) &= $"[{dateNow}] {tag}: {packet}" & NewLine
     End Sub
 
     Private Sub ServerScanner_OnScanBegin(serverCount As Integer) Handles Me.OnScanBegin
