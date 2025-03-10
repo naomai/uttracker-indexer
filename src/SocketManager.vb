@@ -28,6 +28,7 @@ Public Class SocketManager
         lastProcessed = Date.UtcNow
 
         ReceiveLoop()
+        DispatchLoop()
     End Sub
 
     Public Sub SendTo(endpoint As String, packet As String)
@@ -70,7 +71,16 @@ Public Class SocketManager
 
             ReDim Preserve buffer(receiveResult.ReceivedBytes)
             EnqueuePacket(sourceEndpoint, buffer)
+
+
+            'Tick()
+        Loop
+    End Sub
+
+    Protected Async Sub DispatchLoop()
+        Do
             Tick()
+            Await Task.Delay(25)
         Loop
     End Sub
 
@@ -93,6 +103,10 @@ Public Class SocketManager
     Private Sub DequeueAll()
         Dim hosts As List(Of IPEndPoint)
         SyncLock ipPacketQueue
+            If ipPacketQueue.Count = 0 Then
+                Return
+            End If
+
             hosts = ipPacketQueue.Keys.ToList()
         End SyncLock
         For Each host In hosts

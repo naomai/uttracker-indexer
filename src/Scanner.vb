@@ -74,6 +74,7 @@ Public Class Scanner
                 worker.Update()
                 'sockets.Tick()
             Next
+            dbCtx.SaveChanges()
             scanLastTouchAll = Date.UtcNow
             If scanLastTouchAll >= showStatesDeadline Then
                 debugShowStates()
@@ -285,16 +286,12 @@ Public Class Scanner
     Protected Sub taskSleep() 'suspends program for 1 ms, since we don't need 100% of cpu power
         ' todo: replace with timer queue api for more predictable execution times
         ' and NO, timeBeginPeriod(1) is not a good solution!!
-        System.Threading.Thread.CurrentThread.Join(10)
+        System.Threading.Thread.CurrentThread.Join(250)
     End Sub
 
     Protected Friend Sub commLogWrite(targetHost As String, tag As String, packet As String)
         Dim dateNow = Now.ToString("HH:mm:ss")
         _targetCommLog(targetHost) &= $"[{dateNow}] {tag}: {packet}" & NewLine
-    End Sub
-
-    Protected Sub taskSleepLonger()
-        System.Threading.Thread.CurrentThread.Join(200)
     End Sub
 
     Private Sub ServerScanner_OnScanBegin(serverCount As Integer) Handles Me.OnScanBegin

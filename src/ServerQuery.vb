@@ -10,7 +10,7 @@ Public Class ServerQuery
     Public firstTimeTest, secondTimeTest As Single
     Public firstTimeTestLocal, secondTimeTestLocal, infoSentTimeLocal As DateTime
 
-    Protected networkCapNextSendDeadline As Date = Date.UtcNow
+    Protected networkCapNextSendDeadline As Date
     Protected networkTimeoutDeadline As Date? = Nothing
 
     Protected nextInfoDeadline As Date = Date.UtcNow
@@ -45,7 +45,7 @@ Public Class ServerQuery
     Const INTERVAL_STATE As Integer = 2 * 60
     Const INTERVAL_VERIFY As Integer = 24 * 60 * 60
 
-    Const NETWORKCAP_SECONDS As Integer = 5 ' interval between requests
+    Const NETWORKCAP_SECONDS As Integer = 3 ' interval between requests
     Const NETWORK_TIMEOUT_SECONDS As Integer = 15
 
     Public Sub New(master As Scanner, serverAddress As String)
@@ -64,6 +64,8 @@ Public Class ServerQuery
 
         state.starting = False
         state.started = False
+
+        networkCapNextSendDeadline = Date.UtcNow.AddMilliseconds(rand(0, 15000))
 
 
     End Sub
@@ -87,7 +89,7 @@ Public Class ServerQuery
             Return
         End If
 
-        Dim jitterMs As Integer = 500 - rand(0, 1000)
+        Dim jitterMs As Integer
         Dim actionNeeded = False
         If nextVerifyDeadline <= now Then
             state.hasValidated = False
@@ -101,6 +103,7 @@ Public Class ServerQuery
                 .hasInfoExtended = False
                 .hasVariables = False
             End With
+            jitterMs = 2000 - rand(0, 4000)
             nextInfoDeadline = now.AddSeconds(INTERVAL_INFO).AddMilliseconds(jitterMs)
             actionNeeded = True
         End If
@@ -113,6 +116,7 @@ Public Class ServerQuery
                     .hasPlayers = False
                 End If
             End With
+            jitterMs = 2000 - rand(0, 4000)
             nextGameStateDeadline = now.AddSeconds(INTERVAL_STATE).AddMilliseconds(jitterMs)
             actionNeeded = True
         End If
@@ -127,32 +131,36 @@ Public Class ServerQuery
     End Sub
 
     Public Sub Tick()
-        If Not state.done Then
-            If state.starting Then
-                state.started = True
-                state.starting = False
-                sendRequest()
-            Else
-                If Not IsNothing(incomingPacket) Then ' we received a full response from server
-                    Dim packet = incomingPacket.Clone
-                    incomingPacket = Nothing
-                    packetReceived(packet)
-                End If
-
-                Dim isTimedOut = Not IsNothing(networkTimeoutDeadline) _
-                        AndAlso Date.UtcNow >= networkTimeoutDeadline _
-                        AndAlso (Date.UtcNow - scannerMaster.scanLastTouchAll).TotalSeconds < 10
-
-                If isTimedOut Then
-                    If Not skipStepIfOptional() Then
-                        abortScan("No response for required data", dumpCommLog:=True)
-                    End If
-                    Return
-                End If
-
-                sendRequest()
-            End If
+        If state.done Then
+            Return
         End If
+
+        If state.starting Then
+            state.started = True
+            state.starting = False
+            sendRequest()
+            Return
+        End If
+
+        If Not IsNothing(incomingPacket) Then ' we received a full response from server
+            Dim packet = incomingPacket.Clone
+            incomingPacket = Nothing
+            packetReceived(packet)
+            Return
+        End If
+
+        Dim isTimedOut = Not IsNothing(networkTimeoutDeadline) _
+                AndAlso Date.UtcNow >= networkTimeoutDeadline _
+                AndAlso (Date.UtcNow - scannerMaster.scanLastTouchAll).TotalSeconds < 10
+
+        If isTimedOut Then
+            If Not skipStepIfOptional() Then
+                abortScan("No response for required data", dumpCommLog:=True)
+            End If
+            Return
+        End If
+
+        sendRequest()
 
     End Sub
 

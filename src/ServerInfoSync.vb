@@ -37,7 +37,7 @@ Public Class ServerInfoSync
             If Not state.savedCumulativeStats Then TryUpdateCumulativePlayersStats()
             If Not state.savedScanInfo Then UpdateCurrentScanInfo()
         Catch e As Exception
-            serverWorker.abortScan("Tick Exception")
+            serverWorker.abortScan("Tick Exception: " & e.Message)
         End Try
         If state.savedInfo AndAlso state.savedVariables AndAlso state.savedGameInfo And state.savedPlayers And state.savedCumulativeStats And state.savedScanInfo Then
             state.done = True
@@ -58,6 +58,7 @@ Public Class ServerInfoSync
                 .AddressQuery = serverWorker.addressQuery,
                 .AddressGame = serverWorker.addressGame
             }
+            records.Add(serverWorker.addressQuery, serverRecord)
         Else
             serverRecord = records(serverWorker.addressQuery)
         End If
@@ -89,15 +90,17 @@ Public Class ServerInfoSync
 
         dbCtx.Servers.Update(serverRecord)
         Try
-            dbCtx.SaveChanges()
+            If IsNothing(serverRecord.Id) Then
+                dbCtx.SaveChanges() ' UpdateInfo
+            End If
         Catch e As DbUpdateException
             ' conflict of AddressGame - one server, many QueryPorts
             Dim reason As String = "Database update fail - " & e.Message
 
             If e.InnerException.GetType() = GetType(MySqlException) Then
                 Dim dbEx As MySqlException = e.InnerException
-                If dbEx.Number = 1062 Then
-                    reason = "One server-multiple query ports"
+                If dbEx.Number = 1062 AndAlso dbEx.Message.Contains("address_game") Then
+                    reason = "One server-multiple query ports: " & dbEx.Message
                     serverWorker.isActive = False
                 End If
             End If
@@ -112,6 +115,7 @@ Public Class ServerInfoSync
 
         state.hasServerId = True
         state.savedInfo = True
+        state.savedScanInfo = False
     End Sub
 
     Private Sub TryUpdateVariables()
@@ -149,7 +153,7 @@ Public Class ServerInfoSync
         'dbCtx.SaveChanges()
 
         state.savedVariables = True
-
+        state.savedScanInfo = False
     End Sub
 
     Private Sub TryUpdateMatchInfo() ' serverhistory
@@ -285,6 +289,7 @@ Public Class ServerInfoSync
         End If
 
         state.savedGameInfo = True
+        state.savedScanInfo = False
 
     End Sub
 
@@ -360,6 +365,7 @@ Public Class ServerInfoSync
                 UpdatePlayerHistoryEntry(playerRecord, player)
             Next
             state.savedPlayers = True
+            state.savedScanInfo = False
             'dbCtx.SaveChanges()
         End If
     End Sub
@@ -378,7 +384,7 @@ Public Class ServerInfoSync
 
         If IsNothing(playerRecord.Id) Then
             dbCtx.Players.Add(playerRecord)
-            dbCtx.SaveChanges()
+            dbCtx.SaveChanges() ' PlayerInfo
         End If
         playerData("uttPlayerId") = playerRecord.Id
     End Sub
@@ -529,7 +535,7 @@ Public Class ServerInfoSync
             Next
 
             Try
-                dbCtx.SaveChanges()
+                dbCtx.SaveChanges() 'PlayerStats
             Catch e As Exception
                 'Console.WriteLine("AA")
             End Try
@@ -552,8 +558,7 @@ Public Class ServerInfoSync
 
             'dbCtx.Servers.Update(serverRecord)
 
-            dbCtx.SaveChanges()
-
+            'dbCtx.SaveChanges() ' ScanInfo
             state.savedScanInfo = True
         End If
     End Sub
