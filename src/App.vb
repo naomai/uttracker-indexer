@@ -162,10 +162,9 @@ Module App
         End If
 
         Return New IniPropsProvider(
-            Assembly.GetEntryAssembly.GetName.Name & ".ini"
-        ) With {
-            .templateFileStream = bundledConfigStream
-        }
+            Assembly.GetEntryAssembly.GetName.Name & ".ini",
+            template:=bundledConfigStream
+        )
     End Function
 
 End Module
