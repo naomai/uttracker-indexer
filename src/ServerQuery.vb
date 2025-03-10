@@ -66,8 +66,6 @@ Public Class ServerQuery
         state.started = False
 
         networkCapNextSendDeadline = Date.UtcNow.AddMilliseconds(rand(0, 15000))
-
-
     End Sub
 
     Public Sub Update()
@@ -122,7 +120,6 @@ Public Class ServerQuery
         End If
 
         If actionNeeded Then
-            'logDbg("Wakeup STA=" & state.ToString())
             state.started = False
             state.done = False
             state.starting = True
@@ -258,7 +255,6 @@ Public Class ServerQuery
             socket.SendTo(addressQuery, packet)
             packetsSent += 1
             scannerMaster.commLogWrite(addressQuery, "UUU", packet)
-            ' logDbg("Send STA=" & state.ToString() & " RQ=" & packet)
             networkTimeoutDeadline = Date.UtcNow.AddSeconds(NETWORK_TIMEOUT_SECONDS)
 
         Catch e As Sockets.SocketException
@@ -278,13 +274,10 @@ Public Class ServerQuery
                 parsePlayers(packet)
             ElseIf .requestingVariables Then
                 parseVariables(packet)
-            Else
-                'Debugger.Break()
             End If
         End With
         lastActivity = Date.UtcNow
         networkTimeoutDeadline = Nothing
-        ' incomingPacket = Nothing
         resetRequestFlags()
         packetsReceived += 1
     End Sub
@@ -296,7 +289,6 @@ Public Class ServerQuery
             Return
         End If
 
-        'Dim serverRecord = sync.GetServerRecord()
         Dim gameName = packet("gamename").ToString().ToLower()
         Dim validServer As Boolean = False
 
@@ -304,7 +296,6 @@ Public Class ServerQuery
         validServer = ValidateServer(packet, gameName)
 
         If Not validServer Then
-            'logDbg("InvalidServer: " & packetObj.ToString)
             abortScan("Challenge validation failed")
         End If
 
@@ -524,17 +515,12 @@ Public Class ServerQuery
                 sendRequest()
                 Return True
 
-                ' workaround: XServerQuery not responding
             ElseIf .requestingInfo AndAlso server.caps.hasXSQ Then
+                ' workaround: XServerQuery not responding
                 .requestingInfo = False
                 server.caps.hasXSQ = False
                 sendRequest()
                 Return True
-                'ElseIf .requestingPlayers AndAlso server.caps.hasXSQ Then
-                '    .requestingPlayers = False
-                '    server.caps.hasXSQ = False
-                '    sendRequest()
-                '    Return True
 
             ElseIf .requestingVariables Then
                 .requestingVariables = False

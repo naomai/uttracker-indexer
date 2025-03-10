@@ -143,13 +143,6 @@ Module App
         log.DebugWriteLine("GSMasterConnection({0}): client requests list", client.ToString)
     End Sub
 
-    Private Sub scanner_OnScanBegin(serverCount As Integer) Handles scanner.OnScanBegin
-        log.WriteLine("Scanning {0} servers...", serverCount)
-    End Sub
-
-    Private Sub scanner_OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As System.TimeSpan) Handles scanner.OnScanComplete
-        log.DebugWriteLine("Scan complete: {0}/{1} in {2} seconds", onlineServerCount, scannedServerCount, Math.Round(elapsedTime.TotalSeconds))
-    End Sub
 
     Private Function GetIniConfig() As IniPropsProvider
         Dim bundledConfigProvider = New EmbeddedFileProvider(Assembly.GetExecutingAssembly(), "Naomai.UTT.Indexer")

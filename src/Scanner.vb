@@ -7,12 +7,9 @@ Imports System.Environment
 Imports Microsoft.SqlServer
 
 Public Class Scanner
-    Implements IDisposable
-
     Public scanInterval = 120
     Friend scanLastTouchAll As Date
     Public masterServerUpdateInterval As Integer = 3600
-    Public masterServerPingInterval As Integer = 600
 
     Public serversListCache
 
@@ -26,20 +23,14 @@ Public Class Scanner
 
     Protected fullScanDeadline As Date = Date.UtcNow
 
-
     Protected WithEvents masterServerQuery As MasterServerManager
     Protected WithEvents sockets As SocketManager
     Protected serverWorkers As New Dictionary(Of String, ServerQuery)
-    Protected serverWorkersLock As New Object 'prevent 'For Each mess when collection is modified'
+    Protected serverWorkersLock As New Object
 
     Private dbTransaction As RelationalTransaction
 
-    Event OnScanBegin(serverCount As Integer)
-    Event OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As TimeSpan)
-
     Protected Friend _targetCommLog As New Hashtable
-
-    Dim disposed As Boolean = False
 
     Public Sub New(scannerConfig As ServerScannerConfig)
         With scannerConfig
@@ -72,9 +63,9 @@ Public Class Scanner
                     Continue For
                 End If
                 worker.Update()
-                'sockets.Tick()
             Next
             dbCtx.SaveChanges()
+
             scanLastTouchAll = Date.UtcNow
             If scanLastTouchAll >= showStatesDeadline Then
                 debugShowStates()
@@ -82,8 +73,6 @@ Public Class Scanner
             End If
 
             taskSleep()
-
-            'Threading.Thread.Sleep(10)
         Loop
     End Sub
 
@@ -161,30 +150,22 @@ Public Class Scanner
             target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
             commLogWrite(target.addressQuery, "DDD", packetString)
             packetBuffer.Clear()
-
             target.Tick()
-
 
         Catch ex As UTQueryResponseIncompleteException
             ' let's try another time, maybe the missing pieces will join us
             commLogWrite(target.addressQuery, "Dxx", packetString)
+
         Catch ex As UTQueryInvalidResponseException ' we found a port that belongs to other service, so we're not going to bother it anymore
-            'target.logDbg("InvalidQuery: found unknown service")
             commLogWrite(target.addressQuery, "Dxx", packetString)
             target.abortScan("Unknown service", dumpCommLog:=True)
             sockets.AddIgnoredIp(target.addressQuery)
         End Try
-        'debugShowStates()
 
     End Sub
-
 
     Protected Sub initSockets()
         sockets = New SocketManager
-    End Sub
-    Protected Sub disposeSockets()
-        sockets.ClearIgnoredIps()
-        sockets = Nothing
     End Sub
 
     Private Sub debugShowStates()
@@ -283,9 +264,7 @@ Public Class Scanner
         log.DebugWriteLine("ServerScanner: " & format, arg)
     End Sub
 
-    Protected Sub taskSleep() 'suspends program for 1 ms, since we don't need 100% of cpu power
-        ' todo: replace with timer queue api for more predictable execution times
-        ' and NO, timeBeginPeriod(1) is not a good solution!!
+    Protected Sub taskSleep()
         System.Threading.Thread.CurrentThread.Join(250)
     End Sub
 
@@ -294,16 +273,6 @@ Public Class Scanner
         '_targetCommLog(targetHost) &= $"[{dateNow}] {tag}: {packet}" & NewLine
     End Sub
 
-    Private Sub ServerScanner_OnScanBegin(serverCount As Integer) Handles Me.OnScanBegin
-        'dbTransaction = dbCtx.Database.BeginTransaction()
-    End Sub
-
-
-    Private Sub ServerScanner_OnScanComplete(scannedServerCount As Integer, onlineServerCount As Integer, elapsedTime As System.TimeSpan) Handles Me.OnScanComplete
-        'dbTransaction.Commit()
-        dbTransaction.Dispose()
-        dbTransaction = Nothing
-    End Sub
 
 #Region "Dynconfig"
     Public Function dynconfigGet(key As String)
@@ -315,27 +284,6 @@ Public Class Scanner
     End Sub
 
 
-#End Region
-#Region "IDisposable"
-    Public Sub Dispose() Implements IDisposable.Dispose
-        Dispose(True)
-        GC.SuppressFinalize(Me)
-    End Sub
-
-    Protected Overridable Sub Dispose(disposing As Boolean)
-        If disposed Then Return
-
-        If disposing Then
-
-        End If
-
-        If Not IsNothing(dbTransaction) Then
-            dbTransaction.Rollback()
-            dbTransaction.Dispose()
-            dbTransaction = Nothing
-        End If
-        disposed = True
-    End Sub
 #End Region
 
 End Class

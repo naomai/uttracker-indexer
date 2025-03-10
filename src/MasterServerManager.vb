@@ -45,7 +45,6 @@ Public Class MasterServerManager
     Public Sub AddMasterServer(configString As String)
         Dim masterServer As New MasterServerInfo(configString)
         masterServer.updateInterval = updateInterval
-        masterServer.pingInterval = pingInterval
         masterServer.manager = Me
 
         masterServers.Add(masterServer)
@@ -111,13 +110,11 @@ Public Class MasterServerInfo
     Public ReadOnly serverList As New List(Of String)
     Protected isBusy As Boolean = False
     Protected lastUpdate As Date
-    Protected lastPing As Date
     Protected retryDeadline As Date = Nothing
     Protected factory As MasterListFactory
     Friend iniVariables As Hashtable
     Friend serverId As Integer
     Friend updateInterval As Integer = 3600
-    Friend pingInterval As Integer = 600
     Friend manager As MasterServerManager
 
     ReadOnly Property address As String
@@ -174,7 +171,6 @@ Public Class MasterServerInfo
             End SyncLock
             Log("Received {0} servers", serverList.Count)
             lastUpdate = Date.UtcNow
-            lastPing = Date.UtcNow
         Catch e As Exception
             Log("Failure: ", e.Message)
             QueryFail()
@@ -183,24 +179,8 @@ Public Class MasterServerInfo
         End Try
     End Function
 
-    Public Async Function Ping() As Task
-        isBusy = True
-        Log("Pinging...")
-        Dim result As Boolean = Await factory.ping()
-        If Not result Then
-            QueryFail()
-        End If
-        lastPing = Date.UtcNow
-        isBusy = False
-    End Function
-
     Public Function ShouldRefresh()
         Return (Date.UtcNow - lastUpdate).TotalSeconds > updateInterval _
-            AndAlso Not ShouldHold()
-    End Function
-
-    Public Function ShouldPing()
-        Return (Date.UtcNow - lastPing).TotalSeconds > pingInterval _
             AndAlso Not ShouldHold()
     End Function
 
@@ -233,7 +213,6 @@ Public MustInherit Class MasterListFactory
     End Sub
 
     Public MustOverride Async Function query() As Task(Of List(Of String))
-    Public MustOverride Async Function ping() As Task(Of Boolean)
 
     Public Shared Function createFactoryForMasterServer(serverInfo As MasterServerInfo) As MasterListFactory
         Select Case serverInfo.unrealClassName
@@ -264,23 +243,6 @@ Class MasterListGSpyFact
             region = serverInfo.iniVariables("Region")
         End If
     End Sub
-
-    Public Overrides Async Function ping() As Task(Of Boolean)
-        Dim pingResult As Boolean
-        Try
-            Using connection = New JulkinNet
-                connection.Connect(server.address)
-                Dim packet = Await connection.ReadNextAsync()
-
-                Dim packetObj = New UTQueryPacket(packet, UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
-                pingResult = packetObj.ContainsKey("basic") AndAlso packetObj.ContainsKey("secure")
-                connection.Disconnect()
-            End Using
-            Return pingResult
-        Catch ex As Exception
-            Return False
-        End Try
-    End Function
 
     Public Overrides Async Function query() As Task(Of List(Of String))
         Dim rawList As String = Await getRawList()
@@ -353,15 +315,6 @@ Class MasterListHTTPFact
         MyBase.New(serverInfo)
         requestURI = serverInfo.iniVariables("MasterServerURI")
     End Sub
-
-    Public Overrides Async Function ping() As Task(Of Boolean)
-        Dim requestUrl = "http://" & server.ToString & requestURI
-
-        Dim requestMsg As New HttpRequestMessage(HttpMethod.Head, requestUrl)
-        Dim requestResult = Await clientObj.SendAsync(requestMsg)
-
-        Return (requestResult.StatusCode = Net.HttpStatusCode.OK)
-    End Function
 
     Public Overrides Async Function query() As Task(Of System.Collections.Generic.List(Of String))
         Dim serverList = New List(Of String)
