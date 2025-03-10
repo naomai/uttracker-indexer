@@ -29,9 +29,9 @@ Public Class MasterServerManager
             If masterServer.ShouldRefresh() Then
                 Dim t = masterServer.Refresh()
                 tasks.Add(t)
-            ElseIf masterServer.ShouldPing() Then
-                Dim t = masterServer.Ping()
-                tasks.Add(t)
+                'ElseIf masterServer.ShouldPing() Then
+                '    Dim t = masterServer.Ping()
+                '    tasks.Add(t)
             End If
         Next
 
