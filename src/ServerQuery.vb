@@ -582,8 +582,8 @@ Public Class ServerQuery
                 protocolFailures += 1
                 logDbg("#" & protocolFailures & " Aborting scan (" & reason & ") - " & state.ToString)
                 If dumpCommLog Then
-                    logDbg("CommLog: " & System.Environment.NewLine &
-                        scannerMaster._targetCommLog(addressQuery))
+                    'logDbg("CommLog: " & System.Environment.NewLine &
+                    '   scannerMaster._targetCommLog(addressQuery))
                 End If
             End If
 
