@@ -437,6 +437,7 @@ Public Class ServerQuery
         Dim buggedPingCount As Integer = 0 ' 2016-03-18: skip scanning of broken servers (all players with ping 9999)
 
         Try
+            server.players.Clear()
             Do While packet.ContainsKey("player_" & playerid)
                 suffix = "_" & playerid
 
