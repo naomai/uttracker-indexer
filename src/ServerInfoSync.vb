@@ -564,7 +564,7 @@ Public Class ServerInfoSync
             UpdateServerRatings()
 
             serverRecord.LastSuccess = DateTime.UtcNow
-            serverRecord.LastCheck = serverData.lastActivity
+            'serverRecord.LastCheck = serverData.lastActivity
 
             'dbCtx.Servers.Update(serverRecord)
 
