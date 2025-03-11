@@ -449,6 +449,12 @@ Public Class ServerQuery
                     abortScan("Player response is invalid ")
                 End If
 
+                If packet.ContainsKey("ngsecret" & suffix) AndAlso packet("ngsecret" & suffix) = "bot" Then
+                    ' skip entries marked as bots
+                    playerid += 1
+                    Continue Do
+                End If
+
 
                 playerinfo = New Hashtable
                 playerinfo("name") = packet("player" & suffix)
