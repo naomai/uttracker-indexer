@@ -265,7 +265,7 @@ Public Class Scanner
     End Sub
 
     Protected Sub taskSleep()
-        System.Threading.Thread.CurrentThread.Join(250)
+        System.Threading.Thread.CurrentThread.Join(1000)
     End Sub
 
     Protected Friend Sub commLogWrite(targetHost As String, tag As String, packet As String)
