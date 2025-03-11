@@ -1,4 +1,4 @@
-﻿Imports System.Data
+Imports System.Data
 Imports System.Reflection.Metadata
 Imports System.Text.Json
 Imports Naomai.UTT.Indexer.Utt2Database
@@ -264,16 +264,26 @@ Public Class ServerInfoSync
                 timeMatchStart = Date.UtcNow
             End If
 
-            If Not IsNothing(previousMatchRecord) AndAlso previousMatchRecord.MapName = serverData.info("mapname") Then
-                'Debugger.Break()
+            Dim previousMatchHadPlayers = Not IsNothing(previousMatchRecord) AndAlso previousMatchRecord.PlayerLogs.Count <> 0
+
+            If IsNothing(previousMatchRecord) OrElse previousMatchHadPlayers Then
+                ' Create new match record
+                matchRecord = New ServerMatch
+                serverRecord.ServerMatches.Add(matchRecord)
+            Else
+                ' Repurpose previously created record, we don't want to keep
+                ' empty server runs
+                matchRecord = previousMatchRecord
             End If
 
-            matchRecord = New ServerMatch With {
-                .StartTime = timeMatchStart,
-                .MapName = serverData.info("mapname"),
+
+
+            With matchRecord
+                .StartTime = timeMatchStart.Value
+                .MapName = serverData.info("mapname")
                 .ServerPlayeridCounter = thisMatchCurrentID
-            }
-            serverRecord.ServerMatches.Add(matchRecord)
+            End With
+
         Else
             matchRecord = previousMatchRecord
 
@@ -282,7 +292,7 @@ Public Class ServerInfoSync
                 matchRecord.ServerPlayeridCounter = thisMatchCurrentID
             End If
 
-            If (matchRecord.StartTime - timeMatchStart.Value).TotalMinutes > 10 Then
+            If Math.Abs((matchRecord.StartTime - timeMatchStart.Value).TotalMinutes) > 10 Then
                 ' update match start time if changed significantly (pre-match ended)
                 matchRecord.StartTime = timeMatchStart.Value
             End If
