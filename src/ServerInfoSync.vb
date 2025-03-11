@@ -46,7 +46,7 @@ Public Class ServerInfoSync
 
 
     Public Function GetServerRecord() As Server
-        If Not IsNothing(serverRecord) Then
+        If Not IsNothing(serverRecord) AndAlso state.hasDBRecord Then
             Return serverRecord
         End If
 

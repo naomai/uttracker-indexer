@@ -1,4 +1,4 @@
-﻿Imports System.Net
+Imports System.Net
 Imports System.Globalization
 Imports System.Text
 Imports Naomai.UTT.Indexer.Utt2Database
@@ -103,6 +103,8 @@ Public Class ServerQuery
             End With
             jitterMs = 2000 - rand(0, 4000)
             nextInfoDeadline = now.AddSeconds(INTERVAL_INFO).AddMilliseconds(jitterMs)
+            ' reload DB record (free irrelevant data)
+            sync.state.hasDBRecord = False
             actionNeeded = True
         End If
         If nextGameStateDeadline <= now Then
