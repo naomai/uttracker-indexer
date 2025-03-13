@@ -4,8 +4,6 @@
 
 Imports System.Text.RegularExpressions
 
-Imports System.Net
-
 Public Class UTQueryPacket
     Inherits System.Collections.CollectionBase
     Implements IEnumerable(Of UTQueryKeyValuePair)
@@ -109,11 +107,7 @@ Public Class UTQueryPacket
     End Sub
 
     Public Sub Remove(key As String)
-        For i = 0 To packetContent.Count - 1
-            If packetContent(i).key = key Then
-                packetContent.RemoveAt(i)
-            End If
-        Next
+        packetContent.RemoveAll(Function(pair) pair.key = key)
     End Sub
 
     Public Shadows Sub RemoveAt(key As String)
