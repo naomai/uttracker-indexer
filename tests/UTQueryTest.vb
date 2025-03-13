@@ -1,5 +1,6 @@
 Imports Naomai.UTT.Indexer.UTQueryPacket
 Imports NUnit.Framework
+Imports NUnit.Framework.Legacy
 
 Namespace Tests
 
