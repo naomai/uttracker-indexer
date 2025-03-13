@@ -231,7 +231,7 @@ Public Class ServerInfoSync
                 AndAlso hasPlayers _
                 AndAlso previousMatchRecord.StartTime < timeMatchStart.Value _
                 AndAlso Not isPreMatchContinuing _
-                AndAlso Math.Abs((previousMatchRecord.StartTime - timeMatchStart.Value).TotalSeconds) > 120 ' jitter
+                AndAlso Math.Abs((previousMatchRecord.StartTime - timeMatchStart.Value).TotalSeconds) > 600 ' jitter
 
             ' if not, we'll assume the longest match time on one map of 6 hours
             Dim newMatchByEstimatedlTimeout As Boolean = Not state.isNewMatch _

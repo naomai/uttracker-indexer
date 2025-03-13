@@ -456,13 +456,13 @@ Public Class ServerQuery
         Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
                          {"player", "array:string|gt:0"},
                          {"team", "array:integer"},
-                         {"frags", "array:integer"},
-                         {"ping", "array:integer"},
-                         {"mesh", "array:string"},
-                         {"skin", "array:string"},
-                         {"face", "array:string"},
-                         {"countryc", "array:string"},
-                         {"deaths", "array:integer"},
+                         {"frags", "array:integer|default:0"},
+                         {"ping", "array:integer|default:0"},
+                         {"mesh", "array:string|nullable"},
+                         {"skin", "array:string|nullable"},
+                         {"face", "array:string|nullable"},
+                         {"countryc", "array:string|nullable"},
+                         {"deaths", "array:integer|default:0"},
                          {"time", "array:integer"},
                          {"ngsecret", "array:string"}
                         })
@@ -486,7 +486,12 @@ Public Class ServerQuery
                 playerinfo = New Hashtable
                 playerinfo("name") = validated("player")(playerid)
                 playerinfo("team") = validated("team")(playerid)
-                playerinfo("frags") = validated("frags")(playerid)
+                If validated("frags").ContainsKey(playerid) Then
+                    playerinfo("frags") = validated("frags")(playerid)
+                Else
+                    playerinfo("frags") = 0
+                End If
+
                 If playerinfo("team") = "255" Then
                     playerinfo("frags") = 0
                 End If

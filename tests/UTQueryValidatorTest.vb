@@ -204,7 +204,7 @@ Namespace Tests
 
             Dim validated = packet.Validate(rules)
             Assert.That(validated, Contains.Key("name"))
-            Assert.That(validated("name"), [Is].TypeOf(Of Dictionary(Of Integer, Object))())
+            Assert.That(validated("name"), [Is].InstanceOf(Of Dictionary(Of Integer, Object))())
             Assert.That(validated("name"), Has.Exactly(4).Items)
             Assert.That(validated("name")(0), [Is].EqualTo("dean"))
             Assert.That(validated("name")(1), [Is].EqualTo("eddie"))

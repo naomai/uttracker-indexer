@@ -625,8 +625,12 @@ Public Class UTQueryValidator
             input = field.defaultValue
         End If
 
-        If input = "" AndAlso Not field.isNullable Then
-            ' if still empty
+        If input = "" AndAlso field.isNullable Then
+            ' if still empty, return if nullable
+            Return Nothing
+        End If
+
+        If input = "" Then
             Throw New UTQueryValidationException($"Null is not allowed: {field.key}")
         End If
 
@@ -636,7 +640,7 @@ Public Class UTQueryValidator
                 fieldBoundsValue = input.Length
 
             Case UTQueryValidatorValueType.INT
-                Dim isValidValue = Integer.TryParse(input, result)
+                Dim isValidValue = Integer.TryParse(s:=input, result:=result)
                 If Not isValidValue Then
                     Throw New UTQueryValidationException($"Not an integer value: {field.key}")
                 End If
@@ -667,7 +671,7 @@ Public Class UTQueryValidator
     End Function
 
     Protected Shared Function ParseArray(packet As UTQueryPacket, field As UTQueryValidatorField)
-        Dim result As New Dictionary(Of Integer, Object)
+        Dim result As New UTQueryValidatorArray(field)
         For Each entry In packet
             If Not entry.key.StartsWith(field.key & "_") Then
                 Continue For
@@ -702,26 +706,50 @@ Public Class UTQueryValidator
         End If
         Return True
     End Function
+End Class
 
-    Protected Structure UTQueryValidatorField
-        Dim key As String
-        Dim valueType As UTQueryValidatorValueType
-        Dim isRequired As Boolean ' field must be present, exception will be thrown otherwise
-        Dim isNullable As Boolean ' field can be null
-        Dim isArray As Boolean ' field appears multiple times with index suffix (eg. name_0, name_1)
-        Dim defaultValue As String ' return value if validation is not satisfied; only for optional
-        Dim valMin As Double? ' min value (numeric) / length (string)
-        Dim valMax As Double? ' max value (numeric) / length (string)
-        Dim valMinExcluded As Boolean ' turns min from >= into >
-        Dim valMaxExcluded As Boolean ' turns max from <= into <
-    End Structure
+Public Structure UTQueryValidatorField
+    Dim key As String
+    Dim valueType As UTQueryValidatorValueType
+    Dim isRequired As Boolean ' field must be present, exception will be thrown otherwise
+    Dim isNullable As Boolean ' field can be null
+    Dim isArray As Boolean ' field appears multiple times with index suffix (eg. name_0, name_1)
+    Dim defaultValue As String ' return value if validation is not satisfied; only for optional
+    Dim valMin As Double? ' min value (numeric) / length (string)
+    Dim valMax As Double? ' max value (numeric) / length (string)
+    Dim valMinExcluded As Boolean ' turns min from >= into >
+    Dim valMaxExcluded As Boolean ' turns max from <= into <
+End Structure
 
-    Protected Enum UTQueryValidatorValueType As Integer
-        STR = 0
-        INT = 1
-        FLOAT = 2
-        BOOL = 3
-    End Enum
+
+Public Enum UTQueryValidatorValueType As Integer
+    STR = 0
+    INT = 1
+    FLOAT = 2
+    BOOL = 3
+End Enum
+
+Public Class UTQueryValidatorArray
+    Inherits Dictionary(Of Integer, Object)
+
+    Protected fieldDef As UTQueryValidatorField
+
+    Public Sub New(field As UTQueryValidatorField)
+        Me.fieldDef = field
+    End Sub
+
+    Default Public Overloads Property Item(key As Integer) As Object
+        Get
+            If Not MyBase.ContainsKey(key) AndAlso Not IsNothing(fieldDef.defaultValue) Then
+                Return fieldDef.defaultValue
+            End If
+            Return MyBase.Item(key)
+        End Get
+        Set(value As Object)
+            MyBase.Item(key) = value
+        End Set
+    End Property
+
 End Class
 
 Public Class UTQueryValidationException
