@@ -1,7 +1,6 @@
 Imports System.Net
 Imports System.Globalization
 Imports System.Text
-Imports Naomai.UTT.Indexer.Utt2Database
 
 Public Class ServerQuery
     Dim socket As SocketManager
@@ -141,9 +140,9 @@ Public Class ServerQuery
             Return
         End If
 
-        If Not IsNothing(incomingPacket) Then ' we received a full response from server
-            Dim packet = incomingPacket.Clone
-            incomingPacket = Nothing
+        If Not IsNothing(incomingPacketObj) Then ' we received a full response from server
+            Dim packet = incomingPacketObj
+            incomingPacketObj = Nothing
             packetReceived(packet)
             Return
         End If
@@ -264,38 +263,45 @@ Public Class ServerQuery
         End Try
     End Sub
 
-    Private Sub packetReceived(packet As Hashtable)
-        With state
-            If .requestingBasic Then
-                parseBasic(packet)
-            ElseIf .requestingInfo Then
-                parseInfo(packet)
-            ElseIf .requestingInfoExtended Then
-                parseInfoExtended(packet)
-            ElseIf .requestingPlayers Then
-                parsePlayers(packet)
-            ElseIf .requestingVariables Then
-                parseVariables(packet)
-            End If
-        End With
+    Private Sub packetReceived(packet As UTQueryPacket)
+        Try
+            With state
+                If .requestingBasic Then
+                    parseBasic(packet)
+                ElseIf .requestingInfo Then
+                    parseInfo(packet)
+                ElseIf .requestingInfoExtended Then
+                    parseInfoExtended(packet)
+                ElseIf .requestingPlayers Then
+                    parsePlayers(packet)
+                ElseIf .requestingVariables Then
+                    parseVariables(packet)
+                End If
+            End With
+        Catch e As UTQueryValidationException
+            abortScan("Invalid data received from server: " & e.Message)
+        End Try
         lastActivity = Date.UtcNow
         networkTimeoutDeadline = Nothing
         resetRequestFlags()
         packetsReceived += 1
     End Sub
 
-    Private Sub parseBasic(packet As Hashtable)
-        If Not packet.ContainsKey("gamename") Then
-            'logDbg("NoGamename: " & packetObj.ToString)
-            abortScan("No GameName")
-            Return
-        End If
+    Private Sub parseBasic(packetObj As UTQueryPacket)
+        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+                         {"gamename", "required|string"},
+                         {"gamever", "required|string"},
+                         {"minnetver", "string"},
+                         {"mingamever", "string"},
+                         {"location", "integer"}
+                        })
+        Dim packet = validator.Validate(packetObj)
 
-        Dim gameName = packet("gamename").ToString().ToLower()
+        Dim gameName = packet("gamename").ToLower()
         Dim validServer As Boolean = False
 
         ' validate
-        validServer = ValidateServer(packet, gameName)
+        validServer = ValidateServer(packetObj, gameName)
 
         If Not validServer Then
             abortScan("Challenge validation failed")
@@ -330,100 +336,112 @@ Public Class ServerQuery
 
     End Sub
 
-    Private Function ValidateServer(packet As Hashtable, gameName As String) As Boolean
+    Private Function ValidateServer(packetObj As UTQueryPacket, gameName As String) As Boolean
+        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+            {"validate", "required|string|gte:6|lte:8"}
+         })
         If state.hasValidated Then
             Return True
         End If
 
         Dim validServer As Boolean
 
-        If Not packet.ContainsKey("validate") Then
+        Try
+            Dim packet = validator.Validate(packetObj)
+            If packet("validate") = "Orange" Then ' dunno where does this come from
+                validServer = True
+            ElseIf Len(packet("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(gameName) Then
+                validServer = False
+            Else
+                Dim expectedResponse = GsGetChallengeResponse(challenge, MasterServerManager.gamespyKeys(gameName).encKey)
+                validServer = (expectedResponse = packet("validate"))
+            End If
+        Catch e As UTQueryValidationException
             validServer = False
-        ElseIf packet("validate") = "Orange" Then ' dunno where does this come from
-            validServer = True
-        ElseIf Len(packet("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(gameName) Then
-            validServer = False
-        Else
-            Dim expectedResponse = GsGetChallengeResponse(challenge, MasterServerManager.gamespyKeys(gameName).encKey)
-            validServer = (expectedResponse = packet("validate"))
-        End If
+        End Try
+
 
         Return validServer
     End Function
 
-    Private Sub parseInfo(packet As Hashtable)
-        If Not packet.ContainsKey("hostname") OrElse
-            Not packet.ContainsKey("mapname") OrElse
-            Not packet.ContainsKey("numplayers") OrElse
-            Not packet.ContainsKey("maxplayers") Then
-            'logDbg("MissingFields: " & packet.ToString)
-            abortScan("Missing required fields in packet", dumpCommLog:=True)
-            Return
-        End If
-        For Each packetKey As String In packet.Keys
-            If packetKey.Substring(0, 2) = "__" Then
+    Private Sub parseInfo(packetObj As UTQueryPacket)
+        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+                         {"hostname", "required|string"},
+                         {"mapname", "required|string"},
+                         {"numplayers", "required|integer|gte:0"},
+                         {"maxplayers", "required|integer|gte:1"},
+                         {"hostport", "integer|gte:1|lte:65535"}
+                        })
+        Dim validated = validator.Validate(packetObj)
+
+        For Each pair In packetObj
+            If pair.key.Substring(0, 2) = "__" Then
                 Continue For
             End If
-            server.info(packetKey) = packet(packetKey)
+            server.info(pair.key) = pair.value
         Next
-        If packet.ContainsKey("hostport") AndAlso IsNumeric(packet("hostport")) Then
-            addressGame = JulkinNet.GetHost(addressQuery) & ":" &
-                Integer.Parse(packet("hostport"))
+        If validated.ContainsKey("hostport") Then
+            addressGame = JulkinNet.GetHost(addressQuery) & ":" & validated("hostport")
         End If
-        server.caps.hasXSQ = packet.ContainsKey("xserverquery")
+        server.caps.hasXSQ = packetObj.ContainsKey("xserverquery")
         If server.caps.hasXSQ Then
             Dim xsqVersion As Integer
-            Integer.TryParse(Replace(packet("xserverquery"), ".", ""), formatProvider, xsqVersion)
+            Integer.TryParse(Replace(packetObj("xserverquery"), ".", ""), formatProvider, xsqVersion)
             ' property interface brought back in XServerQuery 211fix4
             server.caps.hasPropertyInterface = xsqVersion >= 211
             server.caps.XSQVersion = xsqVersion
         End If
 
-        server.info("__uttrealplayers") = packet("numplayers") ' might be overwritten later
+        server.info("__uttrealplayers") = validated("numplayers") ' might be overwritten later
         state.hasInfo = True
         state.hasNumPlayers = True
     End Sub
 
-    Private Sub parseInfoExtended(packet As Hashtable)
+    Private Sub parseInfoExtended(packetObj As UTQueryPacket)
+        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+                         {"gamespeed", "required|float|gt:0"},
+                         {"numplayers", "required|integer|gte:0"},
+                         {"numspectators", "integer|gte:0"},
+                         {"currentid", "integer|gte:0"},
+                         {"elapsedtime", "integer|gte:0"},
+                         {"remainingtime", "integer|gte:0"},
+                         {"timelimit", "integer|gte:0"},
+                         {"bgameended", "boolean"},
+                         {"bovertime", "boolean"}
+                        })
         Try
-            server.caps.quickNumPlayers = IsNumeric(packet("numplayers"))
+            Dim validated = validator.Validate(packetObj)
 
-            If Not packet.ContainsKey("gamespeed") OrElse Not server.caps.quickNumPlayers Then
-                Throw New Exception("Incorrect extended info (gamespeed/numplayers)")
-            End If
-            Single.TryParse(packet("gamespeed"), formatProvider, server.caps.gameSpeed)
-            If server.caps.gameSpeed = 0 Then
-                Throw New Exception("Incorrect extended info (gamespeed=0)")
-            End If
+            server.caps.quickNumPlayers = True
 
-            Dim needsUpdatingPlayerList = packet("numplayers") > 0 OrElse
-                packet("numspectators") > 0
+            Dim needsUpdatingPlayerList = validated("numplayers") > 0 OrElse
+                validated("numspectators") > 0
 
             If needsUpdatingPlayerList Then
                 state.hasPlayers = False
             End If
 
-            server.info("__uttrealplayers") = packet("numplayers")
-            server.info("__uttspectators") = packet("numspectators")
-            server.info("__uttgamespeed") = packet("gamespeed")
-            server.info("__uttgamecurrentid") = packet("currentid")
-            server.info("bgameended") = packet("bgameended")
-            server.info("bovertime") = packet("bovertime")
-            server.info("elapsedtime") = packet("elapsedtime")
-            server.info("remainingtime") = packet("remainingtime")
-            If packet.ContainsKey("timelimit") Then
-                server.info("timelimit") = packet("timelimit")
+            server.info("__uttrealplayers") = validated("numplayers")
+            server.info("__uttspectators") = validated("numspectators")
+            server.info("__uttgamespeed") = validated("gamespeed")
+            server.info("__uttgamecurrentid") = validated("currentid")
+            server.info("bgameended") = validated("bgameended")
+            server.info("bovertime") = validated("bovertime")
+            server.info("elapsedtime") = validated("elapsedtime")
+            server.info("remainingtime") = validated("remainingtime")
+            If validated.ContainsKey("timelimit") Then
+                server.info("timelimit") = validated("timelimit")
             End If
 
             state.hasInfoExtended = True
 
             ' fake players detection
-            If server.info("numplayers") > packet("numplayers") + packet("numspectators") Then
+            If server.info("numplayers") > validated("numplayers") + validated("numspectators") Then
                 server.caps.fakePlayers = True
             End If
 
             If server.caps.gamemodeExtendedInfo Then
-                gamemodeQuery.ParseInfoPacket(packet)
+                gamemodeQuery.ParseInfoPacket(packetObj.ConvertToHashtablePacket())
             End If
 
             state.hasNumPlayers = True
@@ -432,67 +450,70 @@ Public Class ServerQuery
         End Try
     End Sub
 
-    Private Sub parsePlayers(packet As Hashtable)
-        Dim playerid As Integer = 0, suffix As String, playerinfo As Hashtable
+    Private Sub parsePlayers(packetObj As UTQueryPacket)
+        Dim playerid As Integer = 0, playerinfo As Hashtable
         Dim buggedPingCount As Integer = 0 ' 2016-03-18: skip scanning of broken servers (all players with ping 9999)
+        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+                         {"player", "array:string|gt:0"},
+                         {"team", "array:integer"},
+                         {"frags", "array:integer"},
+                         {"ping", "array:integer"},
+                         {"mesh", "array:string"},
+                         {"skin", "array:string"},
+                         {"face", "array:string"},
+                         {"countryc", "array:string"},
+                         {"deaths", "array:integer"},
+                         {"time", "array:integer"},
+                         {"ngsecret", "array:string"}
+                        })
+        Dim validated = validator.Validate(packetObj)
 
         Try
             server.players.Clear()
-            Do While packet.ContainsKey("player_" & playerid)
-                suffix = "_" & playerid
+
+            For Each pair As KeyValuePair(Of Integer, Object) In validated("player")
+                playerid = pair.Key
 
                 ' validate
-                Dim parsedTmp As Long
-                If Not packet.ContainsKey("player" & suffix) OrElse
-                    Not packet.ContainsKey("team" & suffix) OrElse
-                    Not Long.TryParse(packet("team" & suffix), parsedTmp) Then
-                    abortScan("Player response is invalid ")
-                End If
 
-                If packet.ContainsKey("ngsecret" & suffix) AndAlso packet("ngsecret" & suffix) = "bot" Then
+                If validated("ngsecret").ContainsKey(playerid) AndAlso validated("ngsecret")(playerid) = "bot" Then
                     ' skip entries marked as bots
                     playerid += 1
-                    Continue Do
+                    Continue For
                 End If
 
 
                 playerinfo = New Hashtable
-                playerinfo("name") = packet("player" & suffix)
-                playerinfo("team") = packet("team" & suffix)
-                playerinfo("frags") = packet("frags" & suffix)
+                playerinfo("name") = validated("player")(playerid)
+                playerinfo("team") = validated("team")(playerid)
+                playerinfo("frags") = validated("frags")(playerid)
                 If playerinfo("team") = "255" Then
                     playerinfo("frags") = 0
                 End If
-                playerinfo("mesh") = packet("mesh" & suffix)
-                playerinfo("skin") = packet("skin" & suffix)
-                playerinfo("face") = packet("face" & suffix)
-
-
-                Dim ping As Long
-                Dim pingString As String = packet("ping" & suffix)
-
-                If IsNothing(pingString) OrElse Not Long.TryParse(pingString, ping) Then
-                    ping = 0
+                playerinfo("mesh") = validated("mesh")(playerid)
+                playerinfo("skin") = validated("skin")(playerid)
+                If validated("face").ContainsKey(playerid) Then
+                    playerinfo("face") = validated("face")(playerid)
                 End If
 
-                playerinfo("ping") = ping
+                playerinfo("ping") = validated("ping")(playerid)
 
-                If (ping > 100000) Then
+                If (playerinfo("ping") > 100000) Then
                     buggedPingCount += 1
                 End If
 
                 If server.caps.hasXSQ Then
-                    playerinfo("countryc") = packet("countryc" & suffix)
-                    playerinfo("deaths") = packet("deaths" & suffix)
+                    playerinfo("countryc") = validated("countryc")(playerid)
+                    playerinfo("deaths") = validated("deaths")(playerid)
                     If server.caps.XSQVersion >= 200 Then
-                        playerinfo("time") = packet("time" & suffix)
+                        playerinfo("time") = validated("time")(playerid)
                     Else
-                        playerinfo("time") = packet("time" & suffix) * 60
+                        playerinfo("time") = validated("time")(playerid) * 60
                     End If
                 End If
                 server.players.Add(playerinfo)
                 playerid += 1
-            Loop
+            Next
             If buggedPingCount > server.players.Count / 2 Then
                 abortScan("Frozen/glitched server")
             End If
@@ -502,8 +523,8 @@ Public Class ServerQuery
         state.hasPlayers = True
     End Sub
 
-    Private Sub parseVariables(packet As Hashtable)
-        server.variables = packet.Clone()
+    Private Sub parseVariables(packetObj As UTQueryPacket)
+        server.variables = packetObj.ConvertToHashtablePacket()
 
         server.info("__utthaspropertyinterface") = server.caps.hasPropertyInterface
 

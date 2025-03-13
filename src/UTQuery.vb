@@ -478,11 +478,7 @@ Public Class UTQueryPacket
     End Function
 
     Public Function Validate(rules As Dictionary(Of String, String)) As Hashtable
-        Dim validator = New UTQueryValidator()
-        For Each rule In rules
-            validator.CreateRule(rule.Key, rule.Value)
-        Next
-
+        Dim validator = UTQueryValidator.FromRuleDict(rules)
         Return validator.Validate(Me)
     End Function
 
@@ -523,6 +519,14 @@ Public Class UTQueryValidator
 
     Public Sub New()
     End Sub
+
+    Public Shared Function FromRuleDict(rules As Dictionary(Of String, String))
+        Dim validator = New UTQueryValidator()
+        For Each rule In rules
+            validator.CreateRule(rule.Key, rule.Value)
+        Next
+        Return validator
+    End Function
 
     Public Function Validate(packet As UTQueryPacket) As Hashtable
         Dim result As New Hashtable

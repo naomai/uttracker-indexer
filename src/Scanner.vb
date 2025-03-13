@@ -147,7 +147,7 @@ Public Class Scanner
 
             target.incomingPacketObj = New UTQueryPacket(packetString)
 
-            target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
+            'target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
             commLogWrite(target.addressQuery, "DDD", packetString)
             packetBuffer.Clear()
             target.Tick()
