@@ -2,6 +2,7 @@
 ' might be also usable for other gamespy-based games
 
 
+Imports System.Globalization
 Imports System.Text.RegularExpressions
 
 Public Class UTQueryPacket
@@ -642,7 +643,7 @@ Public Class UTQueryValidator
                 fieldBoundsValue = result
 
             Case UTQueryValidatorValueType.FLOAT
-                Dim isValidValue = Double.TryParse(input, result)
+                Dim isValidValue = Double.TryParse(s:=input, result:=result, provider:=NumberFormatInfo.InvariantInfo)
                 If Not isValidValue Then
                     Throw New UTQueryValidationException($"Not a float value: {field.key}")
                 End If
