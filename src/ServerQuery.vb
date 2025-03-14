@@ -16,8 +16,6 @@ Public Class ServerQuery
     Protected nextGameStateDeadline As Date = Date.UtcNow
     Protected nextVerifyDeadline As Date = Date.UtcNow
 
-    Public packetsSent As Integer = 0
-    Public packetsReceived As Integer = 0
     Protected challenge As String
 
     Private state As ServerQueryState
@@ -162,10 +160,6 @@ Public Class ServerQuery
 
     End Sub
 
-    Public Function isDone()
-        Return state.done
-    End Function
-
     Public Function getState() As ServerQueryState
         Return state
     End Function
@@ -254,7 +248,6 @@ Public Class ServerQuery
     Private Sub serverSend(packet As String)
         Try
             socket.SendTo(addressQuery, packet)
-            packetsSent += 1
             scannerMaster.commLogWrite(addressQuery, "UUU", packet)
             networkTimeoutDeadline = Date.UtcNow.AddSeconds(NETWORK_TIMEOUT_SECONDS)
 
@@ -284,7 +277,6 @@ Public Class ServerQuery
         lastActivity = Date.UtcNow
         networkTimeoutDeadline = Nothing
         resetRequestFlags()
-        packetsReceived += 1
     End Sub
 
     Private Sub parseBasic(packetObj As UTQueryPacket)
@@ -351,14 +343,12 @@ Public Class ServerQuery
             validServer = False
         End Try
 
-
         Return validServer
     End Function
 
     Private Sub parseInfo(packetObj As UTQueryPacket)
         Dim validated = ServerQueryValidators.info.Validate(packetObj)
 
-        ' server.info.Clear() 
         For Each pair In packetObj
             If pair.key.Substring(0, 2) = "__" Then
                 Continue For
@@ -559,7 +549,6 @@ Public Class ServerQuery
             state.done = True
             sync.state.done = True
             isOnline = False
-            'isActive = False
             If Not state.requestingBasic Then
                 protocolFailures += 1
                 logDbg("#" & protocolFailures & " Aborting scan (" & reason & ") - " & state.ToString)
@@ -588,7 +577,7 @@ Public Class ServerQuery
     End Function
 
     Private Shared Function rand(min As UInt32, max As UInt32) As UInt32
-        Static randomGen = New System.Random()
+        Static randomGen = New Random()
         Return randomGen.next(min, max)
     End Function
 
@@ -643,8 +632,6 @@ Public Class ServerQuery
                          {"ngsecret", "array:string"}
                         })
     End Class
-
-
 End Class
 
 

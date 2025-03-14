@@ -51,7 +51,6 @@ Module App
                 .protocol = ini.GetProperty("Database.MySQLProtocol", "socket")
             End If
         End With
-        'dbconfig.charset = "utf16"
 
         If dbconfig.host = "changeme!!" Then
             Throw New Exception("Please configure the scanner first (" & ini.IniName & ")")
@@ -61,6 +60,7 @@ Module App
 
         masterManager = New MasterServerManager()
         masterManager.log = log
+        masterManager.updateInterval = ini.GetProperty("MasterServer.RefreshIntervalMins", "120") * 60
 
         Dim msIdx As Integer = 0
         Dim masterServerString As String
@@ -92,10 +92,6 @@ Module App
         With scannerConfig
             .log = log
             .dbCtx = dbCtx
-            .dyncfg = dyncfg.Ns("scanner")
-            .masterServerUpdateInterval = ini.GetProperty("MasterServer.RefreshIntervalMins", "120") * 60
-            .scanInterval = ini.GetProperty("General.IntervalMins", "2") * 60
-            .iniFile = ini.IniName
             .masterServerManager = masterManager
         End With
         scanner = New Scanner(scannerConfig)

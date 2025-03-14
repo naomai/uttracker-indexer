@@ -1,5 +1,4 @@
 Imports System.Data
-Imports System.Reflection.Metadata
 Imports System.Text.Json
 Imports Naomai.UTT.Indexer.Utt2Database
 
@@ -9,8 +8,6 @@ Public Class ServerInfoSync
 
     Private serverData As ServerInfo
 
-    Dim uttServerId As Int32
-    Dim uttGameId As UInt32
     Dim uttServerScanTime As DateTime
 
     Public state As ServerScannerSaverState
@@ -50,7 +47,6 @@ Public Class ServerInfoSync
             Return serverRecord
         End If
 
-        'serverRecord = dbCtx.Servers.Local.SingleOrDefault(Function(s) s.AddressQuery = serverWorker.addressQuery)
         Dim records = serverWorker.scannerMaster.serverRecords
 
         If Not records.ContainsKey(serverWorker.addressQuery) Then
@@ -108,8 +104,6 @@ Public Class ServerInfoSync
             dbCtx.Entry(serverRecord).State = EntityState.Detached
             Return
         End Try
-        uttServerId = serverRecord.Id
-
 
         uttServerScanTime = serverWorker.infoSentTimeLocal
 
@@ -149,8 +143,6 @@ Public Class ServerInfoSync
         variablesJson = JsonSerializer.Serialize(variablesMerged)
 
         serverRecord.Variables = variablesJson
-        'dbCtx.Servers.Update(serverRecord)
-        'dbCtx.SaveChanges()
 
         state.savedVariables = True
         state.savedScanInfo = False
@@ -402,7 +394,6 @@ Public Class ServerInfoSync
     Private Sub UpdatePlayerHistoryEntry(playerRecord As Player, player As Dictionary(Of String, String)) ' `playerhistory` table
         Dim playerTimeOffset As Integer = 0
         Dim playerLogRecord As PlayerLog
-        'Dim uttPlayerId As Int32 = player("uttPlayerId")
 
         If Not state.hasServerId Then
             Return
@@ -449,11 +440,7 @@ Public Class ServerInfoSync
 
         If IsNothing(playerLogRecord.Id) Then
             dbCtx.Update(playerLogRecord)
-            'dbCtx.SaveChanges()
         End If
-
-
-
     End Sub
 
     Private Sub TryUpdateCumulativePlayersStats() ' update `PlayerStats` using not-finished records in PlayerLogs, then marking them Finished
@@ -500,9 +487,6 @@ Public Class ServerInfoSync
                     Function(s) s.PlayerId = playerLog.PlayerId AndAlso
                     s.ServerId = playerLog.ServerId
                 )
-                'Dim playerStatRecord As PlayerStat = playerLog.Player.PlayerStats.SingleOrDefault(
-                'Function(s) s.ServerId = playerLog.ServerId
-                '                )
 
                 If IsNothing(playerStatRecord) Then
                     playerStatRecord = New PlayerStat With {
@@ -515,7 +499,6 @@ Public Class ServerInfoSync
                     }
                     dbCtx.PlayerStats.Add(playerStatRecord)
                     dbCtx.PlayerStats.Local.Add(playerStatRecord)
-                    'dbCtx.SaveChanges()
                 End If
 
                 With playerStatRecord
@@ -536,18 +519,11 @@ Public Class ServerInfoSync
 
 
                 playerLog.Finished = True
-                'dbCtx.Update(playerLog)
-                'If IsNothing(playerStatRecord.Id) Then
-                ' dbCtx.Add(playerStatRecord)
-                'dbCtx.PlayerStats.Add(playerStatRecord)
-                'dbCtx.SaveChanges()
-                'End If
             Next
 
             Try
                 dbCtx.SaveChanges() 'PlayerStats
             Catch e As Exception
-                'Console.WriteLine("AA")
             End Try
 
             state.savedCumulativeStats = True
@@ -564,11 +540,6 @@ Public Class ServerInfoSync
             UpdateServerRatings()
 
             serverRecord.LastSuccess = DateTime.UtcNow
-            'serverRecord.LastCheck = serverData.lastActivity
-
-            'dbCtx.Servers.Update(serverRecord)
-
-            'dbCtx.SaveChanges() ' ScanInfo
             state.savedScanInfo = True
         End If
     End Sub
@@ -595,8 +566,6 @@ Public Class ServerInfoSync
             .Collection(Function(m) m.PlayerLogs) _
             .Load()
         Return match
-
-        'Return serverRecord.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault()
     End Function
 
     Private Shared Function GetPlayerSlug(playerInfo As Dictionary(Of String, String)) As String

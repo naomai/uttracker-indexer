@@ -7,11 +7,9 @@ Imports System.Environment
 Imports Microsoft.SqlServer
 
 Public Class Scanner
-    Public scanInterval = 120
     Friend scanLastTouchAll As Date
-    Public masterServerUpdateInterval As Integer = 3600
 
-    Public serversListCache
+    Public serversListCache As List(Of Server)
 
     Protected Friend log As Logger
     Protected Friend ini As IniPropsProvider
@@ -34,11 +32,8 @@ Public Class Scanner
 
     Public Sub New(scannerConfig As ServerScannerConfig)
         With scannerConfig
-            scanInterval = .scanInterval
-            masterServerUpdateInterval = .masterServerUpdateInterval
             log = .log
             dbCtx = .dbCtx
-            dyncfg = .dyncfg
             masterServerQuery = .masterServerManager
         End With
 
@@ -214,13 +209,10 @@ Public Class Scanner
                 Function(p As Server) Not IsNothing(p.LastSuccess) AndAlso p.LastSuccess > scanTimeRange
             )
 
-        Dim servers As List(Of Server) = listQuery.ToList()
-
-        serversListCache = servers
-
+        serversListCache = listQuery.ToList()
         Dim recentServers = New List(Of String)
 
-        For Each server In servers
+        For Each server In serversListCache
             Dim fullQueryIp = server.AddressQuery
 
             recentServers.Add(fullQueryIp)
@@ -268,29 +260,11 @@ Public Class Scanner
         Dim dateNow = Now.ToString("HH:mm:ss")
         '_targetCommLog(targetHost) &= $"[{dateNow}] {tag}: {packet}" & NewLine
     End Sub
-
-
-#Region "Dynconfig"
-    Public Function dynconfigGet(key As String)
-        Return dyncfg.GetProperty(key)
-    End Function
-
-    Public Sub dynconfigSet(key As String, data As String, Optional priv As Boolean = False)
-        dyncfg.SetProperty(key, data, priv)
-    End Sub
-
-
-#End Region
-
 End Class
 
 Public Structure ServerScannerConfig
-    Dim scanInterval As Integer
-    Dim masterServerUpdateInterval As Integer
     Dim masterServerManager As MasterServerManager
     Dim log As Logger
     Dim dbCtx As Utt2Context
-    Dim dyncfg As IPropsProvider
-    Dim iniFile As String
 End Structure
 
