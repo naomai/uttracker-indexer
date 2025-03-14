@@ -22,7 +22,7 @@ Public Class ServerRating
 		Return Math.Round(rfScore)
 	End Function
 
-	Public Function CalculateMinute(serverVariables As Hashtable, serverRecord As Server)
+	Public Function CalculateMinute(serverVariables As Dictionary(Of String, String), serverRecord As Server)
 		'$s['rfcombo']=round(pow($s['rfscore'],1.6)*($s['realnum']+1));
 
 		Dim playerNum = Integer.Parse(serverVariables("numplayers"))

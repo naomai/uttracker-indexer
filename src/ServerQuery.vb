@@ -26,8 +26,7 @@ Public Class ServerQuery
     Public isActive As Boolean = False
     Public addressQuery As String
     Public addressGame As String
-    Public incomingPacket As Hashtable
-    Friend incomingPacketObj As UTQueryPacket
+    Friend incomingPacket As UTQueryPacket
     Private resendAttempts As Integer = 0
 
     Protected protocolFailures As Integer = 0
@@ -141,9 +140,9 @@ Public Class ServerQuery
             Return
         End If
 
-        If Not IsNothing(incomingPacketObj) Then ' we received a full response from server
-            Dim packet = incomingPacketObj
-            incomingPacketObj = Nothing
+        If Not IsNothing(incomingPacket) Then ' we received a full response from server
+            Dim packet = incomingPacket
+            incomingPacket = Nothing
             packetReceived(packet)
             Return
         End If
@@ -359,7 +358,7 @@ Public Class ServerQuery
     Private Sub parseInfo(packetObj As UTQueryPacket)
         Dim validated = ServerQueryValidators.info.Validate(packetObj)
 
-        server.info.Clear()
+        ' server.info.Clear() 
         For Each pair In packetObj
             If pair.key.Substring(0, 2) = "__" Then
                 Continue For
@@ -426,7 +425,7 @@ Public Class ServerQuery
     End Sub
 
     Private Sub parsePlayers(packetObj As UTQueryPacket)
-        Dim playerid As Integer = 0, playerinfo As Hashtable
+        Dim playerid As Integer = 0, playerinfo As Dictionary(Of String, String)
         Dim buggedPingCount As Integer = 0 ' 2016-03-18: skip scanning of broken servers (all players with ping 9999)
         Dim validated = ServerQueryValidators.players.Validate(packetObj)
 
@@ -445,7 +444,7 @@ Public Class ServerQuery
                 End If
 
 
-                playerinfo = New Hashtable
+                playerinfo = New Dictionary(Of String, String)
                 playerinfo("name") = validated("player")(playerid)
                 playerinfo("team") = validated("team")(playerid)
                 If validated("frags").ContainsKey(playerid) Then
@@ -491,7 +490,7 @@ Public Class ServerQuery
     End Sub
 
     Private Sub parseVariables(packetObj As UTQueryPacket)
-        server.variables = packetObj.ConvertToHashtablePacket()
+        server.variables = packetObj.ConvertToDictionary()
 
         server.info("__utthaspropertyinterface") = server.caps.hasPropertyInterface
 
@@ -638,7 +637,7 @@ Public Class ServerQuery
                          {"mesh", "array:string|nullable"},
                          {"skin", "array:string|nullable"},
                          {"face", "array:string|nullable"},
-                         {"countryc", "array:string|nullable"},
+                         {"countryc", "array:string|nullable|default:"},
                          {"deaths", "array:integer|default:0"},
                          {"time", "array:integer"},
                          {"ngsecret", "array:string"}

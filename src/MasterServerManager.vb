@@ -4,6 +4,8 @@ Imports Microsoft.Extensions.FileProviders
 Imports System.Reflection
 Imports System.Net.Http
 Imports Naomai.UTT.Indexer.UTQueryPacket
+Imports System.Text
+Imports System.Diagnostics.Metrics
 
 Public Class MasterServerManager
     Public cacheFile As String
@@ -15,6 +17,10 @@ Public Class MasterServerManager
     Public log As Logger
     Public updateInterval As Integer = 3600
     Public pingInterval As Integer = 600
+
+    Shared metric As New Meter("MasterServerManager")
+    Friend Shared mtServerListLength As Histogram(Of Integer) = metric.CreateHistogram(Of Integer)("mtServerListLength")
+
 
     Public Async Sub ThreadLoop()
         Do
@@ -79,11 +85,12 @@ Public Class MasterServerManager
 
         Dim gsList As New Dictionary(Of String, GamespyGameInfo)
         Dim gsNewItem As GamespyGameInfo
+        Dim gameFullName As String
         Do While fn.Peek() <> -1
             line = fn.ReadLine()
             With gsNewItem
-                .gameFullName = Trim(Mid(line, 1, 54))
-                If InStr(.gameFullName, "GSLISTVER") <> 0 Then
+                gameFullName = Trim(Mid(line, 1, 54))
+                If InStr(gameFullName, "GSLISTVER") <> 0 Then
                     Continue Do
                 End If
                 .gameName = Trim(Mid(line, 55, 19))
@@ -258,7 +265,8 @@ Class MasterListGSpyFact
     End Function
 
     Protected Async Function getRawList() As Task(Of String)
-        Dim result As String = ""
+        Dim result As String
+        Dim builder As New StringBuilder(capacity:=18000)
         Dim connection As New JulkinNet With {
             .timeout = 2500
         }
@@ -287,11 +295,15 @@ Class MasterListGSpyFact
         Await connection.WriteAsync(myResponse.ToString())
 
         Dim waitStart = TickCount()
+        packet = ""
         Do
-            result &= Await connection.ReadNextAsync()
-        Loop While TickCount() - waitStart < 7000 AndAlso InStr(result, "\final\") = 0
-
+            packet = Await connection.ReadNextAsync()
+            builder.Append(packet)
+        Loop While TickCount() - waitStart < 7000 AndAlso InStr(packet, "\final\") = 0
         connection.Disconnect()
+        result = builder.ToString()
+
+        ' MasterServerManager.mtServerListLength.Record(result.Length)
 
         If Len(result) < 5 Then
             Throw New Exception("Master server query failed, no response to request")
@@ -336,7 +348,6 @@ Class MasterListHTTPFact
 End Class
 
 Public Structure GamespyGameInfo
-    Dim gameFullName As String
     Dim gameName As String
     Dim encKey As String
 End Structure

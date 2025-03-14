@@ -154,6 +154,17 @@ Public Class EndpointPacketBuffer
         End SyncLock
     End Function
 
+    Public ReadOnly Property Length As Integer
+        Get
+            Dim bytesTotal As Integer = 0
+            SyncLock packetQueue
+                For Each packet In packetQueue
+                    bytesTotal += packet.Length
+                Next
+            End SyncLock
+            Return bytesTotal
+        End Get
+    End Property
 
     Public Function PeekLast() As Byte()
         newPackets = False
@@ -161,16 +172,13 @@ Public Class EndpointPacketBuffer
     End Function
 
     Public Function PeekAll() As Byte()
-        Dim result As Byte()
-        Dim bytesTotal As Integer = 0
+        'establish working length of packet stream
+        Dim result(Me.Length) As Byte
         Dim offset As Integer = 0
         newPackets = False
         SyncLock packetQueue
             For Each packet In packetQueue
-                bytesTotal += packet.Length
-            Next
-            ReDim result(bytesTotal)
-            For Each packet In packetQueue
+                ' each packet will be zero-terminated
                 Dim zeroByteOffset = Array.IndexOf(packet, 0)
                 If zeroByteOffset <> -1 Then
                     ReDim Preserve packet(zeroByteOffset)
@@ -179,6 +187,7 @@ Public Class EndpointPacketBuffer
                 offset += packet.Length
             Next
         End SyncLock
+        'adjust length to discard trimmed bytes in zero-terminated packets 
         ReDim Preserve result(offset)
         Return result
     End Function
@@ -190,7 +199,7 @@ Public Class EndpointPacketBuffer
         End SyncLock
     End Sub
 
-    Public Function ToString() As String
+    Public Overrides Function ToString() As String
         Return "PB:CT=" + packetQueue.Count
     End Function
 End Class

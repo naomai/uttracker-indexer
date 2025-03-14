@@ -6,7 +6,7 @@ Imports Microsoft.Extensions.FileProviders
 Imports Naomai.UTT.Indexer.Utt2Database
 
 Module App
-    Dim WithEvents scanner As Scanner
+    Dim scanner As Scanner
     Dim WithEvents master As GSMasterServer
     Dim masterBridge As GSMasterServerBridge
     Dim masterManager As MasterServerManager

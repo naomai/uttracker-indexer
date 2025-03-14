@@ -2,7 +2,9 @@
 ' might be also usable for other gamespy-based games
 
 
+Imports System.Diagnostics.Metrics
 Imports System.Globalization
+Imports System.Text
 Imports System.Text.RegularExpressions
 
 Public Class UTQueryPacket
@@ -14,6 +16,11 @@ Public Class UTQueryPacket
     Public packetFlags As UTQueryPacketFlags
 
     Private disposedValue As Boolean
+
+
+    Shared metric As New Meter("UTQuery")
+    'Shared mtSerializationLength As Histogram(Of Integer) = metric.CreateHistogram(Of Integer)("SerializationLength")
+
 
     Public Sub New(packet As String, Optional packetFlags As UTQueryPacketFlags = 0)
         Me.New(packetFlags)
@@ -62,16 +69,19 @@ Public Class UTQueryPacket
         Return result
     End Function
 
-    Protected Shared Function ConvertListPacketToHashtablePacket(packetList As List(Of UTQueryKeyValuePair)) As Hashtable
-        Dim result As New Hashtable
+    Protected Shared Function ConvertListPacketToDictionary(packetList As List(Of UTQueryKeyValuePair)) As Dictionary(Of String, String)
+        Dim result As New Dictionary(Of String, String)
         For Each variable In packetList
             result.Item(variable.key) = variable.value
         Next
         Return result
     End Function
 
-    Public Function ConvertToHashtablePacket()
-        Return ConvertListPacketToHashtablePacket(packetContent)
+    Public Function ConvertToHashtablePacket() As Hashtable
+        Return New Hashtable(ConvertToDictionary())
+    End Function
+    Public Function ConvertToDictionary() As Dictionary(Of String, String)
+        Return ConvertListPacketToDictionary(packetContent)
     End Function
 
     Public Sub SetReadyToSend(Optional rtsFlag As Boolean = True)
@@ -468,10 +478,12 @@ Public Class UTQueryPacket
 
     Protected Function CreateGamespyResponseString(Optional packetFlags As UTQueryPacketFlags = 0) As String
         Dim list = CreateGamespyResponse(packetFlags)
-        CreateGamespyResponseString = ""
+        Dim builder = New StringBuilder(capacity:=58, value:="")
         For Each packet In list
-            CreateGamespyResponseString &= packet
+            builder.Append(packet)
         Next
+        'mtSerializationLength.Record(CreateGamespyResponseString.Length)
+        Return builder.ToString()
     End Function
 
     Public Shared Function EscapeGsString(str As String)

@@ -125,29 +125,25 @@ Public Class Scanner
     End Sub
 
 
-
-    ''' LEGACY
-
     Public Sub packetHandler(packetBuffer As EndpointPacketBuffer, source As IPEndPoint) Handles sockets.NewDataReceived
         Dim target As ServerQuery, ipString As String
 
-        Dim packetString As String = ""
+        Dim packetString As String
         ipString = source.ToString
         If Not serverWorkers.ContainsKey(ipString) Then Return ' unknown source!! we got packet that wasn't sent by any of the queried servers (haxerz?)
         target = serverWorkers(ipString)
+
+        If target.getState().done Then
+            ' prevent processing the packets from targets in "done" state
+            packetBuffer.Clear()
+            Return
+        End If
+
+        Dim packet As Byte() = packetBuffer.PeekAll()
+        packetString = Encoding.Unicode.GetString(Encoding.Convert(target.GetPacketCharset(), Encoding.Unicode, packet))
         Try
-            If target.getState().done Then
-                ' prevent processing the packets from targets in "done" state
-                packetBuffer.Clear()
-                Return
-            End If
-            Dim packet As Byte() = packetBuffer.PeekAll()
+            target.incomingPacket = New UTQueryPacket(packetString)
 
-            packetString = Encoding.Unicode.GetString(Encoding.Convert(target.GetPacketCharset(), Encoding.Unicode, packet))
-
-            target.incomingPacketObj = New UTQueryPacket(packetString)
-
-            'target.incomingPacket = target.incomingPacketObj.ConvertToHashtablePacket()
             commLogWrite(target.addressQuery, "DDD", packetString)
             packetBuffer.Clear()
             target.Tick()

@@ -132,7 +132,7 @@ Public Class ServerInfoSync
             Return
         End If
 
-        variablesMerged = serverData.variables.Clone()
+        variablesMerged = New Hashtable(serverData.variables)
         For Each infoItem In serverData.info.Keys
             variablesMerged(infoItem) = serverData.info(infoItem)
         Next
@@ -380,7 +380,7 @@ Public Class ServerInfoSync
         End If
     End Sub
 
-    Private Sub UpdatePlayerInfoEntry(playerRecord As Player, playerData As Hashtable)
+    Private Sub UpdatePlayerInfoEntry(playerRecord As Player, playerData As Dictionary(Of String, String))
         Dim countryString As String = ""
 
         With playerRecord
@@ -399,7 +399,7 @@ Public Class ServerInfoSync
         playerData("uttPlayerId") = playerRecord.Id
     End Sub
 
-    Private Sub UpdatePlayerHistoryEntry(playerRecord As Player, player As Hashtable) ' `playerhistory` table
+    Private Sub UpdatePlayerHistoryEntry(playerRecord As Player, player As Dictionary(Of String, String)) ' `playerhistory` table
         Dim playerTimeOffset As Integer = 0
         Dim playerLogRecord As PlayerLog
         'Dim uttPlayerId As Int32 = player("uttPlayerId")
@@ -599,7 +599,7 @@ Public Class ServerInfoSync
         'Return serverRecord.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault()
     End Function
 
-    Private Shared Function GetPlayerSlug(playerInfo As Hashtable) As String
+    Private Shared Function GetPlayerSlug(playerInfo As Dictionary(Of String, String)) As String
         ' For a rare events of two players having the same name, to tell them apart
         ' we append player skin name to the slug.
         ' The more complex names do not need this

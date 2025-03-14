@@ -1,23 +1,12 @@
-﻿Imports System.Threading
-Imports System.Data
-Imports System.Text.Json
-Imports Naomai.UTT.Indexer.Utt2Database
-Imports Org.BouncyCastle.Asn1.Cms
-Imports Microsoft.EntityFrameworkCore.Internal
-Imports Naomai.UTT.Indexer.ServerQuery
-
+﻿
 Public Class ServerInfo
-    Public info As New Hashtable
-    Public players As New List(Of Hashtable)
-    Public variables As New Hashtable
+    Public info As New Dictionary(Of String, String)
+    Public players As New List(Of Dictionary(Of String, String))
+    Public variables As New Dictionary(Of String, String)
     Public caps As ServerCapabilities
 
-    Public uttServerId As Int32
-    Public uttGameId As UInt32
-    Public uttServerScanTime As DateTime?
     Public lastActivity As DateTime?
     Public lastValidation As DateTime?
-
 
     Public Sub New()
 

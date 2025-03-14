@@ -24,6 +24,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Ini" Version="9.0.2" />
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="9.0.2" />
     <PackageReference Include="MySql.EntityFrameworkCore" Version="8.0.11" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="9.0.3" />
     <PackageReference Include="System.Text.Json" Version="9.0.2" />
   </ItemGroup>
 
