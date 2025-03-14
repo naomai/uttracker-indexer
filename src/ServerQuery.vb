@@ -47,6 +47,7 @@ Public Class ServerQuery
     Const NETWORKCAP_SECONDS As Integer = 3 ' interval between requests
     Const NETWORK_TIMEOUT_SECONDS As Integer = 15
 
+
     Public Sub New(master As Scanner, serverAddress As String)
         addressQuery = serverAddress
         addressGame = JulkinNet.GetHost(serverAddress) & ":" &
@@ -288,14 +289,8 @@ Public Class ServerQuery
     End Sub
 
     Private Sub parseBasic(packetObj As UTQueryPacket)
-        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
-                         {"gamename", "required|string"},
-                         {"gamever", "required|string"},
-                         {"minnetver", "string"},
-                         {"mingamever", "string"},
-                         {"location", "integer"}
-                        })
-        Dim packet = validator.Validate(packetObj)
+
+        Dim packet = ServerQueryValidators.basic.Validate(packetObj)
 
         Dim gameName = packet("gamename").ToLower()
         Dim validServer As Boolean = False
@@ -337,9 +332,6 @@ Public Class ServerQuery
     End Sub
 
     Private Function ValidateServer(packetObj As UTQueryPacket, gameName As String) As Boolean
-        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
-            {"validate", "required|string|gte:6|lte:8"}
-         })
         If state.hasValidated Then
             Return True
         End If
@@ -347,7 +339,7 @@ Public Class ServerQuery
         Dim validServer As Boolean
 
         Try
-            Dim packet = validator.Validate(packetObj)
+            Dim packet = ServerQueryValidators.challenge.Validate(packetObj)
             If packet("validate") = "Orange" Then ' dunno where does this come from
                 validServer = True
             ElseIf Len(packet("validate")) <> 8 OrElse Not MasterServerManager.gamespyKeys.ContainsKey(gameName) Then
@@ -365,15 +357,9 @@ Public Class ServerQuery
     End Function
 
     Private Sub parseInfo(packetObj As UTQueryPacket)
-        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
-                         {"hostname", "required|string"},
-                         {"mapname", "required|string"},
-                         {"numplayers", "required|integer|gte:0"},
-                         {"maxplayers", "required|integer|gte:1"},
-                         {"hostport", "integer|gte:1|lte:65535"}
-                        })
-        Dim validated = validator.Validate(packetObj)
+        Dim validated = ServerQueryValidators.info.Validate(packetObj)
 
+        server.info.Clear()
         For Each pair In packetObj
             If pair.key.Substring(0, 2) = "__" Then
                 Continue For
@@ -398,19 +384,8 @@ Public Class ServerQuery
     End Sub
 
     Private Sub parseInfoExtended(packetObj As UTQueryPacket)
-        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
-                         {"gamespeed", "required|float|gt:0"},
-                         {"numplayers", "required|integer|gte:0"},
-                         {"numspectators", "integer|gte:0"},
-                         {"currentid", "integer|gte:0"},
-                         {"elapsedtime", "integer|gte:0"},
-                         {"remainingtime", "integer|gte:0"},
-                         {"timelimit", "integer|gte:0"},
-                         {"bgameended", "boolean"},
-                         {"bovertime", "boolean"}
-                        })
         Try
-            Dim validated = validator.Validate(packetObj)
+            Dim validated = ServerQueryValidators.infoExtended.Validate(packetObj)
 
             server.caps.quickNumPlayers = True
 
@@ -453,20 +428,7 @@ Public Class ServerQuery
     Private Sub parsePlayers(packetObj As UTQueryPacket)
         Dim playerid As Integer = 0, playerinfo As Hashtable
         Dim buggedPingCount As Integer = 0 ' 2016-03-18: skip scanning of broken servers (all players with ping 9999)
-        Static validator = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
-                         {"player", "array:string|gt:0"},
-                         {"team", "array:integer"},
-                         {"frags", "array:integer|default:0"},
-                         {"ping", "array:integer|default:0"},
-                         {"mesh", "array:string|nullable"},
-                         {"skin", "array:string|nullable"},
-                         {"face", "array:string|nullable"},
-                         {"countryc", "array:string|nullable"},
-                         {"deaths", "array:integer|default:0"},
-                         {"time", "array:integer"},
-                         {"ngsecret", "array:string"}
-                        })
-        Dim validated = validator.Validate(packetObj)
+        Dim validated = ServerQueryValidators.players.Validate(packetObj)
 
         Try
             server.players.Clear()
@@ -637,6 +599,53 @@ Public Class ServerQuery
 
 
 
+    Private Class ServerQueryValidators
+        Public Shared ReadOnly basic = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+                             {"gamename", "required|string"},
+                             {"gamever", "required|string"},
+                             {"minnetver", "string"},
+                             {"mingamever", "string"},
+                             {"location", "integer"}
+                            })
+
+        Public Shared ReadOnly challenge = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+            {"validate", "required|string|gte:6|lte:8"}
+         })
+        Public Shared ReadOnly info = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+                         {"hostname", "required|string"},
+                         {"mapname", "required|string"},
+                         {"numplayers", "required|integer|gte:0"},
+                         {"maxplayers", "required|integer|gte:1"},
+                         {"hostport", "integer|gte:1|lte:65535"}
+                        })
+
+        Public Shared ReadOnly infoExtended = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+                         {"gamespeed", "required|float|gt:0"},
+                         {"numplayers", "required|integer|gte:0"},
+                         {"numspectators", "integer|gte:0"},
+                         {"currentid", "integer|gte:0"},
+                         {"elapsedtime", "integer|gte:0"},
+                         {"remainingtime", "integer|gte:0"},
+                         {"timelimit", "integer|gte:0"},
+                         {"bgameended", "boolean"},
+                         {"bovertime", "boolean"}
+                        })
+        Public Shared ReadOnly players = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+                         {"player", "array:string|gt:0"},
+                         {"team", "array:integer"},
+                         {"frags", "array:integer|default:0"},
+                         {"ping", "array:integer|default:0"},
+                         {"mesh", "array:string|nullable"},
+                         {"skin", "array:string|nullable"},
+                         {"face", "array:string|nullable"},
+                         {"countryc", "array:string|nullable"},
+                         {"deaths", "array:integer|default:0"},
+                         {"time", "array:integer"},
+                         {"ngsecret", "array:string"}
+                        })
+    End Class
+
+
 End Class
 
 
@@ -691,3 +700,4 @@ Public Structure ServerQueryState
         ToString &= "#"
     End Function
 End Structure
+
