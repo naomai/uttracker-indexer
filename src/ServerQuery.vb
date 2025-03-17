@@ -1,6 +1,7 @@
 Imports System.Net
 Imports System.Globalization
 Imports System.Text
+Imports System.Text.RegularExpressions
 
 Public Class ServerQuery
     Dim socket As SocketManager
@@ -106,10 +107,10 @@ Public Class ServerQuery
         End If
         If nextGameStateDeadline <= now Then
             With state
-                .hasInfo = False
                 If server.caps.quickNumPlayers Then
                     .hasInfoExtended = False
                 Else
+                    .hasInfo = False
                     .hasPlayers = False
                 End If
             End With
@@ -216,8 +217,12 @@ Public Class ServerQuery
                            & "\game_property\GameSpeed\\game_property\CurrentID\" _
                            & "\game_property\bGameEnded\\game_property\bOvertime\" _
                            & "\game_property\ElapsedTime\\game_property\RemainingTime\" _
+                           & "\level_property\Outer\" _
                            & otherAdditionalRequests _
                            & gamemodeAdditionalRequests)
+                sync.state.savedInfo = False
+                sync.state.savedGameInfo = False
+                sync.state.done = False
             ElseIf Not .hasPlayers AndAlso server.info("numplayers") <> 0 AndAlso Not server.caps.fakePlayers Then
                 If server.caps.hasUtf8PlayerList Then
                     packetCharset = Encoding.UTF8
@@ -398,7 +403,17 @@ Public Class ServerQuery
                 server.info("timelimit") = validated("timelimit")
             End If
 
+            'state.hasInfo = True
             state.hasInfoExtended = True
+            sync.state.savedVariables = False
+
+            Dim mapName = Regex.Match(validated("outer"), "^Package'(.+)'$").Groups(1).ToString()
+            If mapName <> server.info("mapname") Then
+                state.hasInfo = False
+            End If
+
+
+
 
             ' fake players detection
             If server.info("numplayers") > validated("numplayers") + validated("numspectators") Then
@@ -616,7 +631,8 @@ Public Class ServerQuery
                          {"remainingtime", "integer|gte:0"},
                          {"timelimit", "integer|gte:0"},
                          {"bgameended", "boolean"},
-                         {"bovertime", "boolean"}
+                         {"bovertime", "boolean"},
+                         {"outer", "string"}
                         })
         Public Shared ReadOnly players = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
                          {"player", "array:string|gt:0"},
