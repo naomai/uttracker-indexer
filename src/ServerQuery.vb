@@ -318,6 +318,7 @@ Public Class ServerQuery
             server.caps.hasUtf8PlayerList = Integer.Parse(server.caps.version) >= 469
         ElseIf gameName = "unreal" Then
             server.caps.hasCp437Info = True
+            server.caps.hasPropertyInterface = False
         End If
 
     End Sub
@@ -448,9 +449,7 @@ Public Class ServerQuery
                 End If
                 playerinfo("mesh") = validated("mesh")(playerid)
                 playerinfo("skin") = validated("skin")(playerid)
-                If validated("face").ContainsKey(playerid) Then
-                    playerinfo("face") = validated("face")(playerid)
-                End If
+                playerinfo("face") = validated("face")(playerid)
 
                 playerinfo("ping") = validated("ping")(playerid)
 
@@ -458,9 +457,10 @@ Public Class ServerQuery
                     buggedPingCount += 1
                 End If
 
+                playerinfo("countryc") = validated("countryc")(playerid)
+                playerinfo("deaths") = validated("deaths")(playerid)
+
                 If server.caps.hasXSQ Then
-                    playerinfo("countryc") = validated("countryc")(playerid)
-                    playerinfo("deaths") = validated("deaths")(playerid)
                     If server.caps.XSQVersion >= 200 Then
                         playerinfo("time") = validated("time")(playerid)
                     Else
@@ -626,7 +626,7 @@ Public Class ServerQuery
                          {"mesh", "array:string|nullable"},
                          {"skin", "array:string|nullable"},
                          {"face", "array:string|nullable"},
-                         {"countryc", "array:string|nullable|default:"},
+                         {"countryc", "array:string|nullable|default:none"},
                          {"deaths", "array:integer|default:0"},
                          {"time", "array:integer"},
                          {"ngsecret", "array:string"}

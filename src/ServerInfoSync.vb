@@ -377,7 +377,7 @@ Public Class ServerInfoSync
 
         With playerRecord
             .SkinData = playerData("uttSkinData")
-            If serverData.caps.hasXSQ And playerData("countryc") <> "none" Then
+            If serverData.caps.hasXSQ AndAlso Not IsNothing(playerData("countryc")) AndAlso playerData("countryc") <> "none" Then
                 countryString = playerData("countryc")
             End If
             .Country = countryString
@@ -431,8 +431,8 @@ Public Class ServerInfoSync
 
         With playerLogRecord
             .LastSeenTime = uttServerScanTime
-            .ScoreThisMatch = IIf(IsNumeric(player("frags")), player("frags"), "0")
-            .DeathsThisMatch = IIf(serverData.caps.hasXSQ, Convert.ToInt32(player("deaths")), Nothing)
+            .ScoreThisMatch = player("frags")
+            .DeathsThisMatch = player("deaths")
             .SeenCount += 1
             .PingSum += Integer.Parse(player("ping"))
             .Team = player("team")

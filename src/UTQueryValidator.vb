@@ -214,6 +214,9 @@ Public Class UTQueryValidatorArray
             If Not MyBase.ContainsKey(key) AndAlso Not IsNothing(fieldDef.defaultValue) Then
                 Return fieldDef.defaultValue
             End If
+            If Not fieldDef.isRequired AndAlso fieldDef.isNullable Then
+                Return Nothing
+            End If
             Return MyBase.Item(key)
         End Get
         Set(value As Object)
