@@ -2,7 +2,6 @@
 ' might be also usable for other gamespy-based games
 
 Module GameSpyProtocol
-#Region "GSMSALG"
     'GSMSALG 0.3.3
     'by Luigi Auriemma
     'e-mail: aluigi@autistici.org
@@ -47,30 +46,26 @@ Module GameSpyProtocol
     ''' <summary>
     ''' Generates response needed to query master servers using Gamespy protocol.
     ''' </summary>
-    ''' <param name="chal">the string containing the challenge received from the server.</param>
-    ''' <param name="enkey">the gamekey or any other text string used as algorithm's key, usually it is the gamekey but "might" be another thing in some cases. Each game has its unique Gamespy gamekey which are available here: http://aluigi.org/papers/gslist.cfg </param>
+    ''' <param name="challenge">the string containing the challenge received from the server.</param>
+    ''' <param name="gamekey">the gamekey or any other text string used as algorithm's key, usually it is the gamekey but "might" be another thing in some cases. Each game has its unique Gamespy gamekey which are available here: http://aluigi.org/papers/gslist.cfg </param>
     ''' <returns>
     ''' the destination buffer that will contain the calculated
     ''' response. Its length is 4/3 of the challenge size so if the
     ''' challenge is 6 bytes long, the response will be 8 bytes long
-    ''' plus the final NULL byte which is required (to be sure of the
-    ''' allocated space use 89 bytes or "((len * 4) / 3) + 3")
-    ''' if this parameter is NULL the function will allocate the
-    ''' memory for a new one automatically
     ''' </returns>
     ''' <remarks></remarks>
-    Public Function GsGetChallengeResponse(ByVal chal As String, Optional ByVal enkey As String = "Z5Nfb0") As String
+    Public Function GenerateValidateResponse(ByVal challenge As String, Optional ByVal gamekey As String = "Z5Nfb0") As String
         Dim resultBytes(0 To 7) As Byte, tmp(66) As Byte, enctmp(0 To 255) As Byte, size As Integer, chalBytes() As Byte, enkeyBytes() As Byte, a As Integer, b As Integer, x As Integer, y As Integer, z As Integer
         Dim ti As Integer
 
-        chalBytes = System.Text.Encoding.ASCII.GetBytes(chal)
-        enkeyBytes = System.Text.Encoding.ASCII.GetBytes(enkey)
+        chalBytes = System.Text.Encoding.ASCII.GetBytes(challenge)
+        enkeyBytes = System.Text.Encoding.ASCII.GetBytes(gamekey)
         For i = 0 To 255
             enctmp(i) = i
         Next i
         a = 0
         For i = 0 To 255
-            a = ((a + enctmp(i) + enkeyBytes(i Mod Len(enkey))) And &HFF)
+            a = ((a + enctmp(i) + enkeyBytes(i Mod Len(gamekey))) And &HFF)
             x = enctmp(a)
             enctmp(a) = enctmp(i)
             enctmp(i) = x
@@ -78,7 +73,7 @@ Module GameSpyProtocol
         a = 0
         b = 0
 
-        For i = 0 To Len(chal) - 1
+        For i = 0 To Len(challenge) - 1
             a = (a + chalBytes(i) + 1) And 255
             x = enctmp(a)
             b = (b + x) And 255
@@ -107,6 +102,4 @@ Module GameSpyProtocol
         Next i
         Return Trim(System.Text.Encoding.ASCII.GetString(resultBytes))
     End Function
-#End Region
-
 End Module

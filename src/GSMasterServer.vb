@@ -245,7 +245,7 @@ Public Class GSMasterServerConnection
             Throw New GSMSConnectionException("This master server doesn't support the game '" & gameName & "'")
         End If
         encryptionKey = masterServer.gameSpyKeys(gameName).encKey
-        expectedResponse = GameSpyProtocol.GsGetChallengeResponse(challengeString, encryptionKey)
+        expectedResponse = GameSpyProtocol.GenerateValidateResponse(challengeString, encryptionKey)
 
         If packet("validate") = expectedResponse OrElse packet.ContainsKey("debug") Then
             state.hasChallenge = True
