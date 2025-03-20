@@ -30,7 +30,7 @@ Public Class ServerQuery
     Friend lastActivity As Date
 
     Protected dto As ServerInfo
-    Protected sync As ServerInfoSync
+    Protected sync As ServerDataPersistence
     Protected gamemodeQuery As GamemodeSpecificQuery
 
     Private formatProvider = CultureInfo.InvariantCulture
@@ -51,7 +51,7 @@ Public Class ServerQuery
 
         scannerMaster = master
         dto = New ServerInfo()
-        sync = New ServerInfoSync(dto, Me)
+        sync = New ServerDataPersistence(dto, Me)
 
         With dto.Capabilities
             .hasPropertyInterface = True

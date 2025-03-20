@@ -2,7 +2,7 @@ Imports System.Data
 Imports System.Text.Json
 Imports Naomai.UTT.Indexer.Utt2Database
 
-Public Class ServerInfoSync
+Public Class ServerDataPersistence
     Protected serverWorker As ServerQuery
     Public dbCtx As Utt2Context
 
@@ -10,7 +10,7 @@ Public Class ServerInfoSync
 
     Dim uttServerScanTime As DateTime
 
-    Public state As ServerScannerSaverState
+    Public state As ServerDataPersistenceState
     Private serverRecord As Server
     Private matchRecord As ServerMatch
 
@@ -544,7 +544,7 @@ Public Class ServerInfoSync
 End Class
 
 
-Public Structure ServerScannerSaverState
+Public Structure ServerDataPersistenceState
     Dim hasDBRecord As Boolean
     Dim hasServerId As Boolean
     Dim savedInfo As Boolean
