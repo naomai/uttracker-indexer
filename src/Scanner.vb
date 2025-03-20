@@ -52,10 +52,12 @@ Public Class Scanner
 
             For Each worker As ServerQuery In serverWorkers.Values
                 If Not worker.isActive Then
+                    ' we don't speak with this host anymore (offline/misbehaving)
                     Continue For
                 End If
                 worker.Update()
             Next
+
             dbCtx.SaveChanges()
 
             scanLastTouchAll = Date.UtcNow
@@ -68,6 +70,9 @@ Public Class Scanner
         Loop
     End Sub
 
+    ''' <summary>
+    ''' Loads list of servers to scan from supported providers
+    ''' </summary>
     Public Async Function RefreshServerList() As Task
         Dim recentServersTimeRange As Integer = 60 * 60 ' hour by default
         Dim serverAddresses As New List(Of String)
@@ -99,6 +104,8 @@ Public Class Scanner
     Protected Sub InitWorkersFromServerList(serverList As List(Of String))
         SyncLock serverWorkersLock
             For Each worker As ServerQuery In serverWorkers.Values
+                ' set all previously processed targets as inactive
+                ' the relevant ones will be resurrected in a while
                 worker.isActive = False
             Next
 
@@ -109,6 +116,7 @@ Public Class Scanner
                     serverWorkers(server) = worker
                     worker.setSocket(sockets)
                 Else
+                    ' resurrect
                     worker = serverWorkers(server)
                 End If
                 worker.isActive = True
@@ -122,29 +130,41 @@ Public Class Scanner
 
         Dim packetString As String
         ipString = source.ToString
-        If Not serverWorkers.ContainsKey(ipString) Then Return ' unknown source!! we got packet that wasn't sent by any of the queried servers (haxerz?)
+        If Not serverWorkers.ContainsKey(ipString) Then
+            ' unknown source!! we got packet that wasn't sent by any of the queried servers (haxerz?)
+            packetBuffer.Clear()
+            Return
+        End If
         target = serverWorkers(ipString)
 
         If target.getState().done Then
-            ' prevent processing the packets from targets in "done" state
+            ' no more packets are expected from this server, because:
+            ' we might have assumed the target is not a game server, or is misbehaving
             packetBuffer.Clear()
             Return
         End If
 
+        ' get content of packet buffer without clearing it:
+        ' if the response is incomplete, the next packets will be
+        ' appended and evaluated again
         Dim packet As Byte() = packetBuffer.PeekAll()
         packetString = Encoding.Unicode.GetString(Encoding.Convert(target.GetPacketCharset(), Encoding.Unicode, packet))
         Try
             target.incomingPacket = New UTQueryPacket(packetString)
 
+            ' successfully parsed
             commLogWrite(target.addressQuery, "DDD", packetString)
             packetBuffer.Clear()
+
+            ' process response
             target.Tick()
 
         Catch ex As UTQueryResponseIncompleteException
             ' let's try another time, maybe the missing pieces will join us
             commLogWrite(target.addressQuery, "Dxx", packetString)
 
-        Catch ex As UTQueryInvalidResponseException ' we found a port that belongs to other service, so we're not going to bother it anymore
+        Catch ex As UTQueryInvalidResponseException
+            ' we found a port that belongs to other service, so we're not going to bother it anymore
             commLogWrite(target.addressQuery, "Dxx", packetString)
             target.abortScan("Unknown service", dumpCommLog:=True)
             sockets.AddIgnoredIp(target.addressQuery)
