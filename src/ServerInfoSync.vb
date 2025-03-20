@@ -6,7 +6,7 @@ Public Class ServerInfoSync
     Protected serverWorker As ServerQuery
     Public dbCtx As Utt2Context
 
-    Private serverData As ServerInfo
+    Private serverDto As ServerInfo
 
     Dim uttServerScanTime As DateTime
 
@@ -15,7 +15,7 @@ Public Class ServerInfoSync
     Private matchRecord As ServerMatch
 
     Public Sub New(serverData As ServerInfo, serverWorker As ServerQuery)
-        Me.serverData = serverData
+        Me.serverDto = serverData
         Me.serverWorker = serverWorker
         dbCtx = serverWorker.scannerMaster.dbCtx
         GetServerRecord()
@@ -64,7 +64,7 @@ Public Class ServerInfoSync
     End Function
 
     Public Sub ReadServerDataFromDB()
-        serverData.lastValidation = serverRecord.LastValidation
+        serverDto.LastValidationTime = serverRecord.LastValidation
     End Sub
 
     Private Sub TryUpdateInfo()
@@ -75,11 +75,11 @@ Public Class ServerInfoSync
         End If
 
         With serverRecord
-            .Name = serverData.info("hostname")
-            .GameName = serverData.info("gamename")
+            .Name = serverDto.Info("hostname")
+            .GameName = serverDto.Info("gamename")
             .AddressGame = serverWorker.addressGame
-            .LastValidation = serverData.lastValidation
-            .LastCheck = serverData.lastActivity
+            .LastValidation = serverDto.LastValidationTime
+            .LastCheck = serverDto.LastActivityTime
         End With
 
         dbCtx.Servers.Update(serverRecord)
@@ -103,7 +103,7 @@ Public Class ServerInfoSync
             Return
         End Try
 
-        uttServerScanTime = serverWorker.infoRequestTime
+        uttServerScanTime = serverDto.InfoRequestTime
 
         state.hasServerId = True
         state.savedInfo = True
@@ -115,7 +115,7 @@ Public Class ServerInfoSync
         Dim variablesJson As String
         Dim scannerState = serverWorker.getState()
 
-        If Not serverData.caps.supportsVariables Then
+        If Not serverDto.Capabilities.supportsVariables Then
             state.savedVariables = True
             Return
         End If
@@ -124,19 +124,19 @@ Public Class ServerInfoSync
             Return
         End If
 
-        variablesMerged = New Hashtable(serverData.variables)
-        For Each infoItem In serverData.info.Keys
-            variablesMerged(infoItem) = serverData.info(infoItem)
+        variablesMerged = New Hashtable(serverDto.Variables)
+        For Each infoItem In serverDto.Info.Keys
+            variablesMerged(infoItem) = serverDto.Info(infoItem)
         Next
 
         'utt haxes:
         variablesMerged("__uttlastupdate") = UnixTime(uttServerScanTime)
         variablesMerged("queryport") = Split(serverWorker.addressQuery, ":").Last
-        If serverData.caps.hasXSQ Then
+        If serverDto.Capabilities.hasXSQ Then
             variablesMerged("__uttxserverquery") = "true"
         End If
 
-        variablesMerged("__uttfakeplayers") = Int(serverData.caps.fakePlayers)
+        variablesMerged("__uttfakeplayers") = Int(serverDto.Capabilities.fakePlayers)
 
         variablesJson = JsonSerializer.Serialize(variablesMerged)
 
@@ -155,7 +155,7 @@ Public Class ServerInfoSync
         state.isPreMatch = False
 
         If Not (state.hasServerId AndAlso scannerState.hasInfo) OrElse
-            (serverData.caps.hasPropertyInterface AndAlso Not scannerState.hasInfoExtended) Then
+            (serverDto.Capabilities.hasPropertyInterface AndAlso Not scannerState.hasInfoExtended) Then
             Return
         End If
 
@@ -173,17 +173,17 @@ Public Class ServerInfoSync
         Dim newMatchByCurrentIDChange As Boolean = False
 
         Dim changedMapName = False
-        Dim hasPlayers = serverData.info("__uttrealplayers") > 0
+        Dim hasPlayers = serverDto.Info("__uttrealplayers") > 0
 
         If scannerState.hasInfoExtended Then
-            thisMatchCurrentID = Integer.Parse(serverData.info("__uttgamecurrentid"))
+            thisMatchCurrentID = Integer.Parse(serverDto.Info("__uttgamecurrentid"))
         End If
 
         If IsNothing(previousMatchRecord) Then
             state.isNewMatch = True
         Else
             lastMatchCurrentID = previousMatchRecord.ServerPlayeridCounter
-            changedMapName = previousMatchRecord.MapName <> serverData.info("mapname")
+            changedMapName = previousMatchRecord.MapName <> serverDto.Info("mapname")
             If scannerState.hasInfoExtended Then
                 newMatchByCurrentIDChange =
                     Not IsNothing(lastMatchCurrentID) AndAlso
@@ -197,8 +197,8 @@ Public Class ServerInfoSync
         End If
 
         Dim trustingPlayerList =
-            serverData.info.ContainsKey("elapsedtime") AndAlso
-            Not serverData.caps.fakePlayers
+            serverDto.Info.ContainsKey("elapsedtime") AndAlso
+            Not serverDto.Capabilities.fakePlayers
 
 
         If trustingPlayerList Then
@@ -228,7 +228,7 @@ Public Class ServerInfoSync
                 AndAlso Not timeMatchStart.HasValue _
                 AndAlso hasPlayers _
                 AndAlso Not changedMapName _
-                AndAlso previousMatchRecord.StartTime.AddHours(6) < serverWorker.infoRequestTime
+                AndAlso previousMatchRecord.StartTime.AddHours(6) < serverDto.InfoRequestTime
 
             state.isNewMatch = state.isNewMatch _
                 OrElse newMatchByReportedTime _
@@ -238,12 +238,12 @@ Public Class ServerInfoSync
             state.isNewMatch = state.isNewMatch OrElse
             (
                 hasPlayers AndAlso
-                previousMatchRecord.StartTime.AddHours(6) < serverWorker.infoRequestTime
+                previousMatchRecord.StartTime.AddHours(6) < serverDto.InfoRequestTime
             ) OrElse
             changedMapName
 
             If state.isNewMatch Then
-                timeMatchStart = serverWorker.infoRequestTime
+                timeMatchStart = serverDto.InfoRequestTime
             Else
                 timeMatchStart = previousMatchRecord.StartTime
             End If
@@ -270,7 +270,7 @@ Public Class ServerInfoSync
 
             With matchRecord
                 .StartTime = timeMatchStart.Value
-                .MapName = serverData.info("mapname")
+                .MapName = serverDto.Info("mapname")
                 .ServerPlayeridCounter = thisMatchCurrentID
             End With
 
@@ -296,13 +296,13 @@ Public Class ServerInfoSync
 
     Private Sub TryUpdatePlayerInfo()
         Dim scannerState = serverWorker.getState()
-        If scannerState.hasInfo AndAlso (serverData.info("__uttrealplayers") = 0 OrElse serverData.caps.fakePlayers) Then
+        If scannerState.hasInfo AndAlso (serverDto.Info("__uttrealplayers") = 0 OrElse serverDto.Capabilities.fakePlayers) Then
             state.savedPlayers = True
             Return
         End If
 
         If scannerState.hasPlayers AndAlso state.savedGameInfo Then
-            For Each player In serverData.players
+            For Each player In serverDto.Players
                 Dim uttPlayerSlug As String = GetPlayerSlug(player)
                 Dim playerRecord As Player
 
@@ -336,7 +336,7 @@ Public Class ServerInfoSync
 
         With playerRecord
             .SkinData = playerData("uttSkinData")
-            If serverData.caps.hasXSQ AndAlso Not IsNothing(playerData("countryc")) AndAlso playerData("countryc") <> "none" Then
+            If serverDto.Capabilities.hasXSQ AndAlso Not IsNothing(playerData("countryc")) AndAlso playerData("countryc") <> "none" Then
                 countryString = playerData("countryc")
             End If
             .Country = countryString
@@ -494,7 +494,7 @@ Public Class ServerInfoSync
             Return
         End If
 
-        If state.savedCumulativeStats OrElse (state.savedInfo AndAlso serverData.info("__uttrealplayers") = 0) Then
+        If state.savedCumulativeStats OrElse (state.savedInfo AndAlso serverDto.Info("__uttrealplayers") = 0) Then
 
             UpdateServerRatings()
 
@@ -513,7 +513,7 @@ Public Class ServerInfoSync
                 .LastRatingCalculation = Date.UtcNow
             End If
         End With
-        serverRecord.RatingMinute = rfCalculator.CalculateMinute(serverData.info, serverRecord)
+        serverRecord.RatingMinute = rfCalculator.CalculateMinute(serverDto.Info, serverRecord)
     End Sub
 
     Private Function GetLastMatchInfo() As ServerMatch

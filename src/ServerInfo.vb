@@ -1,12 +1,15 @@
 ﻿
 Public Class ServerInfo
-    Public info As New Dictionary(Of String, String)
-    Public players As New List(Of Dictionary(Of String, String))
-    Public variables As New Dictionary(Of String, String)
-    Public caps As ServerCapabilities
+    Public Info As New Dictionary(Of String, String)
+    Public Players As New List(Of Dictionary(Of String, String))
+    Public Variables As New Dictionary(Of String, String)
+    Public Capabilities As ServerCapabilities
 
-    Public lastActivity As DateTime?
-    Public lastValidation As DateTime?
+    Public LastActivityTime As DateTime?
+    Public LastValidationTime As DateTime?
+
+    Public PropsRequestTime, InfoRequestTime As DateTime?
+
 
     Public Sub New()
 

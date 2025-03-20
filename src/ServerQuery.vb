@@ -7,7 +7,6 @@ Public Class ServerQuery
     Dim socket As SocketManager
     Public scannerMaster As Scanner
 
-    Protected propsRequestTime, infoRequestTime As DateTime
 
     Protected networkCapNextSendDeadline As Date
     Protected networkTimeoutDeadline As Date? = Nothing
@@ -30,7 +29,7 @@ Public Class ServerQuery
     Protected protocolFailures As Integer = 0
     Friend lastActivity As Date
 
-    Protected server As ServerInfo
+    Protected dto As ServerInfo
     Protected sync As ServerInfoSync
     Protected gamemodeQuery As GamemodeSpecificQuery
 
@@ -51,10 +50,10 @@ Public Class ServerQuery
             (JulkinNet.GetPort(serverAddress) - 1)
 
         scannerMaster = master
-        server = New ServerInfo()
-        sync = New ServerInfoSync(server, Me)
+        dto = New ServerInfo()
+        sync = New ServerInfoSync(dto, Me)
 
-        With server.caps
+        With dto.Capabilities
             .hasPropertyInterface = True
             .supportsVariables = True
         End With
@@ -106,7 +105,7 @@ Public Class ServerQuery
         End If
         If nextGameStateDeadline <= now Then
             With state
-                If server.caps.quickNumPlayers Then
+                If dto.Capabilities.quickNumPlayers Then
                     .hasInfoExtended = False
                 Else
                     .hasInfo = False
@@ -190,28 +189,28 @@ Public Class ServerQuery
                 serverSend("\basic\" & challengeSuffix)
 
             ElseIf Not .hasInfo Then
-                If server.caps.hasCp437Info Then
+                If dto.Capabilities.hasCp437Info Then
                     packetCharset = Encoding.GetEncoding(437)
                 End If
                 .requestingInfo = True
                 sync.state.savedInfo = False
                 sync.state.savedGameInfo = False
                 sync.state.done = False
-                infoRequestTime = Date.UtcNow
-                serverSend("\info\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
-            ElseIf Not .hasInfoExtended AndAlso server.caps.hasPropertyInterface Then
-                gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(server)
+                dto.infoRequestTime = Date.UtcNow
+                serverSend("\info\" & IIf(dto.Capabilities.hasXSQ, xsqSuffix, ""))
+            ElseIf Not .hasInfoExtended AndAlso dto.Capabilities.hasPropertyInterface Then
+                gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(dto)
                 Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
                 If Not IsNothing(gamemodeQuery) Then
                     gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
-                    server.caps.gamemodeExtendedInfo = True
+                    dto.Capabilities.gamemodeExtendedInfo = True
                 End If
-                If Not server.info.ContainsKey("timelimit") Then
+                If Not dto.Info.ContainsKey("timelimit") Then
                     otherAdditionalRequests &= "\game_property\TimeLimit\"
                 End If
 
                 .requestingInfoExtended = True
-                propsRequestTime = Date.UtcNow ' AKA timestamp of sending the extended info request
+                dto.PropsRequestTime = Date.UtcNow ' AKA timestamp of sending the extended info request
                 serverSend("\game_property\NumPlayers\\game_property\NumSpectators\" _
                            & "\game_property\GameSpeed\\game_property\CurrentID\" _
                            & "\game_property\bGameEnded\\game_property\bOvertime\" _
@@ -222,16 +221,16 @@ Public Class ServerQuery
                 sync.state.savedInfo = False
                 sync.state.savedGameInfo = False
                 sync.state.done = False
-            ElseIf Not .hasPlayers AndAlso server.info("numplayers") <> 0 AndAlso Not server.caps.fakePlayers Then
-                If server.caps.hasUtf8PlayerList Then
+            ElseIf Not .hasPlayers AndAlso dto.Info("numplayers") <> 0 AndAlso Not dto.Capabilities.fakePlayers Then
+                If dto.Capabilities.hasUtf8PlayerList Then
                     packetCharset = Encoding.UTF8
                 End If
                 .requestingPlayers = True
                 sync.state.savedPlayers = False
                 sync.state.savedCumulativeStats = False
                 sync.state.done = False
-                serverSend("\players\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
-            ElseIf Not .hasVariables AndAlso server.caps.supportsVariables Then
+                serverSend("\players\" & IIf(dto.Capabilities.hasXSQ, xsqSuffix, ""))
+            ElseIf Not .hasVariables AndAlso dto.Capabilities.supportsVariables Then
                 .requestingVariables = True
                 sync.state.savedVariables = False
                 sync.state.done = False
@@ -245,7 +244,7 @@ Public Class ServerQuery
 
         End With
         lastActivity = Date.UtcNow
-        server.lastActivity = lastActivity
+        dto.LastActivityTime = lastActivity
         networkCapNextSendDeadline = Date.UtcNow.AddSeconds(NETWORKCAP_SECONDS)
     End Sub
 
@@ -298,31 +297,31 @@ Public Class ServerQuery
         End If
 
         If Not state.hasValidated Then
-            server.lastValidation = Date.UtcNow
+            dto.LastValidationTime = Date.UtcNow
             state.hasValidated = True
 
         End If
 
 
-        server.info("gamename") = packet("gamename")
-        server.info("gamever") = packet("gamever")
+        dto.Info("gamename") = packet("gamename")
+        dto.Info("gamever") = packet("gamever")
         If packet.ContainsKey("minnetver") Then
-            server.info("minnetver") = packet("minnetver")
+            dto.Info("minnetver") = packet("minnetver")
         ElseIf packet.ContainsKey("mingamever") Then
-            server.info("minnetver") = packet("mingamever")
+            dto.Info("minnetver") = packet("mingamever")
         End If
-        server.info("location") = packet("location")
+        dto.Info("location") = packet("location")
         state.hasBasic = True
         isOnline = True
-        server.caps.version = server.info("gamever")
-        server.caps.gameName = server.info("gamename")
+        dto.Capabilities.version = dto.Info("gamever")
+        dto.Capabilities.gameName = dto.Info("gamename")
 
         If gameName = "ut" Then
-            server.caps.hasXSQ = True ' set this flag for initial polling with XSQ suffix
-            server.caps.hasUtf8PlayerList = Integer.Parse(server.caps.version) >= 469
+            dto.Capabilities.hasXSQ = True ' set this flag for initial polling with XSQ suffix
+            dto.Capabilities.hasUtf8PlayerList = Integer.Parse(dto.Capabilities.version) >= 469
         ElseIf gameName = "unreal" Then
-            server.caps.hasCp437Info = True
-            server.caps.hasPropertyInterface = False
+            dto.Capabilities.hasCp437Info = True
+            dto.Capabilities.hasPropertyInterface = False
         End If
 
     End Sub
@@ -358,21 +357,21 @@ Public Class ServerQuery
             If pair.key.Substring(0, 2) = "__" Then
                 Continue For
             End If
-            server.info(pair.key) = pair.value
+            dto.Info(pair.key) = pair.value
         Next
         If validated.ContainsKey("hostport") Then
             addressGame = JulkinNet.GetHost(addressQuery) & ":" & validated("hostport")
         End If
-        server.caps.hasXSQ = packetObj.ContainsKey("xserverquery")
-        If server.caps.hasXSQ Then
+        dto.Capabilities.hasXSQ = packetObj.ContainsKey("xserverquery")
+        If dto.Capabilities.hasXSQ Then
             Dim xsqVersion As Integer
             Integer.TryParse(Replace(packetObj("xserverquery"), ".", ""), formatProvider, xsqVersion)
             ' property interface brought back in XServerQuery 211fix4
-            server.caps.hasPropertyInterface = xsqVersion >= 211
-            server.caps.XSQVersion = xsqVersion
+            dto.Capabilities.hasPropertyInterface = xsqVersion >= 211
+            dto.Capabilities.XSQVersion = xsqVersion
         End If
 
-        server.info("__uttrealplayers") = validated("numplayers") ' might be overwritten later
+        dto.Info("__uttrealplayers") = validated("numplayers") ' might be overwritten later
         state.hasInfo = True
         state.hasNumPlayers = True
     End Sub
@@ -381,7 +380,7 @@ Public Class ServerQuery
         Try
             Dim validated = ServerQueryValidators.infoExtended.Validate(packetObj)
 
-            server.caps.quickNumPlayers = True
+            dto.Capabilities.quickNumPlayers = True
 
             Dim needsUpdatingPlayerList = validated("numplayers") > 0 OrElse
                 validated("numspectators") > 0
@@ -390,16 +389,16 @@ Public Class ServerQuery
                 state.hasPlayers = False
             End If
 
-            server.info("__uttrealplayers") = validated("numplayers")
-            server.info("__uttspectators") = validated("numspectators")
-            server.info("__uttgamespeed") = validated("gamespeed")
-            server.info("__uttgamecurrentid") = validated("currentid")
-            server.info("bgameended") = validated("bgameended")
-            server.info("bovertime") = validated("bovertime")
-            server.info("elapsedtime") = validated("elapsedtime")
-            server.info("remainingtime") = validated("remainingtime")
+            dto.Info("__uttrealplayers") = validated("numplayers")
+            dto.Info("__uttspectators") = validated("numspectators")
+            dto.Info("__uttgamespeed") = validated("gamespeed")
+            dto.Info("__uttgamecurrentid") = validated("currentid")
+            dto.Info("bgameended") = validated("bgameended")
+            dto.Info("bovertime") = validated("bovertime")
+            dto.Info("elapsedtime") = validated("elapsedtime")
+            dto.Info("remainingtime") = validated("remainingtime")
             If validated.ContainsKey("timelimit") Then
-                server.info("timelimit") = validated("timelimit")
+                dto.Info("timelimit") = validated("timelimit")
             End If
 
             'state.hasInfo = True
@@ -407,7 +406,7 @@ Public Class ServerQuery
             sync.state.savedVariables = False
 
             Dim mapName = Regex.Match(validated("outer"), "^Package'(.+)'$").Groups(1).ToString()
-            If mapName <> server.info("mapname") Then
+            If mapName <> dto.Info("mapname") Then
                 state.hasInfo = False
             End If
 
@@ -415,17 +414,17 @@ Public Class ServerQuery
 
 
             ' fake players detection
-            If server.info("numplayers") > validated("numplayers") + validated("numspectators") Then
-                server.caps.fakePlayers = True
+            If dto.Info("numplayers") > validated("numplayers") + validated("numspectators") Then
+                dto.Capabilities.fakePlayers = True
             End If
 
-            If server.caps.gamemodeExtendedInfo Then
+            If dto.Capabilities.gamemodeExtendedInfo Then
                 gamemodeQuery.ParseInfoPacket(packetObj.ConvertToHashtablePacket())
             End If
 
             state.hasNumPlayers = True
         Catch e As Exception
-            server.caps.hasPropertyInterface = False
+            dto.Capabilities.hasPropertyInterface = False
         End Try
     End Sub
 
@@ -435,7 +434,7 @@ Public Class ServerQuery
         Dim validated = ServerQueryValidators.players.Validate(packetObj)
 
         Try
-            server.players.Clear()
+            dto.Players.Clear()
 
             For Each pair As KeyValuePair(Of Integer, Object) In validated("player")
                 playerid = pair.Key
@@ -474,17 +473,17 @@ Public Class ServerQuery
                 playerinfo("countryc") = validated("countryc")(playerid)
                 playerinfo("deaths") = validated("deaths")(playerid)
 
-                If server.caps.hasXSQ Then
-                    If server.caps.XSQVersion >= 200 Then
+                If dto.Capabilities.hasXSQ Then
+                    If dto.Capabilities.XSQVersion >= 200 Then
                         playerinfo("time") = validated("time")(playerid)
                     Else
                         playerinfo("time") = validated("time")(playerid) * 60
                     End If
                 End If
-                server.players.Add(playerinfo)
+                dto.Players.Add(playerinfo)
                 playerid += 1
             Next
-            If buggedPingCount > server.players.Count / 2 Then
+            If buggedPingCount > dto.Players.Count / 2 Then
                 abortScan("Frozen/glitched server")
             End If
         Catch e As Exception
@@ -494,9 +493,9 @@ Public Class ServerQuery
     End Sub
 
     Private Sub parseVariables(packetObj As UTQueryPacket)
-        server.variables = packetObj.ConvertToDictionary()
+        dto.Variables = packetObj.ConvertToDictionary()
 
-        server.info("__utthaspropertyinterface") = server.caps.hasPropertyInterface
+        dto.Info("__utthaspropertyinterface") = dto.Capabilities.hasPropertyInterface
 
         state.hasVariables = True
     End Sub
@@ -505,7 +504,7 @@ Public Class ServerQuery
         With state
             If .requestingInfoExtended Then
                 .requestingInfoExtended = False
-                server.caps.hasPropertyInterface = False
+                dto.Capabilities.hasPropertyInterface = False
                 lastActivity = Date.UtcNow
                 sendRequest()
                 Return True
@@ -515,16 +514,16 @@ Public Class ServerQuery
                 sendRequest()
                 Return True
 
-            ElseIf .requestingInfo AndAlso server.caps.hasXSQ Then
+            ElseIf .requestingInfo AndAlso dto.Capabilities.hasXSQ Then
                 ' workaround: XServerQuery not responding
                 .requestingInfo = False
-                server.caps.hasXSQ = False
+                dto.Capabilities.hasXSQ = False
                 sendRequest()
                 Return True
 
             ElseIf .requestingVariables Then
                 .requestingVariables = False
-                server.caps.supportsVariables = False
+                dto.Capabilities.supportsVariables = False
                 .hasVariables = False
                 sendRequest()
                 Return True
@@ -585,20 +584,20 @@ Public Class ServerQuery
     ''' When beginning cannot be estimated: null
     ''' </returns>
     Public Function GetEstimatedMatchStartTime() As Date?
-        Dim correctElapsedTime = IsNumeric(server.info("elapsedtime")) AndAlso
-               server.info("elapsedtime") > 0
+        Dim correctElapsedTime = IsNumeric(dto.Info("elapsedtime")) AndAlso
+               dto.Info("elapsedtime") > 0
 
-        Dim correctTimeLimit = IsNumeric(server.info("timelimit")) AndAlso
-            server.info("timelimit") > 0 AndAlso
-            (server.info("timelimit") * 60) - server.info("remainingtime") > 0
+        Dim correctTimeLimit = IsNumeric(dto.Info("timelimit")) AndAlso
+            dto.Info("timelimit") > 0 AndAlso
+            (dto.Info("timelimit") * 60) - dto.Info("remainingtime") > 0
 
         Dim secondsElapsed As Integer = Nothing
 
 
         If correctElapsedTime Then
-            secondsElapsed = server.info("elapsedtime")
+            secondsElapsed = dto.Info("elapsedtime")
         ElseIf correctTimeLimit Then
-            secondsElapsed = (server.info("timelimit") * 60) - server.info("remainingtime")
+            secondsElapsed = (dto.Info("timelimit") * 60) - dto.Info("remainingtime")
         Else
             secondsElapsed = Nothing
         End If
@@ -609,7 +608,7 @@ Public Class ServerQuery
         End If
 
         If Not IsNothing(secondsElapsed) Then
-            Return propsRequestTime.AddSeconds(-secondsElapsed)
+            Return dto.PropsRequestTime.AddSeconds(-secondsElapsed)
         End If
 
         Return Nothing
