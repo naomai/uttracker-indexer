@@ -25,20 +25,20 @@ Public Class ServerDataPersistence
         serverRecord.LastCheck = Date.UtcNow
     End Sub
 
+    ''' <summary>
+    ''' Performs pending sync operations 
+    ''' </summary>
     Public Sub Tick()
         If state.Done Then
             Return
         End If
-        Try
-            If Not state.SavedInfo Then TryUpdateInfo()
-            If Not state.SavedVariables Then TryUpdateVariables()
-            If Not state.SavedMatchInfo Then TryUpdateMatchInfo()
-            If Not state.SavedPlayers Then TryUpdatePlayerInfo()
-            If Not state.SavedCumulativeStats Then TryUpdateCumulativePlayersStats()
-            If Not state.SavedScanInfo Then UpdateCurrentScanInfo()
-        Catch e As Exception
-            serverWorker.abortScan("Tick Exception: " & e.Message)
-        End Try
+        If Not state.SavedInfo Then TryUpdateInfo()
+        If Not state.SavedVariables Then TryUpdateVariables()
+        If Not state.SavedMatchInfo Then TryUpdateMatchInfo()
+        If Not state.SavedPlayers Then TryUpdatePlayerInfo()
+        If Not state.SavedCumulativeStats Then TryUpdateCumulativePlayersStats()
+        If Not state.SavedScanInfo Then UpdateCurrentScanInfo()
+
         If state.SavedInfo AndAlso state.SavedVariables AndAlso state.SavedMatchInfo And state.SavedPlayers And state.SavedCumulativeStats And state.SavedScanInfo Then
             FinishSync()
         End If
@@ -125,7 +125,7 @@ Public Class ServerDataPersistence
             End If
         Catch e As DbUpdateException
             ' conflict of AddressGame - one server, many QueryPorts
-            Dim reason As String = "Database update fail - " & e.Message
+            Dim reason As String = "Database update failed - " & e.Message
 
             If e.InnerException.GetType() = GetType(MySqlException) Then
                 Dim dbEx As MySqlException = e.InnerException
@@ -134,8 +134,8 @@ Public Class ServerDataPersistence
                     serverWorker.isActive = False
                 End If
             End If
-            serverWorker.abortScan(reason)
             dbCtx.Entry(serverRecord).State = EntityState.Detached
+            Throw New ScanException(reason)
             Return
         End Try
 

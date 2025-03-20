@@ -65,11 +65,13 @@ Public Class ServerQuery
     End Sub
 
     Public Sub Update()
-        CheckScanDeadlines()
-        Tick()
-        If sync.IsSyncInProgress() Then
+        Try
+            CheckScanDeadlines()
+            Tick()
             sync.Tick()
-        End If
+        Catch e As Exception
+            abortScan(e.Message)
+        End Try
     End Sub
 
     Protected Sub CheckScanDeadlines()
@@ -735,3 +737,16 @@ Public Structure ServerQueryState
     End Function
 End Structure
 
+Public Class ScanException
+    Inherits Exception
+    Public Sub New()
+    End Sub
+
+    Public Sub New(message As String)
+        MyBase.New(message)
+    End Sub
+
+    Public Sub New(message As String, inner As Exception)
+        MyBase.New(message, inner)
+    End Sub
+End Class
