@@ -8,15 +8,13 @@ Imports System.Text
 Imports System.Diagnostics.Metrics
 
 Public Class MasterServerManager
-    Public cacheFile As String
-    Public gslistFile As String
-
     Dim masterServers As New List(Of MasterServerInfo)
     Public Shared gamespyKeys As Dictionary(Of String, GamespyGameInfo)
 
     Public UpdateInterval As Integer = 3600
     Public PingInterval As Integer = 600
-    Public pingInterval As Integer = 600
+
+    Protected Friend log As Logger
 
     Shared metric As New Meter("MasterServerManager")
     Friend Shared mtServerListLength As Histogram(Of Integer) = metric.CreateHistogram(Of Integer)("mtServerListLength")
@@ -106,6 +104,9 @@ Public Class MasterServerManager
     End Function
 
     Friend Sub logWriteLine(ByVal format As String, ByVal ParamArray arg As Object())
+        If IsNothing(log) Then
+            Return
+        End If
         log.WriteLine("MasterServer: " & format, arg)
     End Sub
 End Class
@@ -203,7 +204,7 @@ Public Class MasterServerInfo
     End Sub
 
     Protected Sub Log(ByVal format As String, ByVal ParamArray arg As Object())
-        manager.log.DebugWriteLine("MasterServer[" + address + "|" + iniVariables("GameName") + "]: " & format, arg)
+        manager.logWriteLine($"[{address}|{iniVariables("GameName")}]: " & format, arg)
     End Sub
 
     Public Overrides Function ToString() As String
