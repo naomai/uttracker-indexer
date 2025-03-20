@@ -178,10 +178,10 @@ Public Class EndpointPacketBuffer
         newPackets = False
         SyncLock packetQueue
             For Each packet In packetQueue
-                ' each packet will be zero-terminated
+                ' if packet is zero-terminated, grab position of null byte and trim packet
                 Dim zeroByteOffset = Array.IndexOf(packet, 0)
                 If zeroByteOffset <> -1 Then
-                    ReDim Preserve packet(zeroByteOffset)
+                    ReDim Preserve packet(zeroByteOffset) ' also trims null byte
                 End If
                 packet.CopyTo(result, offset)
                 offset += packet.Length
