@@ -100,7 +100,7 @@ Public Class ServerQuery
             jitterMs = 2000 - rand(0, 4000)
             nextInfoDeadline = now.AddSeconds(INTERVAL_INFO).AddMilliseconds(jitterMs)
             ' reload DB record (free irrelevant data)
-            sync.state.HasDbRecord = False
+            sync.InvalidateServerRecord()
             actionNeeded = True
         End If
         If nextGameStateDeadline <= now Then
@@ -193,9 +193,7 @@ Public Class ServerQuery
                     packetCharset = Encoding.GetEncoding(437)
                 End If
                 .RequestingInfo = True
-                sync.state.SavedInfo = False
-                sync.state.SavedMatchInfo = False
-                sync.state.Done = False
+                sync.InvalidateInfo()
                 dto.InfoRequestTime = Date.UtcNow
                 serverSend("\info\" & IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
             ElseIf Not .HasInfoExtended AndAlso dto.Capabilities.HasPropertyInterface Then
@@ -218,22 +216,17 @@ Public Class ServerQuery
                            & "\level_property\Outer\" _
                            & otherAdditionalRequests _
                            & gamemodeAdditionalRequests)
-                sync.state.SavedInfo = False
-                sync.state.SavedMatchInfo = False
-                sync.state.Done = False
+                sync.InvalidateInfo()
             ElseIf Not .HasPlayers AndAlso dto.Info("numplayers") <> 0 AndAlso Not dto.Capabilities.FakePlayers Then
                 If dto.Capabilities.HasUtf8PlayerList Then
                     packetCharset = Encoding.UTF8
                 End If
                 .RequestingPlayers = True
-                sync.state.SavedPlayers = False
-                sync.state.SavedCumulativeStats = False
-                sync.state.Done = False
+                sync.InvalidatePlayers()
                 serverSend("\players\" & IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
             ElseIf Not .HasVariables AndAlso dto.Capabilities.SupportsVariables Then
                 .RequestingVariables = True
-                sync.state.SavedVariables = False
-                sync.state.Done = False
+                sync.InvalidateVariables()
                 serverSend("\rules\")
             Else
                 .done = True

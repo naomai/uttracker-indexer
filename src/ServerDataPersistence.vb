@@ -3,6 +3,9 @@ Imports System.Text.Json
 Imports Naomai.UTT.Indexer.Utt2Database
 
 Public Class ServerDataPersistence
+    ''' <summary>
+    ''' Transfers obtained server info into database entities
+    ''' </summary>
     Protected serverWorker As ServerQuery
     Public dbCtx As Utt2Context
 
@@ -58,14 +61,36 @@ Public Class ServerDataPersistence
         End If
         state.HasDbRecord = True
 
-        ReadServerDataFromDB()
+        FillServerDtoFromRecord()
 
         Return serverRecord
     End Function
 
-    Public Sub ReadServerDataFromDB()
+    Protected Sub FillServerDtoFromRecord()
         serverDto.LastValidationTime = serverRecord.LastValidation
     End Sub
+
+    Public Sub InvalidateServerRecord()
+        state.HasDbRecord = False
+    End Sub
+
+    Public Sub InvalidateInfo()
+        state.SavedInfo = False
+        state.SavedMatchInfo = False
+        state.Done = False
+    End Sub
+    Public Sub InvalidatePlayers()
+        state.SavedPlayers = False
+        state.SavedCumulativeStats = False
+        state.Done = False
+    End Sub
+    Public Sub InvalidateVariables()
+        state.SavedVariables = False
+        state.Done = False
+    End Sub
+
+#Region "Sync logic"
+
 
     Private Sub TryUpdateInfo()
         Dim scannerState = serverWorker.getState()
@@ -515,6 +540,8 @@ Public Class ServerDataPersistence
         End With
         serverRecord.RatingMinute = rfCalculator.CalculateMinute(serverDto.Info, serverRecord)
     End Sub
+
+#End Region
 
     Private Function GetLastMatchInfo() As ServerMatch
         Dim match = serverRecord.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault()
