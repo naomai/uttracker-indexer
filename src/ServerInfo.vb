@@ -8,7 +8,7 @@ Public Class ServerInfo
     Public LastActivityTime As DateTime?
     Public LastValidationTime As DateTime?
 
-    Public PropsRequestTime, InfoRequestTime As DateTime?
+    Public PropsRequestTime, InfoRequestTime As DateTime
 
 
     Public Sub New()
@@ -19,25 +19,25 @@ End Class
 
 
 Public Structure ServerCapabilities
-    Dim version As String
-    Dim gameName As String
-    Dim hasXSQ As Boolean
-    Dim XSQVersion As Integer
-    Dim hasPropertyInterface As Boolean
-    Dim timeTestPassed As Boolean
-    Dim gameSpeed As Single
-    Dim supportsVariables As Boolean
-    Dim gamemodeExtendedInfo As Boolean
-    Dim fakePlayers As Boolean
-    Dim hasUtf8PlayerList As Boolean ' UT 469+
-    Dim hasCp437Info As Boolean ' Unreal
-    Dim quickNumPlayers As Boolean ' depends on hasPropertyInterface
+    Dim GameVersion As String
+    Dim GameName As String
+    Dim HasXsq As Boolean
+    Dim XsqVersion As Integer
+    Dim HasPropertyInterface As Boolean
+    Dim TimeTestPassed As Boolean
+    Dim GameSpeed As Single
+    Dim SupportsVariables As Boolean
+    Dim GamemodeExtendedInfo As Boolean
+    Dim FakePlayers As Boolean
+    Dim HasUtf8PlayerList As Boolean ' UT 469+
+    Dim HasCp437Info As Boolean ' Unreal
+    Dim QuickNumPlayers As Boolean ' depends on hasPropertyInterface
 
     Public Overrides Function ToString() As String
         ToString = "ServerCapabilities{ "
-        If gameName <> "" Then ToString &= "isOnline gameName=" & gameName & " version=" & version & " "
-        If hasXSQ Then ToString &= "hasXSQ=" & XSQVersion & " "
-        If hasPropertyInterface Then ToString &= "hasPropertyInterface "
+        If GameName <> "" Then ToString &= "isOnline gameName=" & GameName & " version=" & GameVersion & " "
+        If HasXsq Then ToString &= "hasXSQ=" & XsqVersion & " "
+        If HasPropertyInterface Then ToString &= "hasPropertyInterface "
         ToString &= "}"
     End Function
 End Structure

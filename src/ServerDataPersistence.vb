@@ -23,27 +23,27 @@ Public Class ServerDataPersistence
     End Sub
 
     Public Sub Tick()
-        If state.done Then
+        If state.Done Then
             Return
         End If
         Try
-            If Not state.savedInfo Then TryUpdateInfo()
-            If Not state.savedVariables Then TryUpdateVariables()
-            If Not state.savedGameInfo Then TryUpdateMatchInfo()
-            If Not state.savedPlayers Then TryUpdatePlayerInfo()
-            If Not state.savedCumulativeStats Then TryUpdateCumulativePlayersStats()
-            If Not state.savedScanInfo Then UpdateCurrentScanInfo()
+            If Not state.SavedInfo Then TryUpdateInfo()
+            If Not state.SavedVariables Then TryUpdateVariables()
+            If Not state.SavedMatchInfo Then TryUpdateMatchInfo()
+            If Not state.SavedPlayers Then TryUpdatePlayerInfo()
+            If Not state.SavedCumulativeStats Then TryUpdateCumulativePlayersStats()
+            If Not state.SavedScanInfo Then UpdateCurrentScanInfo()
         Catch e As Exception
             serverWorker.abortScan("Tick Exception: " & e.Message)
         End Try
-        If state.savedInfo AndAlso state.savedVariables AndAlso state.savedGameInfo And state.savedPlayers And state.savedCumulativeStats And state.savedScanInfo Then
-            state.done = True
+        If state.SavedInfo AndAlso state.SavedVariables AndAlso state.SavedMatchInfo And state.SavedPlayers And state.SavedCumulativeStats And state.SavedScanInfo Then
+            state.Done = True
         End If
     End Sub
 
 
     Public Function GetServerRecord() As Server
-        If Not IsNothing(serverRecord) AndAlso state.hasDBRecord Then
+        If Not IsNothing(serverRecord) AndAlso state.HasDbRecord Then
             Return serverRecord
         End If
 
@@ -56,7 +56,7 @@ Public Class ServerDataPersistence
             }
             ServerRecordStore.RegisterServerDbRecord(serverRecord)
         End If
-        state.hasDBRecord = True
+        state.HasDbRecord = True
 
         ReadServerDataFromDB()
 
@@ -70,7 +70,7 @@ Public Class ServerDataPersistence
     Private Sub TryUpdateInfo()
         Dim scannerState = serverWorker.getState()
 
-        If Not (state.hasDBRecord AndAlso scannerState.hasBasic AndAlso scannerState.hasInfo) Then
+        If Not (state.HasDbRecord AndAlso scannerState.HasBasic AndAlso scannerState.HasInfo) Then
             Return
         End If
 
@@ -105,9 +105,9 @@ Public Class ServerDataPersistence
 
         uttServerScanTime = serverDto.InfoRequestTime
 
-        state.hasServerId = True
-        state.savedInfo = True
-        state.savedScanInfo = False
+        state.HasServerId = True
+        state.SavedInfo = True
+        state.SavedScanInfo = False
     End Sub
 
     Private Sub TryUpdateVariables()
@@ -115,12 +115,12 @@ Public Class ServerDataPersistence
         Dim variablesJson As String
         Dim scannerState = serverWorker.getState()
 
-        If Not serverDto.Capabilities.supportsVariables Then
-            state.savedVariables = True
+        If Not serverDto.Capabilities.SupportsVariables Then
+            state.SavedVariables = True
             Return
         End If
 
-        If Not (state.hasServerId AndAlso scannerState.hasVariables) Then
+        If Not (state.HasServerId AndAlso scannerState.HasVariables) Then
             Return
         End If
 
@@ -132,18 +132,18 @@ Public Class ServerDataPersistence
         'utt haxes:
         variablesMerged("__uttlastupdate") = UnixTime(uttServerScanTime)
         variablesMerged("queryport") = Split(serverWorker.addressQuery, ":").Last
-        If serverDto.Capabilities.hasXSQ Then
+        If serverDto.Capabilities.HasXsq Then
             variablesMerged("__uttxserverquery") = "true"
         End If
 
-        variablesMerged("__uttfakeplayers") = Int(serverDto.Capabilities.fakePlayers)
+        variablesMerged("__uttfakeplayers") = Int(serverDto.Capabilities.FakePlayers)
 
         variablesJson = JsonSerializer.Serialize(variablesMerged)
 
         serverRecord.Variables = variablesJson
 
-        state.savedVariables = True
-        state.savedScanInfo = False
+        state.SavedVariables = True
+        state.SavedScanInfo = False
     End Sub
 
     Private Sub TryUpdateMatchInfo() ' serverhistory
@@ -151,11 +151,11 @@ Public Class ServerDataPersistence
         Dim scannerState = serverWorker.getState()
         Dim timeMatchStart As DateTime? = Nothing
 
-        state.isNewMatch = False
-        state.isPreMatch = False
+        state.IsNewMatch = False
+        state.IsPreMatch = False
 
-        If Not (state.hasServerId AndAlso scannerState.hasInfo) OrElse
-            (serverDto.Capabilities.hasPropertyInterface AndAlso Not scannerState.hasInfoExtended) Then
+        If Not (state.HasServerId AndAlso scannerState.HasInfo) OrElse
+            (serverDto.Capabilities.HasPropertyInterface AndAlso Not scannerState.HasInfoExtended) Then
             Return
         End If
 
@@ -175,16 +175,16 @@ Public Class ServerDataPersistence
         Dim changedMapName = False
         Dim hasPlayers = serverDto.Info("__uttrealplayers") > 0
 
-        If scannerState.hasInfoExtended Then
+        If scannerState.HasInfoExtended Then
             thisMatchCurrentID = Integer.Parse(serverDto.Info("__uttgamecurrentid"))
         End If
 
         If IsNothing(previousMatchRecord) Then
-            state.isNewMatch = True
+            state.IsNewMatch = True
         Else
             lastMatchCurrentID = previousMatchRecord.ServerPlayeridCounter
             changedMapName = previousMatchRecord.MapName <> serverDto.Info("mapname")
-            If scannerState.hasInfoExtended Then
+            If scannerState.HasInfoExtended Then
                 newMatchByCurrentIDChange =
                     Not IsNothing(lastMatchCurrentID) AndAlso
                     Not IsNothing(thisMatchCurrentID) AndAlso
@@ -193,30 +193,30 @@ Public Class ServerDataPersistence
 
             End If
 
-            state.isNewMatch = state.isNewMatch OrElse newMatchByCurrentIDChange
+            state.IsNewMatch = state.IsNewMatch OrElse newMatchByCurrentIDChange
         End If
 
         Dim trustingPlayerList =
             serverDto.Info.ContainsKey("elapsedtime") AndAlso
-            Not serverDto.Capabilities.fakePlayers
+            Not serverDto.Capabilities.FakePlayers
 
 
         If trustingPlayerList Then
             timeMatchStart = serverWorker.GetEstimatedMatchStartTime()
 
-            state.isPreMatch = timeMatchStart.HasValue AndAlso timeMatchStart.Value > Date.UtcNow
+            state.IsPreMatch = timeMatchStart.HasValue AndAlso timeMatchStart.Value > Date.UtcNow
 
-            Dim isPreMatchContinuing = Not state.isNewMatch _
-                    AndAlso state.isPreMatch _
+            Dim isPreMatchContinuing = Not state.IsNewMatch _
+                    AndAlso state.IsPreMatch _
                     AndAlso previousMatchRecord.StartTime > Date.UtcNow
 
-            Dim hasPreMatchEnded As Boolean = Not state.isNewMatch _
+            Dim hasPreMatchEnded As Boolean = Not state.IsNewMatch _
                 AndAlso timeMatchStart.HasValue _
                 AndAlso previousMatchRecord.StartTime > Date.UtcNow _
-                AndAlso Not state.isPreMatch
+                AndAlso Not state.IsPreMatch
 
             ' if server provides the game times, we'll take them into account
-            Dim newMatchByReportedTime As Boolean = Not state.isNewMatch _
+            Dim newMatchByReportedTime As Boolean = Not state.IsNewMatch _
                 AndAlso timeMatchStart.HasValue _
                 AndAlso hasPlayers _
                 AndAlso previousMatchRecord.StartTime < timeMatchStart.Value _
@@ -224,32 +224,32 @@ Public Class ServerDataPersistence
                 AndAlso Math.Abs((previousMatchRecord.StartTime - timeMatchStart.Value).TotalSeconds) > 600 ' jitter
 
             ' if not, we'll assume the longest match time on one map of 6 hours
-            Dim newMatchByEstimatedlTimeout As Boolean = Not state.isNewMatch _
+            Dim newMatchByEstimatedlTimeout As Boolean = Not state.IsNewMatch _
                 AndAlso Not timeMatchStart.HasValue _
                 AndAlso hasPlayers _
                 AndAlso Not changedMapName _
                 AndAlso previousMatchRecord.StartTime.AddHours(6) < serverDto.InfoRequestTime
 
-            state.isNewMatch = state.isNewMatch _
+            state.IsNewMatch = state.IsNewMatch _
                 OrElse newMatchByReportedTime _
                 OrElse newMatchByEstimatedlTimeout _
                 OrElse changedMapName
         Else
-            state.isNewMatch = state.isNewMatch OrElse
+            state.IsNewMatch = state.IsNewMatch OrElse
             (
                 hasPlayers AndAlso
                 previousMatchRecord.StartTime.AddHours(6) < serverDto.InfoRequestTime
             ) OrElse
             changedMapName
 
-            If state.isNewMatch Then
+            If state.IsNewMatch Then
                 timeMatchStart = serverDto.InfoRequestTime
             Else
                 timeMatchStart = previousMatchRecord.StartTime
             End If
         End If
 
-        If state.isNewMatch Then
+        If state.IsNewMatch Then
             If Not timeMatchStart.HasValue Then
                 timeMatchStart = Date.UtcNow
             End If
@@ -288,20 +288,20 @@ Public Class ServerDataPersistence
             End If
         End If
 
-        state.savedGameInfo = True
-        state.savedScanInfo = False
+        state.SavedMatchInfo = True
+        state.SavedScanInfo = False
 
     End Sub
 
 
     Private Sub TryUpdatePlayerInfo()
         Dim scannerState = serverWorker.getState()
-        If scannerState.hasInfo AndAlso (serverDto.Info("__uttrealplayers") = 0 OrElse serverDto.Capabilities.fakePlayers) Then
-            state.savedPlayers = True
+        If scannerState.HasInfo AndAlso (serverDto.Info("__uttrealplayers") = 0 OrElse serverDto.Capabilities.FakePlayers) Then
+            state.SavedPlayers = True
             Return
         End If
 
-        If scannerState.hasPlayers AndAlso state.savedGameInfo Then
+        If scannerState.HasPlayers AndAlso state.SavedMatchInfo Then
             For Each player In serverDto.Players
                 Dim uttPlayerSlug As String = GetPlayerSlug(player)
                 Dim playerRecord As Player
@@ -325,8 +325,8 @@ Public Class ServerDataPersistence
                 UpdatePlayerInfoEntry(playerRecord, player)
                 UpdatePlayerHistoryEntry(playerRecord, player)
             Next
-            state.savedPlayers = True
-            state.savedScanInfo = False
+            state.SavedPlayers = True
+            state.SavedScanInfo = False
             'dbCtx.SaveChanges()
         End If
     End Sub
@@ -336,7 +336,7 @@ Public Class ServerDataPersistence
 
         With playerRecord
             .SkinData = playerData("uttSkinData")
-            If serverDto.Capabilities.hasXSQ AndAlso Not IsNothing(playerData("countryc")) AndAlso playerData("countryc") <> "none" Then
+            If serverDto.Capabilities.HasXsq AndAlso Not IsNothing(playerData("countryc")) AndAlso playerData("countryc") <> "none" Then
                 countryString = playerData("countryc")
             End If
             .Country = countryString
@@ -354,11 +354,11 @@ Public Class ServerDataPersistence
         Dim playerTimeOffset As Integer = 0
         Dim playerLogRecord As PlayerLog
 
-        If Not state.hasServerId Then
+        If Not state.HasServerId Then
             Return
         End If
 
-        If state.isNewMatch AndAlso player.ContainsKey("time") Then
+        If state.IsNewMatch AndAlso player.ContainsKey("time") Then
             playerTimeOffset = -player("time")
         End If
 
@@ -403,11 +403,11 @@ Public Class ServerDataPersistence
     End Sub
 
     Private Sub TryUpdateCumulativePlayersStats() ' update `PlayerStats` using not-finished records in PlayerLogs, then marking them Finished
-        If Not state.hasServerId Then
+        If Not state.HasServerId Then
             Return
         End If
 
-        If state.savedPlayers AndAlso state.savedGameInfo Then
+        If state.SavedPlayers AndAlso state.SavedMatchInfo Then
 
             Dim playerLogsDirty As IEnumerable(Of PlayerLog)
 
@@ -432,7 +432,7 @@ Public Class ServerDataPersistence
             End If
 
             If playerLogsDirty.Count = 0 Then
-                state.savedCumulativeStats = True
+                state.SavedCumulativeStats = True
                 Return
             End If
 
@@ -485,21 +485,21 @@ Public Class ServerDataPersistence
             Catch e As Exception
             End Try
 
-            state.savedCumulativeStats = True
+            state.SavedCumulativeStats = True
         End If
     End Sub
 
     Private Sub UpdateCurrentScanInfo()
-        If Not state.hasServerId Then
+        If Not state.HasServerId Then
             Return
         End If
 
-        If state.savedCumulativeStats OrElse (state.savedInfo AndAlso serverDto.Info("__uttrealplayers") = 0) Then
+        If state.SavedCumulativeStats OrElse (state.SavedInfo AndAlso serverDto.Info("__uttrealplayers") = 0) Then
 
             UpdateServerRatings()
 
             serverRecord.LastSuccess = DateTime.UtcNow
-            state.savedScanInfo = True
+            state.SavedScanInfo = True
         End If
     End Sub
 
@@ -545,15 +545,15 @@ End Class
 
 
 Public Structure ServerDataPersistenceState
-    Dim hasDBRecord As Boolean
-    Dim hasServerId As Boolean
-    Dim savedInfo As Boolean
-    Dim savedVariables As Boolean
-    Dim savedGameInfo As Boolean
-    Dim savedPlayers As Boolean
-    Dim savedCumulativeStats As Boolean
-    Dim savedScanInfo As Boolean
-    Dim isNewMatch As Boolean
-    Dim isPreMatch As Boolean
-    Dim done As Boolean
+    Dim HasDbRecord As Boolean
+    Dim HasServerId As Boolean
+    Dim SavedInfo As Boolean
+    Dim SavedVariables As Boolean
+    Dim SavedMatchInfo As Boolean
+    Dim SavedPlayers As Boolean
+    Dim SavedCumulativeStats As Boolean
+    Dim SavedScanInfo As Boolean
+    Dim IsNewMatch As Boolean
+    Dim IsPreMatch As Boolean
+    Dim Done As Boolean
 End Structure

@@ -22,7 +22,7 @@
 
     Public Shared Function GetQueryObjectForContext(server As ServerInfo)
         Dim queryObject As GamemodeSpecificQuery = Nothing
-        If server.Capabilities.hasPropertyInterface = True Then
+        If server.Capabilities.HasPropertyInterface = True Then
             Select Case server.Info("gametype")
                 Case "MonsterHunt"
                     queryObject = New MonsterHuntQuery()

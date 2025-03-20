@@ -165,12 +165,12 @@ Public Class Scanner
         SyncLock serverWorkersLock
             For Each t As ServerQuery In serverWorkers.Values
                 st = t.getState
-                sta += IIf(st.started, 1, 0)
-                bas += IIf(st.hasBasic, 1, 0)
-                inf += IIf(st.hasInfo, 1, 0)
-                infex += IIf(st.hasInfoExtended, 1, 0)
-                pl += IIf(st.hasPlayers, 1, 0)
-                ru += IIf(st.hasVariables, 1, 0)
+                sta += IIf(st.IsStarted, 1, 0)
+                bas += IIf(st.HasBasic, 1, 0)
+                inf += IIf(st.HasInfo, 1, 0)
+                infex += IIf(st.HasInfoExtended, 1, 0)
+                pl += IIf(st.HasPlayers, 1, 0)
+                ru += IIf(st.HasVariables, 1, 0)
                 don += IIf(st.done, 1, 0)
                 onl += IIf(t.isOnline, 1, 0)
             Next
