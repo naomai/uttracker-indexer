@@ -67,7 +67,7 @@ Public Class ServerQuery
     Public Sub Update()
         CheckScanDeadlines()
         Tick()
-        If Not sync.state.Done Then
+        If sync.IsSyncInProgress() Then
             sync.Tick()
         End If
     End Sub
@@ -396,7 +396,7 @@ Public Class ServerQuery
 
             'state.hasInfo = True
             state.HasInfoExtended = True
-            sync.state.SavedVariables = False
+            sync.InvalidateVariables()
 
             Dim mapName = Regex.Match(validated("outer"), "^Package'(.+)'$").Groups(1).ToString()
             If mapName <> dto.Info("mapname") Then
@@ -553,7 +553,7 @@ Public Class ServerQuery
     Friend Sub abortScan(Optional reason As String = "?", Optional dumpCommLog As Boolean = False)
         If Not state.done Then
             state.done = True
-            sync.state.Done = True
+            sync.FinishSync()
             isOnline = False
             If Not state.RequestingBasic Then
                 protocolFailures += 1

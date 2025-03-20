@@ -7,13 +7,13 @@ Public Class ServerDataPersistence
     ''' Transfers obtained server info into database entities
     ''' </summary>
     Protected serverWorker As ServerQuery
-    Public dbCtx As Utt2Context
+    Private dbCtx As Utt2Context
 
     Private serverDto As ServerInfo
 
     Dim uttServerScanTime As DateTime
 
-    Public state As ServerDataPersistenceState
+    Private state As ServerDataPersistenceState
     Private serverRecord As Server
     Private matchRecord As ServerMatch
 
@@ -40,7 +40,7 @@ Public Class ServerDataPersistence
             serverWorker.abortScan("Tick Exception: " & e.Message)
         End Try
         If state.SavedInfo AndAlso state.SavedVariables AndAlso state.SavedMatchInfo And state.SavedPlayers And state.SavedCumulativeStats And state.SavedScanInfo Then
-            state.Done = True
+            FinishSync()
         End If
     End Sub
 
@@ -77,17 +77,28 @@ Public Class ServerDataPersistence
     Public Sub InvalidateInfo()
         state.SavedInfo = False
         state.SavedMatchInfo = False
-        state.Done = False
+        ResumeSync()
     End Sub
     Public Sub InvalidatePlayers()
         state.SavedPlayers = False
         state.SavedCumulativeStats = False
-        state.Done = False
+        ResumeSync()
     End Sub
     Public Sub InvalidateVariables()
         state.SavedVariables = False
+        ResumeSync()
+    End Sub
+
+    Protected Sub ResumeSync()
         state.Done = False
     End Sub
+    Public Sub FinishSync()
+        state.Done = True
+    End Sub
+
+    Public Function IsSyncInProgress()
+        Return state.Done
+    End Function
 
 #Region "Sync logic"
 
@@ -568,19 +579,18 @@ Public Class ServerDataPersistence
     Private Shared Function NameIsComplicated(pname As String) As Boolean
         Return Len(pname) >= 10 OrElse Text.RegularExpressions.Regex.IsMatch(pname, "[\[\]\(\)\{\}<>~`!@#\$%\^&\*\-=_/;:'"",\.\?]")
     End Function
+
+    Private Structure ServerDataPersistenceState
+        Dim HasDbRecord As Boolean
+        Dim HasServerId As Boolean
+        Dim SavedInfo As Boolean
+        Dim SavedVariables As Boolean
+        Dim SavedMatchInfo As Boolean
+        Dim SavedPlayers As Boolean
+        Dim SavedCumulativeStats As Boolean
+        Dim SavedScanInfo As Boolean
+        Dim IsNewMatch As Boolean
+        Dim IsPreMatch As Boolean
+        Dim Done As Boolean
+    End Structure
 End Class
-
-
-Public Structure ServerDataPersistenceState
-    Dim HasDbRecord As Boolean
-    Dim HasServerId As Boolean
-    Dim SavedInfo As Boolean
-    Dim SavedVariables As Boolean
-    Dim SavedMatchInfo As Boolean
-    Dim SavedPlayers As Boolean
-    Dim SavedCumulativeStats As Boolean
-    Dim SavedScanInfo As Boolean
-    Dim IsNewMatch As Boolean
-    Dim IsPreMatch As Boolean
-    Dim Done As Boolean
-End Structure
