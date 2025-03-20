@@ -27,12 +27,10 @@ Public Class Scanner
 
     Protected Friend _targetCommLog As New Hashtable
 
-    Public Sub New(scannerConfig As ServerScannerConfig)
-        With scannerConfig
-            log = .log
-            dbCtx = .dbCtx
-            masterServerQuery = .masterServerManager
-        End With
+    Public Sub New(log As Logger, context As Utt2Context, masterServerManager As MasterServerManager)
+        log = log
+        dbCtx = context
+        masterServerQuery = masterServerManager
 
         serverRepo = New ServerRepository(dbCtx)
 
@@ -230,10 +228,4 @@ Public Class Scanner
         '_targetCommLog(targetHost) &= $"[{dateNow}] {tag}: {packet}" & NewLine
     End Sub
 End Class
-
-Public Structure ServerScannerConfig
-    Dim masterServerManager As MasterServerManager
-    Dim log As Logger
-    Dim dbCtx As Utt2Context
-End Structure
 
