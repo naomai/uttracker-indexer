@@ -105,7 +105,7 @@ Public Class ServerInfoSync
             Return
         End Try
 
-        uttServerScanTime = serverWorker.infoSentTimeLocal
+        uttServerScanTime = serverWorker.infoRequestTime
 
         state.hasServerId = True
         state.savedInfo = True
@@ -204,7 +204,7 @@ Public Class ServerInfoSync
 
 
         If trustingPlayerList Then
-            timeMatchStart = DetectMatchStart()
+            timeMatchStart = serverWorker.GetEstimatedMatchStartTime()
 
             state.isPreMatch = timeMatchStart.HasValue AndAlso timeMatchStart.Value > Date.UtcNow
 
@@ -230,7 +230,7 @@ Public Class ServerInfoSync
                 AndAlso Not timeMatchStart.HasValue _
                 AndAlso hasPlayers _
                 AndAlso Not changedMapName _
-                AndAlso previousMatchRecord.StartTime.AddHours(6) < serverWorker.infoSentTimeLocal
+                AndAlso previousMatchRecord.StartTime.AddHours(6) < serverWorker.infoRequestTime
 
             state.isNewMatch = state.isNewMatch _
                 OrElse newMatchByReportedTime _
@@ -240,12 +240,12 @@ Public Class ServerInfoSync
             state.isNewMatch = state.isNewMatch OrElse
             (
                 hasPlayers AndAlso
-                previousMatchRecord.StartTime.AddHours(6) < serverWorker.infoSentTimeLocal
+                previousMatchRecord.StartTime.AddHours(6) < serverWorker.infoRequestTime
             ) OrElse
             changedMapName
 
             If state.isNewMatch Then
-                timeMatchStart = serverWorker.infoSentTimeLocal
+                timeMatchStart = serverWorker.infoRequestTime
             Else
                 timeMatchStart = previousMatchRecord.StartTime
             End If
@@ -295,45 +295,6 @@ Public Class ServerInfoSync
 
     End Sub
 
-    ''' <summary>
-    ''' Estimate match start time from server data 
-    ''' </summary>
-    ''' <returns>
-    ''' On success: Date object in the past representing beginning of the match
-    ''' When match is not yet started: Date object one year into the future
-    ''' When beginning cannot be estimated: null
-    ''' </returns>
-    Private Function DetectMatchStart() As Date?
-        Dim correctElapsedTime = IsNumeric(serverData.info("elapsedtime")) AndAlso
-               serverData.info("elapsedtime") > 0
-
-        Dim correctTimeLimit = IsNumeric(serverData.info("timelimit")) AndAlso
-            serverData.info("timelimit") > 0 AndAlso
-            (serverData.info("timelimit") * 60) - serverData.info("remainingtime") > 0
-
-        Dim secondsElapsed As Integer = Nothing
-
-
-        If correctElapsedTime Then
-            secondsElapsed = serverData.info("elapsedtime")
-        ElseIf correctTimeLimit Then
-            secondsElapsed = (serverData.info("timelimit") * 60) - serverData.info("remainingtime")
-        Else
-            secondsElapsed = Nothing
-        End If
-
-        Dim isNotStarted = (secondsElapsed = 0)
-        If isNotStarted Then
-            Return Date.UtcNow.AddYears(1)
-        End If
-
-        If Not IsNothing(secondsElapsed) Then
-            Return serverWorker.firstTimeTestLocal.AddSeconds(-secondsElapsed)
-        End If
-
-        Return Nothing
-
-    End Function
 
     Private Sub TryUpdatePlayerInfo()
         Dim scannerState = serverWorker.getState()

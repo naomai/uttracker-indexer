@@ -7,8 +7,7 @@ Public Class ServerQuery
     Dim socket As SocketManager
     Public scannerMaster As Scanner
 
-    Public firstTimeTest, secondTimeTest As Single
-    Public firstTimeTestLocal, secondTimeTestLocal, infoSentTimeLocal As DateTime
+    Protected propsRequestTime, infoRequestTime As DateTime
 
     Protected networkCapNextSendDeadline As Date
     Protected networkTimeoutDeadline As Date? = Nothing
@@ -198,10 +197,9 @@ Public Class ServerQuery
                 sync.state.savedInfo = False
                 sync.state.savedGameInfo = False
                 sync.state.done = False
-                infoSentTimeLocal = Date.UtcNow
+                infoRequestTime = Date.UtcNow
                 serverSend("\info\" & IIf(server.caps.hasXSQ, xsqSuffix, ""))
             ElseIf Not .hasInfoExtended AndAlso server.caps.hasPropertyInterface Then
-                firstTimeTestLocal = Date.UtcNow ' AKA timestamp of sending the extended info request
                 gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(server)
                 Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
                 If Not IsNothing(gamemodeQuery) Then
@@ -213,6 +211,7 @@ Public Class ServerQuery
                 End If
 
                 .requestingInfoExtended = True
+                propsRequestTime = Date.UtcNow ' AKA timestamp of sending the extended info request
                 serverSend("\game_property\NumPlayers\\game_property\NumSpectators\" _
                            & "\game_property\GameSpeed\\game_property\CurrentID\" _
                            & "\game_property\bGameEnded\\game_property\bOvertime\" _
@@ -575,6 +574,47 @@ Public Class ServerQuery
 
         End If
     End Sub
+
+
+    ''' <summary>
+    ''' Estimate match start time from server data 
+    ''' </summary>
+    ''' <returns>
+    ''' On success: Date object in the past representing beginning of the match
+    ''' When match is not yet started: Date object one year into the future
+    ''' When beginning cannot be estimated: null
+    ''' </returns>
+    Public Function GetEstimatedMatchStartTime() As Date?
+        Dim correctElapsedTime = IsNumeric(server.info("elapsedtime")) AndAlso
+               server.info("elapsedtime") > 0
+
+        Dim correctTimeLimit = IsNumeric(server.info("timelimit")) AndAlso
+            server.info("timelimit") > 0 AndAlso
+            (server.info("timelimit") * 60) - server.info("remainingtime") > 0
+
+        Dim secondsElapsed As Integer = Nothing
+
+
+        If correctElapsedTime Then
+            secondsElapsed = server.info("elapsedtime")
+        ElseIf correctTimeLimit Then
+            secondsElapsed = (server.info("timelimit") * 60) - server.info("remainingtime")
+        Else
+            secondsElapsed = Nothing
+        End If
+
+        Dim isNotStarted = (secondsElapsed = 0)
+        If isNotStarted Then
+            Return Date.UtcNow.AddYears(1)
+        End If
+
+        If Not IsNothing(secondsElapsed) Then
+            Return propsRequestTime.AddSeconds(-secondsElapsed)
+        End If
+
+        Return Nothing
+
+    End Function
 
     Public Function GetPacketCharset() As Encoding
         Return packetCharset
