@@ -7,8 +7,8 @@ Imports Naomai.UTT.Indexer.Utt2Database
 
 Module App
     Dim scanner As Scanner
-    Dim WithEvents master As GSMasterServer
-    Dim masterBridge As GSMasterServerBridge
+    Dim WithEvents gsServer As GSMasterServer
+    Dim gsServerProvider As GSMasterServerListProvider
     Dim masterManager As MasterServerManager
     Dim ini As IniPropsProvider
     Dim log As Logger
@@ -118,19 +118,19 @@ Module App
             log.WriteLine("Enabling GameSpy Master Server...")
             Dim msPort As Integer = config.GetProperty("GSMasterServer.Port", "28900")
             Dim msDbCtx = New Utt2Context(dbconfig)
-            master = New GSMasterServer(msPort)
-            masterBridge = New GSMasterServerBridge(msDbCtx)
-            master.SetServerListProvider(masterBridge)
-            master.LoadGSListFromDict(MasterServerManager.gamespyKeys)
-            master.StartServer()
+            gsServer = New GSMasterServer(msPort)
+            gsServerProvider = New GSMasterServerListProvider(msDbCtx)
+            gsServer.SetServerListProvider(gsServerProvider)
+            gsServer.LoadGSListFromDict(MasterServerManager.gamespyKeys)
+            gsServer.StartServer()
         End If
     End Sub
 
-    Private Sub master_ClientConnected(client As System.Net.IPEndPoint) Handles master.ClientConnected
+    Private Sub master_ClientConnected(client As System.Net.IPEndPoint) Handles gsServer.ClientConnected
         dyncfg.SetProperty("gsmasterserver.lastevent", UnixTime())
     End Sub
 
-    Private Sub master_ClientDisconnected(client As IPEndPoint, reason As GSClosingReason, relatedException As Exception) Handles master.ClientDisconnected
+    Private Sub master_ClientDisconnected(client As IPEndPoint, reason As GSClosingReason, relatedException As Exception) Handles gsServer.ClientDisconnected
         Dim errorMessage As String
         Select Case reason
             Case GSClosingReason.InvalidChallenge
@@ -147,7 +147,7 @@ Module App
         log.DebugWriteLine("GSMasterConnection({0}): {1}", client.ToString, errorMessage)
     End Sub
 
-    Private Sub master_ClientRequestedList(client As System.Net.IPEndPoint) Handles master.ClientRequestedList
+    Private Sub master_ClientRequestedList(client As System.Net.IPEndPoint) Handles gsServer.ClientRequestedList
         log.DebugWriteLine("GSMasterConnection({0}): client requests list", client.ToString)
     End Sub
 

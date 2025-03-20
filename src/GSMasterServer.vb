@@ -1,7 +1,7 @@
 ﻿Imports System.Diagnostics.Metrics
 Imports System.Net
 Imports System.Net.Sockets
-Imports System.Text.Encoding
+Imports System.Text
 Imports System.Threading
 
 Public Class GSMasterServer
@@ -149,7 +149,7 @@ Public Class GSMasterServerConnection
         If conn.Available AndAlso active Then
             bytes = conn.Receive(dataBuffer)
             ReDim Preserve dataBuffer(bytes - 1)
-            incomingPacket &= ASCII.GetString(dataBuffer)
+            incomingPacket &= Encoding.ASCII.GetString(dataBuffer)
             Try
                 packet = New UTQueryPacket(incomingPacket, UTQueryPacket.UTQueryPacketFlags.UTQP_NoQueryId Or UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
                 incomingPacket = ""
@@ -258,7 +258,7 @@ Public Class GSMasterServerConnection
 
     Private Sub ReceivedListRequest(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
         masterServer.OnClientRequestedList(remote)
-        Dim serverList = masterServer.appServerList.getServerListForGame(gameName)
+        Dim serverList = masterServer.appServerList.GetServerListForGame(gameName)
         For Each server In serverList
             destinationPacket.Add("ip", server)
         Next
@@ -280,7 +280,7 @@ Public Class GSMasterServerConnection
 
     Private Sub PacketSend(packet As String)
         Try
-            conn.Send(ASCII.GetBytes(packet))
+            conn.Send(Encoding.ASCII.GetBytes(packet))
             If packet <> "" Then lastSentPacketTime = Date.UtcNow
             lastPollTime = Date.UtcNow
             Thread.Sleep(5)
@@ -292,9 +292,14 @@ Public Class GSMasterServerConnection
 
     Private Shared Function GenerateChallenge() As String
         Static allowedChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        Static allowedCharsLen = Len(allowedChars)
-        Return allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen)) &
-            allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen))
+        Static allowedCharsCount = Len(allowedChars)
+
+        Dim challenge As New StringBuilder(6)
+        For i = 1 To 6
+            challenge.Append(allowedChars(Rand(1, allowedCharsCount)))
+        Next
+
+        Return challenge.ToString()
     End Function
 
     Private Shared Function Rand(min As UInt32, max As UInt32) As UInt32
@@ -317,8 +322,7 @@ Public Class GSMasterServerConnection
 End Class
 
 Public Interface IServerListProvider
-    Function getServerListForGame(gamename As String) As List(Of String)
-    Function getAboutInfo() As Dictionary(Of String, String)
+    Function GetServerListForGame(gamename As String) As List(Of String)
 End Interface
 
 Public Class GSMSConnectionException
