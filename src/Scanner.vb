@@ -187,19 +187,10 @@ Public Class Scanner
         End If
 
         Await serverRepo.LoadAsync()
+        Dim recentServers = (From server In serverRepo.All()
+                             Where Not IsNothing(server.LastSuccess) AndAlso server.LastSuccess > scanTimeRange
+                             Select server.AddressQuery).ToList()
 
-        Dim listQuery = serverRepo.All().Where(
-                Function(p As Server) Not IsNothing(p.LastSuccess) AndAlso p.LastSuccess > scanTimeRange
-            )
-
-        Dim serversListCache As List(Of Server) = listQuery.ToList()
-        Dim recentServers = New List(Of String)
-
-        For Each server In serversListCache
-            Dim fullQueryIp = server.AddressQuery
-
-            recentServers.Add(fullQueryIp)
-        Next
         Return recentServers
     End Function
 
