@@ -9,15 +9,14 @@ Imports Microsoft.SqlServer
 Public Class Scanner
     Friend scanLastTouchAll As Date
 
-    Public serversListCache As List(Of Server)
 
     Protected Friend log As Logger
     Protected Friend ini As IniPropsProvider
     Protected Friend dbCtx As Utt2Context
     Protected Friend dyncfg As IPropsProvider
+    Protected Friend serverRepo As ServerRepository
 
     Protected serverList As New List(Of String)
-
 
     Protected fullScanDeadline As Date = Date.UtcNow
 
@@ -25,8 +24,6 @@ Public Class Scanner
     Protected WithEvents sockets As SocketManager
     Protected serverWorkers As New Dictionary(Of String, ServerQuery)
     Protected serverWorkersLock As New Object
-
-    Private dbTransaction As RelationalTransaction
 
     Protected Friend _targetCommLog As New Hashtable
 
@@ -36,6 +33,8 @@ Public Class Scanner
             dbCtx = .dbCtx
             masterServerQuery = .masterServerManager
         End With
+
+        serverRepo = New ServerRepository(dbCtx)
 
         initSockets()
 
@@ -187,27 +186,13 @@ Public Class Scanner
             scanTimeRange = DateTime.UtcNow.AddSeconds(-seconds)
         End If
 
-        Try
-            Await dbCtx.Servers _
-                .Select(Function(s) New With {
-                    s,
-                    .LatestMatch = s.ServerMatches.OrderByDescending(Function(m) m.Id).FirstOrDefault()
-                }) _
-            .ToListAsync()
+        Await serverRepo.LoadAsync()
 
-            For Each server In dbCtx.Servers.Local
-                ServerRecordStore.RegisterServerDbRecord(server)
-            Next
-
-        Catch e As Exception
-
-        End Try
-
-        Dim listQuery = dbCtx.Servers.Local.Where(
+        Dim listQuery = serverRepo.All().Where(
                 Function(p As Server) Not IsNothing(p.LastSuccess) AndAlso p.LastSuccess > scanTimeRange
             )
 
-        serversListCache = listQuery.ToList()
+        Dim serversListCache As List(Of Server) = listQuery.ToList()
         Dim recentServers = New List(Of String)
 
         For Each server In serversListCache

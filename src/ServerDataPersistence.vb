@@ -8,7 +8,7 @@ Public Class ServerDataPersistence
     ''' </summary>
     Protected serverWorker As ServerQuery
     Private dbCtx As Utt2Context
-
+    Private serverRepo As ServerRepository
     Private serverDto As ServerInfo
 
     Dim uttServerScanTime As DateTime
@@ -21,6 +21,7 @@ Public Class ServerDataPersistence
         Me.serverDto = serverData
         Me.serverWorker = serverWorker
         dbCtx = serverWorker.scannerMaster.dbCtx
+        serverRepo = serverWorker.scannerMaster.serverRepo
         GetServerRecord()
         serverRecord.LastCheck = Date.UtcNow
     End Sub
@@ -50,14 +51,14 @@ Public Class ServerDataPersistence
             Return serverRecord
         End If
 
-        serverRecord = ServerRecordStore.GetServerDbRecord(serverWorker.addressQuery)
+        serverRecord = serverRepo.GetServerByQueryAddress(serverWorker.addressQuery)
 
         If IsNothing(serverRecord) Then
             serverRecord = New Server() With {
                 .AddressQuery = serverWorker.addressQuery,
                 .AddressGame = serverWorker.addressGame
             }
-            ServerRecordStore.RegisterServerDbRecord(serverRecord)
+            serverRepo.AddServer(serverRecord)
         End If
         state.HasDbRecord = True
 
