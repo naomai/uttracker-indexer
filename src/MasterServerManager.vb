@@ -14,8 +14,8 @@ Public Class MasterServerManager
     Dim masterServers As New List(Of MasterServerInfo)
     Public Shared gamespyKeys As Dictionary(Of String, GamespyGameInfo)
 
-    Public log As Logger
-    Public updateInterval As Integer = 3600
+    Public UpdateInterval As Integer = 3600
+    Public PingInterval As Integer = 600
     Public pingInterval As Integer = 600
 
     Shared metric As New Meter("MasterServerManager")
@@ -45,12 +45,12 @@ Public Class MasterServerManager
     End Sub
 
     Public Sub New()
-        MasterServerManager.gamespyKeys = staticLoadGSList()
+        MasterServerManager.gamespyKeys = LoadGSList()
     End Sub
 
     Public Sub AddMasterServer(configString As String)
         Dim masterServer As New MasterServerInfo(configString)
-        masterServer.updateInterval = updateInterval
+        masterServer.updateInterval = UpdateInterval
         masterServer.manager = Me
 
         masterServers.Add(masterServer)
@@ -74,7 +74,7 @@ Public Class MasterServerManager
         End Set
     End Property
 
-    Private Shared Function staticLoadGSList() As Dictionary(Of String, GamespyGameInfo)
+    Private Shared Function LoadGSList() As Dictionary(Of String, GamespyGameInfo)
         Dim line As String, fn As StreamReader
 
 

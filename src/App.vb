@@ -82,7 +82,7 @@ Module App
     Private Sub InitMasterServerManager(logger As Logger, config As IniPropsProvider)
         masterManager = New MasterServerManager()
         masterManager.log = logger
-        masterManager.updateInterval = config.GetProperty("MasterServer.RefreshIntervalMins", "120") * 60
+        masterManager.UpdateInterval = config.GetProperty("MasterServer.RefreshIntervalMins", "120") * 60
 
         Dim msIdx As Integer = 0
         Dim masterServerString As String
