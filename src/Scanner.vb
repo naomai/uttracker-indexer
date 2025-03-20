@@ -17,7 +17,7 @@ Public Class Scanner
     Protected Friend dyncfg As IPropsProvider
 
     Protected serverList As New List(Of String)
-    Public serverRecords As New Dictionary(Of String, Server)
+
 
     Protected fullScanDeadline As Date = Date.UtcNow
 
@@ -196,9 +196,7 @@ Public Class Scanner
             .ToListAsync()
 
             For Each server In dbCtx.Servers.Local
-                If Not serverRecords.ContainsKey(server.AddressQuery) Then
-                    serverRecords(server.AddressQuery) = server
-                End If
+                ServerRecordStore.RegisterServerDbRecord(server)
             Next
 
         Catch e As Exception
@@ -234,6 +232,7 @@ Public Class Scanner
         debugWriteLine("getServersPendingQueue: {0}", queueServers.Count)
         Return queueServers
     End Function
+
 
 
     Friend Sub logWriteLine(ByVal message As String)

@@ -47,16 +47,14 @@ Public Class ServerInfoSync
             Return serverRecord
         End If
 
-        Dim records = serverWorker.scannerMaster.serverRecords
+        serverRecord = ServerRecordStore.GetServerDbRecord(serverWorker.addressQuery)
 
-        If Not records.ContainsKey(serverWorker.addressQuery) Then
+        If IsNothing(serverRecord) Then
             serverRecord = New Server() With {
                 .AddressQuery = serverWorker.addressQuery,
                 .AddressGame = serverWorker.addressGame
             }
-            records.Add(serverWorker.addressQuery, serverRecord)
-        Else
-            serverRecord = records(serverWorker.addressQuery)
+            ServerRecordStore.RegisterServerDbRecord(serverRecord)
         End If
         state.hasDBRecord = True
 
