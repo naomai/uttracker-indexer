@@ -195,21 +195,15 @@ Public Class Scanner
     End Function
 
     Protected Async Function GetServersPendingQueue() As Task(Of List(Of String))
-        Dim recentServers = Await dbCtx.ScanQueueEntries.ToListAsync()
+        Dim query = From server In dbCtx.ScanQueueEntries
+                    Select server.Address
+        Dim queueServers = Await query.ToListAsync()
 
-        Dim queueServers = New List(Of String)
-        If recentServers.Count > 0 Then
+        If queueServers.Count > 0 Then
             Await dbCtx.ScanQueueEntries.ExecuteDeleteAsync()
-
-            For Each server In recentServers
-                queueServers.Add(server.Address)
-            Next
         End If
-        debugWriteLine("getServersPendingQueue: {0}", queueServers.Count)
         Return queueServers
     End Function
-
-
 
     Friend Sub logWriteLine(ByVal message As String)
         log.WriteLine("ServerScanner: " & message)
