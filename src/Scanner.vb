@@ -28,16 +28,14 @@ Public Class Scanner
     Protected Friend _targetCommLog As New Hashtable
 
     Public Sub New(log As Logger, context As Utt2Context, masterServerManager As MasterServerManager)
-        log = log
-        dbCtx = context
-        masterServerQuery = masterServerManager
-
-        serverRepo = New ServerRepository(dbCtx)
+        Me.log = log
+        Me.dbCtx = context
+        Me.masterServerQuery = masterServerManager
+        Me.serverRepo = New ServerRepository(dbCtx)
 
         initSockets()
 
         debugWriteLine("ServerScanner ready")
-
     End Sub
 
     Public Sub ScannerThread()
