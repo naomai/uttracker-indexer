@@ -159,7 +159,7 @@ Public Class UTQueryPacket
         End Set
     End Property
 
-    Public Function ContainsKey(key As String)
+    Public Function ContainsKey(key As String) As Boolean
         Return GetElementIdByKey(key) <> -1
     End Function
 
@@ -209,22 +209,26 @@ Public Class UTQueryPacket
         Dim responseId As Integer?
         Dim packetExpectedCount As Integer = 0
         Dim receivedCount As Integer = 0
-        Dim isFinalPacket = flags.HasFlag(Flags.UTQP_NoFinal)
+        Dim expectQueryId = Not flags.HasFlag(Flags.UTQP_NoQueryId)
+        Dim expectFinal = Not flags.HasFlag(Flags.UTQP_NoFinal)
+
+        Dim isResponseComplete = Not expectFinal
         Dim isMultiIndex = flags.HasFlag(Flags.UTQP_MultiIndex)
         Dim isMasterServer = flags.HasFlag(Flags.UTQP_MasterServer)
 
         Try
 
             Dim keyName As String, value As String
-            Dim packetId As Integer = Nothing
+            Dim packetId As Integer = -1
 
             Dim responseList = PacketUnserialize(response)
+
+            ValidateResponseWithFlags(responseList, flags)
 
             'chunks = Split(responseString, "\")
             'For i = 1 To chunks.Count - 2 Step 2
 
             Dim propPrevious As UTQueryKeyValuePair = Nothing
-            Dim iteration = 0
             For Each prop In responseList
                 keyName = prop.key
                 value = prop.value
@@ -234,14 +238,11 @@ Public Class UTQueryPacket
                         If Not IsNothing(propPrevious) AndAlso propPrevious.key = "queryid" Then
                             packetExpectedCount = packetId
                         Else
-                            isFinalPacket = True
+                            isResponseComplete = True
                         End If
                         ' we're not finished! there might be some more content from packet that might have arrived late
 
                     Case "queryid"
-                        If isMasterServer Then
-                            Throw New UTQueryInvalidResponseException("QueryID is not expected from Master Server")
-                        End If
                         Dim sequenceIdChunks As String() = value.Split(".")
                         If Not IsNothing(responseId) AndAlso sequenceIdChunks(0) <> responseId Then
                             ' discard current packet - different response ID
@@ -253,7 +254,7 @@ Public Class UTQueryPacket
 
                         'packetContent(keyName) = prop
                         receivedCount += 1
-                        If isFinalPacket Then
+                        If isResponseComplete Then
                             If IsNothing(packetId) Then
                                 'empty (but complete and valid) response
                                 'TODO investigate reason for this - are there any responses without packetId like \queryid\5\ ?
@@ -264,14 +265,14 @@ Public Class UTQueryPacket
                                 Return responseResult
                             End If
                             packetExpectedCount = Math.Max(packetId, packetExpectedCount)
-                            isFinalPacket = False
+                            isResponseComplete = False
                         End If
                         packetsSequence(packetId) = packetContent.Clone()
                         packetContent.Clear()
 
                     Case Else
                         If keyName = "secure" AndAlso value = "wookie" Then ' special case for master-server response
-                            isFinalPacket = True
+                            isResponseComplete = True
                         End If
 
                         If isMultiIndex Then ' multi-index = has multiple keys with the same name, like \ip\123\ip\456\ip\...
@@ -285,14 +286,13 @@ Public Class UTQueryPacket
 
                 End Select
 
-                iteration += 1
                 propPrevious = prop
             Next
 
             Dim propEdited As UTQueryKeyValuePair
             Dim hasQueryId = Not IsNothing(responseId)
 
-            If Not hasQueryId AndAlso isFinalPacket AndAlso isMasterServer Then ' handle master server response
+            If Not hasQueryId AndAlso isResponseComplete AndAlso isMasterServer Then ' handle master server response
                 For Each var In packetContent.Keys
 
                     If packetContent(var).GetType = GetType(List(Of UTQueryKeyValuePair)) Then
@@ -315,27 +315,21 @@ Public Class UTQueryPacket
                 Return responseResult
             End If
 
+
+            If packetExpectedCount = 0 Then
+                ' no QueryId, append straight away
+                For Each var In packetContent.Keys
+                    propEdited.key = var
+                    propEdited.value = packetContent(var).value
+                    propEdited.sourcePacketId = 1
+                    responseResult.Add(propEdited)
+                Next
+                Return responseResult
+            End If
+
             ' incomplete/malformed response checks
-            If packetExpectedCount = 0 OrElse receivedCount < packetExpectedCount Then
-                If IsNothing(packetId) OrElse (Not IsNothing(packetsSequence(packetId)) AndAlso packetsSequence(packetId).Count = 0) Then
-                    ' TODO investigate
-                    'packetContent("queryid") = responseId
-                    For Each var In packetContent.Keys
-                        propEdited.key = var
-                        propEdited.value = packetContent(var)
-                        propEdited.sourcePacketId = 1
-                        responseResult.Add(propEdited)
-                    Next
-                    Return responseResult
-                ElseIf packetId <> 0 Then
-                    Throw New UTQueryResponseIncompleteException("Missing packets in response")
-                Else
-                    If isMasterServer Then
-                        Throw New UTQueryResponseIncompleteException("Missing packets in response")
-                    Else
-                        Throw New UTQueryInvalidResponseException("Packet is missing QueryID")
-                    End If
-                End If
+            If expectQueryId AndAlso receivedCount < packetExpectedCount Then
+                Throw New UTQueryResponseIncompleteException("Missing packets in response")
             End If
 
             ' put all the pieces in correct order
@@ -364,6 +358,35 @@ Public Class UTQueryPacket
 
         Return responseResult
     End Function
+
+    ''' <summary>
+    ''' Check packet content for required fields, according to given flags. 
+    ''' If Flags.UTQP_NoQueryId is set: expects **zero** occurences of `queryid` field; otherwise: **at least one**.
+    ''' If Flags.UTQP_NoFinal is set: expects **zero** occurences of `final` or `wookie` field; otherwise: **exactly one**.
+    ''' </summary>
+    ''' <param name="response">list of key/pair values representing packet content</param>
+    ''' <param name="flags">flags against which the packet will be validated </param>
+    Protected Shared Sub ValidateResponseWithFlags(response As List(Of UTQueryKeyValuePair), flags As Flags)
+        Dim queryIdCount As Integer = (From field In response Where field.key = "queryid" Select field).Count()
+        Dim finalCount As Integer = (From field In response Where field.key = "final" OrElse field.key = "wookie" Select field).Count()
+
+        Dim expectsQueryId = Not CBool(flags And Flags.UTQP_NoQueryId)
+        Dim expectsFinal = Not CBool(flags And Flags.UTQP_NoFinal)
+
+        If Not expectsFinal AndAlso finalCount <> 0 Then
+            Throw New UTQueryInvalidResponseException("Unexpected Final field")
+        ElseIf expectsFinal AndAlso finalCount = 0 Then
+            Throw New UTQueryResponseIncompleteException("Missing packets in response")
+        ElseIf expectsFinal AndAlso finalCount > 1 Then
+            Throw New UTQueryInvalidResponseException($"Expected one Final field, got {finalCount}")
+        End If
+
+        If Not expectsQueryId AndAlso queryIdCount <> 0 Then
+            Throw New UTQueryInvalidResponseException("Unexpected QueryId field")
+        ElseIf expectsQueryId AndAlso queryIdCount = 0 Then
+            Throw New UTQueryInvalidResponseException("No QueryId field present")
+        End If
+    End Sub
 
     Protected Shared Function PacketUnserialize(packetString As String) As List(Of UTQueryKeyValuePair)
         Dim result As New List(Of UTQueryKeyValuePair)

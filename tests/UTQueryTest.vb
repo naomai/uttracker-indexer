@@ -22,6 +22,15 @@ Namespace Tests
             Assert.That(packet("final"), [Is].Null)
         End Sub
 
+        <TestCase("\ip\201.137.1.56:5534\ip\201.137.1.56:7778\ip\201.137.1.56:5512")>
+        Public Sub MasterListResponseIncomplete(packetString As String)
+            Assert.Throws(Of UTQueryResponseIncompleteException)(
+                Function()
+                    Return New UTQueryPacket(packetString, Flags.UTQP_MasterServerIpList)
+                End Function
+                )
+        End Sub
+
 
         <TestCase("ut", "\gamename\ut\gamever\451\minnetver\432\location\0\validate\XnaNeH9u\queryid\10.1\final\")>
         <TestCase("unreal", "\gamename\unreal\gamever\227k\gamesubver\11\mingamever\224\location\3\validate\jm96Voe7\final\\queryid\97.1")>
