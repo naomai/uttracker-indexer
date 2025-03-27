@@ -2,6 +2,9 @@ Imports System.Net
 Imports System.Globalization
 Imports System.Text
 Imports System.Text.RegularExpressions
+Imports K4os.Compression.LZ4.Internal
+Imports Microsoft.EntityFrameworkCore.Metadata
+Imports Org.BouncyCastle.Bcpg
 
 Public Class ServerQuery
     Dim socket As SocketManager
@@ -54,8 +57,9 @@ Public Class ServerQuery
         sync = New ServerDataPersistence(dto, Me)
 
         With dto.Capabilities
-            .hasPropertyInterface = True
+            .HasPropertyInterface = True
             .SupportsVariables = True
+            .CompoundRequest = True
         End With
 
         state.IsStarting = False
@@ -180,24 +184,34 @@ Public Class ServerQuery
 
         Dim serverRecord = sync.GetServerRecord()
 
+        Dim allowCompoundRequest As Boolean = dto.Capabilities.CompoundRequest AndAlso state.HasProbed
+        Dim allowMoreRequests As Boolean = allowCompoundRequest
+
+        Dim request As New ServerRequest()
+
         With state
             If Not .HasBasic Then
-                Dim challengeSuffix = ""
+                Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
+                packet.Add("basic", "")
                 If Not .HasValidated Then
                     challenge = generateChallenge()
-                    challengeSuffix = "\secure\" & challenge
+                    packet.Add("secure", challenge)
                 End If
                 .RequestingBasic = True
-                serverSend("\basic\" & challengeSuffix)
+
+                request.Add(packet)
 
             ElseIf Not .HasInfo Then
+                Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 If dto.Capabilities.HasCp437Info Then
                     packetCharset = Encoding.GetEncoding(437)
                 End If
                 .RequestingInfo = True
                 sync.InvalidateInfo()
                 dto.InfoRequestTime = Date.UtcNow
-                serverSend("\info\" & IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
+                packet.Add("info", IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
+                request.Add(packet)
+
             ElseIf Not .HasInfoExtended AndAlso dto.Capabilities.HasPropertyInterface Then
                 gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(dto)
                 Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
@@ -206,38 +220,48 @@ Public Class ServerQuery
                     dto.Capabilities.GamemodeExtendedInfo = True
                 End If
                 If Not dto.Info.ContainsKey("timelimit") Then
-                    otherAdditionalRequests &= "\game_property\TimeLimit\"
+                    request.Add("\game_property\TimeLimit\")
                 End If
 
                 .RequestingInfoExtended = True
                 dto.PropsRequestTime = Date.UtcNow ' AKA timestamp of sending the extended info request
-                serverSend("\game_property\NumPlayers\\game_property\NumSpectators\" _
-                           & "\game_property\GameSpeed\\game_property\CurrentID\" _
-                           & "\game_property\bGameEnded\\game_property\bOvertime\" _
-                           & "\game_property\ElapsedTime\\game_property\RemainingTime\" _
-                           & "\level_property\Outer\" _
-                           & otherAdditionalRequests _
-                           & gamemodeAdditionalRequests)
+                request.Add("\game_property\NumPlayers\")
+                request.Add("\game_property\NumSpectators\")
+                request.Add("\game_property\GameSpeed\")
+                request.Add("\game_property\CurrentID\")
+                request.Add("\game_property\bGameEnded\")
+                request.Add("\game_property\bOvertime\")
+                request.Add("\game_property\ElapsedTime\")
+                request.Add("\game_property\RemainingTime\")
+                request.Add("\level_property\Outer\")
+
                 sync.InvalidateInfo()
             ElseIf Not .HasPlayers AndAlso dto.Info("numplayers") <> 0 AndAlso Not dto.Capabilities.FakePlayers Then
+                Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 If dto.Capabilities.HasUtf8PlayerList Then
                     packetCharset = Encoding.UTF8
                 End If
                 .RequestingPlayers = True
                 sync.InvalidatePlayers()
-                serverSend("\players\" & IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
+                packet("players") = IIf(dto.Capabilities.HasXsq, xsqSuffix, "")
+                request.Add(packet)
+
             ElseIf Not .HasVariables AndAlso dto.Capabilities.SupportsVariables Then
+                Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 .RequestingVariables = True
                 sync.InvalidateVariables()
-                serverSend("\rules\")
+                packet("rules") = ""
+                request.Add(packet)
             Else
                 .done = True
                 protocolFailures = 0
                 networkTimeoutDeadline = Nothing
             End If
-
-
         End With
+        If request.Count > 0 Then
+            serverSend(request.ToString())
+        End If
+
         lastActivity = Date.UtcNow
         dto.LastActivityTime = lastActivity
         networkCapNextSendDeadline = Date.UtcNow.AddSeconds(NETWORKCAP_SECONDS)
@@ -689,6 +713,7 @@ Public Structure ServerQueryState
     Dim IsStarted As Boolean
     Dim IsStarting As Boolean
     Dim HasValidated As Boolean
+    Dim HasProbed As Boolean
     Dim HasBasic As Boolean
     Dim HasInfo As Boolean
     Dim HasNumPlayers As Boolean
@@ -736,6 +761,42 @@ Public Structure ServerQueryState
         ToString &= "#"
     End Function
 End Structure
+
+Public Class ServerRequest
+    Protected packetList As New List(Of UTQueryPacket)
+
+    Public Sub Add(packet As UTQueryPacket)
+        packetList.Add(packet)
+    End Sub
+
+    Public Sub Add(packetString As String)
+        Dim packet = New UTQueryPacket(packetString, UTQueryPacket.Flags.UTQP_SimpleRequest)
+        Me.Add(packet)
+    End Sub
+
+    Public ReadOnly Property Count As Integer
+        Get
+            Return packetList.Count
+        End Get
+    End Property
+
+    Public Overrides Function ToString() As String
+        Dim result As New StringBuilder()
+        Dim lastChar As Char = "\"
+        For Each packet In packetList
+            If lastChar <> "\" Then
+                ' quirk: each request must be separated by two backslashes:
+                ' \info\\rules\
+                ' \info\xserverquery\\rules\
+                result.Append("\")
+            End If
+            Dim packetString = packet.ToString()
+            result.Append(packetString)
+            lastChar = packetString.Last()
+        Next
+        Return result.ToString()
+    End Function
+End Class
 
 Public Class ScanException
     Inherits Exception

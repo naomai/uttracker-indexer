@@ -32,6 +32,7 @@ Public Structure ServerCapabilities
     Dim HasUtf8PlayerList As Boolean ' UT 469+
     Dim HasCp437Info As Boolean ' Unreal
     Dim QuickNumPlayers As Boolean ' depends on hasPropertyInterface
+    Dim CompoundRequest As Boolean ' chaining multiple requests like \info\\players\
 
     Public Overrides Function ToString() As String
         ToString = "ServerCapabilities{ "
