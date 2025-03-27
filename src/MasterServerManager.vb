@@ -256,7 +256,7 @@ Class MasterListGSpyFact
         Dim rawList As String = Await getRawList()
         Dim result = New List(Of String)
 
-        Dim packet = New UTQueryPacket(rawList, UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServerIpList)
+        Dim packet = New UTQueryPacket(rawList, UTQueryPacket.Flags.UTQP_MasterServerIpList)
         For Each ipEntry As UTQueryKeyValuePair In packet
             If ipEntry.key = "ip" Then
                 result.Add(ipEntry.value)
@@ -278,19 +278,18 @@ Class MasterListGSpyFact
             Throw New Exception("No response from " & server.address)
         End If
 
-        Dim myResponse As New UTQueryPacket(UTQueryPacketFlags.UTQP_MasterServer)
+        Dim myResponse As New UTQueryPacket(Flags.UTQP_MasterServer)
 
-        Using serverResponse = New UTQueryPacket(packet, UTQueryPacketFlags.UTQP_MasterServer Or UTQueryPacketFlags.UTQP_NoFinal)
-            If gameInfo.gameName <> "" Then
-                myResponse.Add("gamename", gameInfo.gameName)
-            End If
-            myResponse.Add("location", region)
-            If serverResponse("secure") <> "" AndAlso serverResponse("secure") <> "wookie" Then ' challenge!
-                Dim challengeReceived = serverResponse("secure")
-                Dim challengeResponse = GameSpyProtocol.GenerateValidateResponse(challengeReceived, gameInfo.encKey)
-                myResponse.Add("validate", challengeResponse)
-            End If
-        End Using
+        Dim serverResponse = New UTQueryPacket(packet, Flags.UTQP_MasterServer Or Flags.UTQP_NoFinal)
+        If gameInfo.gameName <> "" Then
+            myResponse.Add("gamename", gameInfo.gameName)
+        End If
+        myResponse.Add("location", region)
+        If serverResponse("secure") <> "" AndAlso serverResponse("secure") <> "wookie" Then ' challenge!
+            Dim challengeReceived = serverResponse("secure")
+            Dim challengeResponse = GameSpyProtocol.GenerateValidateResponse(challengeReceived, gameInfo.encKey)
+            myResponse.Add("validate", challengeResponse)
+        End If
 
         myResponse.Add("list", "")
         Await connection.WriteAsync(myResponse.ToString())

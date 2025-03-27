@@ -13,7 +13,7 @@ Namespace Tests
         <TestCase("\ip\201.137.1.56:5534\ip\201.137.1.56:7778\ip\201.137.1.56:5512\final\")>
         Public Sub MasterListResponseParse(packetString As String)
             Dim packet As UTQueryPacket
-            packet = New UTQueryPacket(packetString, UTQueryPacketFlags.UTQP_MasterServerIpList)
+            packet = New UTQueryPacket(packetString, Flags.UTQP_MasterServerIpList)
 
             Assert.That(packet.Count, [Is].EqualTo(3))
             For Each ipEntry As UTQueryKeyValuePair In packet
@@ -63,7 +63,7 @@ Namespace Tests
         <Test>
         Public Sub QueryCreatePacket()
             Dim packet As UTQueryPacket
-            packet = New UTQueryPacket(UTQueryPacketFlags.UTQP_SimpleRequest)
+            packet = New UTQueryPacket(Flags.UTQP_SimpleRequest)
             packet("info") = ""
             packet("players") = ""
             packet("rules") = "XServerQuery"

@@ -1,4 +1,4 @@
-﻿' UT query protocol things
+' UT query protocol things
 ' might be also usable for other gamespy-based games
 
 
@@ -8,33 +8,30 @@ Imports System.Text
 Public Class UTQueryPacket
     Inherits System.Collections.CollectionBase
     Implements IEnumerable(Of UTQueryKeyValuePair)
-    Implements IDisposable
-    Dim packetContent As New List(Of UTQueryKeyValuePair)
-    Dim queryId As Integer = 0
-    Public packetFlags As UTQueryPacketFlags
-
-    Private disposedValue As Boolean
-
+    Protected packetContent As New List(Of UTQueryKeyValuePair)
+    Protected packetFlags As Flags
+    Protected queryId As Integer = 0
 
     Shared metric As New Meter("UTQuery")
     'Shared mtSerializationLength As Histogram(Of Integer) = metric.CreateHistogram(Of Integer)("SerializationLength")
 
 
-    Public Sub New(packet As String, Optional packetFlags As UTQueryPacketFlags = 0)
-        Me.New(packetFlags)
-        ParseString(packet)
+    Public Sub New(packet As String, Optional flags As Flags = 0)
+        Me.New(flags)
+        ReplaceContentFromString(packet)
     End Sub
 
-    Public Sub New(packetHashtable As Hashtable, Optional packetFlags As UTQueryPacketFlags = 0)
-        CreateFromHashtable(packetHashtable)
+    Public Sub New(packetHashtable As Hashtable, Optional flags As Flags = 0)
+        Me.New(flags)
+        ReplaceContentFromHashtable(packetHashtable)
     End Sub
 
-    Public Sub New(Optional packetFlags As UTQueryPacketFlags = 0)
-        Me.packetFlags = packetFlags
+    Public Sub New(Optional flags As Flags = 0)
+        Me.packetFlags = flags
     End Sub
 
-    Public Sub ParseString(packet As String)
-        packetContent = ParseGamespyResponse(packet, CBool(Me.packetFlags And UTQueryPacketFlags.UTQP_NoQueryId))
+    Protected Sub ReplaceContentFromString(packet As String)
+        packetContent = ParseGamespyResponse(packet, Me.packetFlags)
         For Each variable In packetContent
             If variable.key = "queryid" Then
                 queryId = variable.value
@@ -46,7 +43,7 @@ Public Class UTQueryPacket
                                 End Function)
     End Sub
 
-    Protected Sub CreateFromHashtable(packetHashtable As Hashtable)
+    Protected Sub ReplaceContentFromHashtable(packetHashtable As Hashtable)
         packetContent = ConvertHashtablePacketToListPacket(packetHashtable)
     End Sub
 
@@ -81,13 +78,6 @@ Public Class UTQueryPacket
     Public Function ConvertToDictionary() As Dictionary(Of String, String)
         Return ConvertListPacketToDictionary(packetContent)
     End Function
-
-    Public Sub SetReadyToSend(Optional rtsFlag As Boolean = True)
-        packetFlags = IIf(rtsFlag,
-                          packetFlags Or UTQueryPacketFlags.UTQP_ReadyToSend,
-                          packetFlags And (Not UTQueryPacketFlags.UTQP_ReadyToSend))
-    End Sub
-
 
     Shared Function CreateKVPair(key As String, value As String, Optional packetId As Integer = 1) As UTQueryKeyValuePair
         CreateKVPair.key = key
@@ -203,10 +193,14 @@ Public Class UTQueryPacket
     ''' <summary>
     ''' Reassemble and parse Gamespy protocol response into a Hashtable object
     ''' </summary>
-    ''' <param name="responseString">Response received from server</param>
-    ''' <param name="masterServer">Set to True to skip queryid checks when talking with master server</param>
+    ''' <param name="response">Response received from server</param>
+    ''' <param name="flags">Flags determining the behavior of parser</param>
     ''' <remarks></remarks>
-    Protected Function ParseGamespyResponse(ByVal responseString As String, Optional masterServer As Boolean = False) As List(Of UTQueryKeyValuePair)
+    Protected Shared Function ParseGamespyResponse(
+                            ByVal response As String,
+                            Optional flags As Flags = Flags.UTQP_SimpleRequest
+                        ) As List(Of UTQueryKeyValuePair)
+
         Dim packetContent As New Hashtable() ' temporary array of values from currently processed packet
         Dim responseResult As New List(Of UTQueryKeyValuePair)
 
@@ -215,23 +209,23 @@ Public Class UTQueryPacket
         Dim responseId As Integer?
         Dim packetExpectedCount As Integer = 0
         Dim receivedCount As Integer = 0
-        Dim isFinalPacket = packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoFinal)
-        Dim isMultiIndex = packetFlags.HasFlag(UTQueryPacketFlags.UTQP_MultiIndex)
-        Dim isMasterServer = packetFlags.HasFlag(UTQueryPacketFlags.UTQP_MasterServer)
+        Dim isFinalPacket = flags.HasFlag(Flags.UTQP_NoFinal)
+        Dim isMultiIndex = flags.HasFlag(Flags.UTQP_MultiIndex)
+        Dim isMasterServer = flags.HasFlag(Flags.UTQP_MasterServer)
 
         Try
 
             Dim keyName As String, value As String
             Dim packetId As Integer = Nothing
 
-            Dim response = PacketUnserialize(responseString)
+            Dim responseList = PacketUnserialize(response)
 
             'chunks = Split(responseString, "\")
             'For i = 1 To chunks.Count - 2 Step 2
 
             Dim propPrevious As UTQueryKeyValuePair = Nothing
             Dim iteration = 0
-            For Each prop In response
+            For Each prop In responseList
                 keyName = prop.key
                 value = prop.value
 
@@ -420,7 +414,7 @@ Public Class UTQueryPacket
         Return result
     End Function
 
-    Protected Function CreateGamespyResponse(Optional packetFlags As UTQueryPacketFlags = 0) As List(Of String)
+    Protected Function CreateGamespyResponse(Optional packetFlags As Flags = 0) As List(Of String)
 
         Dim responsePackets As New List(Of String)
         Dim currentPacket As String
@@ -430,7 +424,7 @@ Public Class UTQueryPacket
             doneSomething = False
             currentPacket = ""
             For Each variable In packetContent
-                If Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoQueryId) AndAlso variable.key = "queryid" AndAlso queryId = 0 Then
+                If Not packetFlags.HasFlag(Flags.UTQP_NoQueryId) AndAlso variable.key = "queryid" AndAlso queryId = 0 Then
                     queryId = variable.value
                 Else
                     If currentPacketId = 0 AndAlso variable.sourcePacketId = 0 Then
@@ -444,7 +438,7 @@ Public Class UTQueryPacket
             Next
 
             If currentPacket <> "" Then
-                If Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoQueryId) Then
+                If Not packetFlags.HasFlag(Flags.UTQP_NoQueryId) Then
                     currentPacket &= "\queryid\" & queryId & "." & currentPacketId
                 End If
                 responsePackets.Add(currentPacket)
@@ -457,7 +451,7 @@ Public Class UTQueryPacket
         Loop While doneSomething
 
         If orphanPacket <> "" Then
-            If Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoQueryId) Then
+            If Not packetFlags.HasFlag(Flags.UTQP_NoQueryId) Then
                 If queryId = 0 Then
                     queryId = New System.Random().Next(10, 99)
                 End If
@@ -466,7 +460,7 @@ Public Class UTQueryPacket
             responsePackets.Add(orphanPacket)
         End If
 
-        If Not packetFlags.HasFlag(UTQueryPacketFlags.UTQP_NoFinal) Then
+        If Not packetFlags.HasFlag(Flags.UTQP_NoFinal) Then
             responsePackets(responsePackets.Count - 1) &= "\final\"
         End If
 
@@ -474,7 +468,7 @@ Public Class UTQueryPacket
         Return responsePackets
     End Function
 
-    Protected Function CreateGamespyResponseString(Optional packetFlags As UTQueryPacketFlags = 0) As String
+    Protected Function CreateGamespyResponseString(Optional packetFlags As Flags = 0) As String
         Dim list = CreateGamespyResponse(packetFlags)
         Dim builder = New StringBuilder(capacity:=58, value:="")
         For Each packet In list
@@ -499,7 +493,7 @@ Public Class UTQueryPacket
         Return packetContent.GetEnumerator()
     End Function
 
-    <FlagsAttribute()> Public Enum UTQueryPacketFlags
+    <FlagsAttribute()> Public Enum Flags
         UTQP_NoQueryId = 1
         UTQP_NoFinal = 2
         UTQP_ReadyToSend = 4
@@ -508,21 +502,6 @@ Public Class UTQueryPacket
         UTQP_MasterServerIpList = 16 Or UTQP_MasterServer Or UTQP_MultiIndex
         UTQP_SimpleRequest = UTQP_NoQueryId Or UTQP_NoFinal
     End Enum
-
-    Protected Overridable Sub Dispose(disposing As Boolean)
-        If Not disposedValue Then
-            If disposing Then
-                packetContent = Nothing
-            End If
-            disposedValue = True
-        End If
-    End Sub
-
-
-    Public Sub Dispose() Implements IDisposable.Dispose
-        Dispose(disposing:=True)
-        GC.SuppressFinalize(Me)
-    End Sub
 End Class
 
 

@@ -151,7 +151,7 @@ Public Class GSMasterServerConnection
             ReDim Preserve dataBuffer(bytes - 1)
             incomingPacket &= Encoding.ASCII.GetString(dataBuffer)
             Try
-                packet = New UTQueryPacket(incomingPacket, UTQueryPacket.UTQueryPacketFlags.UTQP_NoQueryId Or UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
+                packet = New UTQueryPacket(incomingPacket, UTQueryPacket.Flags.UTQP_NoQueryId Or UTQueryPacket.Flags.UTQP_MasterServer)
                 incomingPacket = ""
                 PacketReceived(packet)
             Catch e As UTQueryInvalidResponseException
@@ -188,7 +188,7 @@ Public Class GSMasterServerConnection
 
     Private Sub PacketReceived(packet As Hashtable)
         With state
-            Dim responsePacket As New UTQueryPacket(UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
+            Dim responsePacket As New ResponsePacket(UTQueryPacket.Flags.UTQP_MasterServer)
             Try
                 If .expectingChallenge AndAlso packet.ContainsKey("validate") Then ReceivedChallenge(packet)
                 If packet.ContainsKey("about") Then ReceivedAbout(packet, responsePacket)
@@ -202,7 +202,7 @@ Public Class GSMasterServerConnection
                         requestDisconnect = True
                     End If
                 End If
-                If responsePacket.packetFlags.HasFlag(UTQueryPacket.UTQueryPacketFlags.UTQP_ReadyToSend) Then
+                If responsePacket.IsReadyToSend() Then
                     PacketSend(responsePacket)
                 End If
                 If requestDisconnect Then
@@ -228,7 +228,7 @@ Public Class GSMasterServerConnection
     End Sub
 
     Private Sub SendChallenge()
-        Dim challengePacket As New UTQueryPacket(UTQueryPacket.UTQueryPacketFlags.UTQP_MasterServer)
+        Dim challengePacket As New UTQueryPacket(UTQueryPacket.Flags.UTQP_MasterServer)
         challengePacket.Add("basic", "")
         challengePacket.Add("secure", challengeString)
         PacketSend(challengePacket)
@@ -256,7 +256,7 @@ Public Class GSMasterServerConnection
         End If
     End Sub
 
-    Private Sub ReceivedListRequest(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
+    Private Sub ReceivedListRequest(packet As Hashtable, ByRef destinationPacket As ResponsePacket)
         masterServer.OnClientRequestedList(remote)
         Dim serverList = masterServer.appServerList.GetServerListForGame(gameName)
         For Each server In serverList
@@ -266,14 +266,14 @@ Public Class GSMasterServerConnection
         destinationPacket.SetReadyToSend()
     End Sub
 
-    Private Sub ReceivedAbout(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
+    Private Sub ReceivedAbout(packet As Hashtable, ByRef destinationPacket As ResponsePacket)
         Dim aboutText As String
         aboutText = "// UTTracker Master Server Module; // 2014 Namonaki14; URL: http://amaki.no-ip.eu/uttracker/master/; // Contact: tm.dvtb at gmail.com"
         destinationPacket.Add("about", aboutText)
         destinationPacket.SetReadyToSend()
     End Sub
 
-    Private Sub ReceivedEcho(packet As Hashtable, ByRef destinationPacket As UTQueryPacket)
+    Private Sub ReceivedEcho(packet As Hashtable, ByRef destinationPacket As ResponsePacket)
         destinationPacket.Add("echo_reply", packet("echo"))
         destinationPacket.SetReadyToSend()
     End Sub
@@ -318,12 +318,34 @@ Public Class GSMasterServerConnection
         Dim expectingRequest As Boolean
     End Structure
 
+    Private Class ResponsePacket
+        Inherits UTQueryPacket
+
+        Private readyToSend As Boolean = False
+
+        Sub New()
+            MyBase.New()
+        End Sub
+
+        Sub New(packetFlags As UTQueryPacket.Flags)
+            MyBase.New(packetFlags)
+        End Sub
+
+        Public Sub SetReadyToSend(Optional rtsFlag As Boolean = True)
+            readyToSend = rtsFlag
+        End Sub
+
+        Public Function IsReadyToSend() As Boolean
+            Return readyToSend
+        End Function
+    End Class
 
 End Class
 
 Public Interface IServerListProvider
     Function GetServerListForGame(gamename As String) As List(Of String)
 End Interface
+
 
 Public Class GSMSConnectionException
     Inherits Exception
