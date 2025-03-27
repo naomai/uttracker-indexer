@@ -1,4 +1,4 @@
-' UT query protocol things
+﻿' UT query protocol things
 ' might be also usable for other gamespy-based games
 
 
@@ -92,6 +92,13 @@ Public Class UTQueryPacket
     Public Sub Add(key As String, value As String)
         Dim packetId = 1 + Math.Floor(packetContent.Count / 10)
         packetContent.Add(CreateKVPair(key, value, packetId))
+    End Sub
+
+    Public Sub Add(serializedString As String)
+        Dim unserialized = PacketUnserialize(serializedString)
+        For Each field In unserialized
+            Me.Add(field.key, field.value)
+        Next
     End Sub
 
     Public Sub AddIndexed(key As String, value As String, Optional index As Integer = -1)

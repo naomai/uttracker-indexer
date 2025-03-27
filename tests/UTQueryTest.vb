@@ -103,6 +103,20 @@ Namespace Tests
             StringAssert.Contains(".1\final", packetString)
 
         End Sub
+
+        <Test>
+        Public Sub AppendSerializedString()
+            Dim packet As UTQueryPacket
+            packet = New UTQueryPacket("\info\xserverquery\", Flags.UTQP_SimpleRequest)
+            packet.Add("\secure\\validate\abcdef\")
+
+            Assert.That(packet, Contains.Key("info"))
+            Assert.That(packet, Contains.Key("secure"))
+            Assert.That(packet, Contains.Key("validate"))
+            Assert.That(packet("info"), [Is].EqualTo("xserverquery"))
+            Assert.That(packet("secure"), [Is].EqualTo(""))
+            Assert.That(packet("validate"), [Is].EqualTo("abcdef"))
+        End Sub
     End Class
 
 End Namespace
