@@ -166,6 +166,9 @@ Public Class Scanner
             commLogWrite(target.addressQuery, "Dxx", packetString)
             target.abortScan("Unknown service", dumpCommLog:=True)
             sockets.AddIgnoredIp(target.addressQuery)
+
+        Catch ex As Exception
+            target.abortScan($"Unhandled error: {ex.Message}", dumpCommLog:=True)
         End Try
 
     End Sub

@@ -302,6 +302,13 @@ Public Class ServerQuery
     End Sub
 
     Private Sub parseBasic(packetObj As UTQueryPacket)
+        Dim packet As Hashtable
+        Try
+            packet = ServerQueryValidators.basic.Validate(packetObj)
+        Catch ex As UTQueryValidationException
+            abortScan("Server did not provide basic information")
+            Return
+        End Try
 
         Dim packet = ServerQueryValidators.basic.Validate(packetObj)
 
@@ -373,7 +380,7 @@ Public Class ServerQuery
         Dim validated = ServerQueryValidators.info.Validate(packetObj)
 
         For Each pair In packetObj
-            If pair.key.Substring(0, 2) = "__" Then
+            If pair.key.Length >2 AndAlso pair.key.Substring(0, 2) = "__" Then
                 Continue For
             End If
             dto.Info(pair.key) = pair.value
