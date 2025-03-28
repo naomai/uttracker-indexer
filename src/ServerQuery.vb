@@ -284,13 +284,17 @@ Public Class ServerQuery
             With state
                 If .RequestingBasic Then
                     parseBasic(packet)
-                ElseIf .RequestingInfo Then
+                End If
+                If .RequestingInfo Then
                     parseInfo(packet)
-                ElseIf .RequestingInfoExtended Then
+                End If
+                If .RequestingInfoExtended Then
                     parseInfoExtended(packet)
-                ElseIf .RequestingPlayers Then
+                End If
+                If .RequestingPlayers Then
                     parsePlayers(packet)
-                ElseIf .RequestingVariables Then
+                End If
+                If .RequestingVariables Then
                     parseVariables(packet)
                 End If
             End With
