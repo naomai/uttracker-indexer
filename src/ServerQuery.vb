@@ -191,16 +191,17 @@ Public Class ServerQuery
 
         With state
             If Not .HasBasic Then
-                Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
-                packet.Add("basic", "")
+                request.Add("basic", "")
                 If Not .HasValidated Then
                     challenge = generateChallenge()
-                    packet.Add("secure", challenge)
+                    request.Add("secure", challenge)
                 End If
+                If Not .HasProbed Then
+                    request.Add("echo", generateChallenge())
+                    request.Add("level_property", "outer")
+                End If
+
                 .RequestingBasic = True
-
-                request.Add(packet)
-
             ElseIf Not .HasInfo Then
                 Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 If dto.Capabilities.HasCp437Info Then
@@ -254,8 +255,8 @@ Public Class ServerQuery
                 request.Add(packet)
             Else
                 .done = True
-                protocolFailures = 0
-                networkTimeoutDeadline = Nothing
+            protocolFailures = 0
+            networkTimeoutDeadline = Nothing
             End If
         End With
         If request.Count > 0 Then
@@ -306,6 +307,12 @@ Public Class ServerQuery
         Try
             packet = ServerQueryValidators.basic.Validate(packetObj)
         Catch ex As UTQueryValidationException
+            If Not state.HasProbed Then
+                state.HasProbed = True
+                dto.Capabilities.CompoundRequest = False
+                dto.Capabilities.SupportsVariables = False
+                Return
+            End If
             abortScan("Server did not provide basic information")
             Return
         End Try
@@ -348,6 +355,13 @@ Public Class ServerQuery
             dto.Capabilities.HasPropertyInterface = False
         End If
 
+        If Not state.HasProbed Then
+            dto.Capabilities.CompoundRequest = packetObj.ContainsKey("echo_replay")
+            dto.Capabilities.HasPropertyInterface = packetObj.ContainsKey("outer")
+
+            state.HasProbed = True
+        End If
+
     End Sub
 
     Private Function ValidateServer(packetObj As UTQueryPacket, gameName As String) As Boolean
@@ -384,7 +398,7 @@ Public Class ServerQuery
             dto.Info(pair.key) = pair.value
         Next
         If validated.ContainsKey("hostport") Then
-            addressGame = JulkinNet.GetHost(addressQuery) & ":" & validated("hostport")
+            addressGame = JulkinNet.GetHost(addressQuery) & ": " & validated("hostport")
         End If
         dto.Capabilities.HasXsq = packetObj.ContainsKey("xserverquery")
         If dto.Capabilities.HasXsq Then
@@ -526,7 +540,14 @@ Public Class ServerQuery
 
     Private Function skipStepIfOptional()
         With state
-            If .RequestingInfoExtended Then
+            If .RequestingBasic AndAlso Not .HasProbed Then
+                .HasProbed = True
+                dto.Capabilities.CompoundRequest = False
+                dto.Capabilities.SupportsVariables = False
+                lastActivity = Date.UtcNow
+                sendRequest()
+                Return True
+            ElseIf .RequestingInfoExtended Then
                 .RequestingInfoExtended = False
                 dto.Capabilities.HasPropertyInterface = False
                 lastActivity = Date.UtcNow
@@ -777,6 +798,12 @@ Public Class ServerRequest
 
     Public Sub Add(packet As UTQueryPacket)
         packetList.Add(packet)
+    End Sub
+
+    Public Sub Add(key As String, value As String)
+        Dim packet = New UTQueryPacket(UTQueryPacket.Flags.UTQP_SimpleRequest)
+        packet.Add(key, value)
+        Me.Add(packet)
     End Sub
 
     Public Sub Add(packetString As String)
