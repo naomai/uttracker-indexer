@@ -11,7 +11,7 @@ Public Class UTQueryValidator
     Public Sub New()
     End Sub
 
-    Public Shared Function FromRuleDict(rules As Dictionary(Of String, String))
+    Public Shared Function FromRuleDict(rules As Dictionary(Of String, String)) As UTQueryValidator
         Dim validator = New UTQueryValidator()
         For Each rule In rules
             validator.CreateRule(rule.Key, rule.Value)

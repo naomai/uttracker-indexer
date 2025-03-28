@@ -310,8 +310,6 @@ Public Class ServerQuery
             Return
         End Try
 
-        Dim packet = ServerQueryValidators.basic.Validate(packetObj)
-
         Dim gameName = packet("gamename").ToLower()
         Dim validServer As Boolean = False
 
@@ -668,7 +666,8 @@ Public Class ServerQuery
 
 
     Private Class ServerQueryValidators
-        Public Shared ReadOnly basic = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+        Public Shared ReadOnly basic As UTQueryValidator =
+            UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
                              {"gamename", "required|string"},
                              {"gamever", "required|string"},
                              {"minnetver", "string"},
@@ -676,10 +675,12 @@ Public Class ServerQuery
                              {"location", "integer"}
                             })
 
-        Public Shared ReadOnly challenge = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+        Public Shared ReadOnly challenge As UTQueryValidator =
+            UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
             {"validate", "required|string|gte:6|lte:8"}
          })
-        Public Shared ReadOnly info = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+        Public Shared ReadOnly info As UTQueryValidator =
+            UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
                          {"hostname", "required|string"},
                          {"mapname", "required|string"},
                          {"numplayers", "required|integer|gte:0"},
@@ -687,7 +688,8 @@ Public Class ServerQuery
                          {"hostport", "integer|gte:1|lte:65535"}
                         })
 
-        Public Shared ReadOnly infoExtended = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+        Public Shared ReadOnly infoExtended As UTQueryValidator =
+            UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
                          {"gamespeed", "required|float|gt:0"},
                          {"numplayers", "required|integer|gte:0"},
                          {"numspectators", "integer|gte:0"},
@@ -699,7 +701,8 @@ Public Class ServerQuery
                          {"bovertime", "boolean"},
                          {"outer", "string"}
                         })
-        Public Shared ReadOnly players = UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+        Public Shared ReadOnly players As UTQueryValidator =
+            UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
                          {"player", "array:string|gt:0"},
                          {"team", "array:integer"},
                          {"frags", "array:integer|default:0"},
