@@ -178,7 +178,7 @@ Public Class Scanner
     End Sub
 
     Private Sub debugShowStates()
-        Dim sta, bas, inf, infex, pl, ru, tt, don, onl, ttp As Integer
+        Dim sta, bas, inf, infex, pl, ru, don, onl As Integer
         Dim st As ServerQueryState
         SyncLock serverWorkersLock
             For Each t As ServerQuery In serverWorkers.Values
@@ -193,7 +193,7 @@ Public Class Scanner
                 onl += IIf(t.isOnline, 1, 0)
             Next
         End SyncLock
-        debugWriteLine("States: STA {9} BAS {0} INF {1} INFEX {2} PL {3} RU {4} DO {6} ON {7}", bas, inf, infex, pl, ru, tt, don, onl, ttp, sta)
+        debugWriteLine("States: STA {7} BAS {0} INF {1} INFEX {2} PL {3} RU {4} DO {5} ON {6}", bas, inf, infex, pl, ru, don, onl, sta)
     End Sub
 
 
