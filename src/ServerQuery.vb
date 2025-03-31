@@ -43,6 +43,7 @@ Public Class ServerQuery
 
     Const NETWORKCAP_SECONDS As Integer = 3 ' interval between requests
     Const NETWORK_TIMEOUT_SECONDS As Integer = 15
+    Const XSQ_SUFFIX = "XServerQuery"
 
 
     Public Sub New(master As Scanner, serverAddress As String)
@@ -172,8 +173,11 @@ Public Class ServerQuery
         socket = master
     End Sub
 
+#Region "Request"
+
+
     Private Sub sendRequest()
-        Const xsqSuffix = "XServerQuery"
+
 
         If isInRequestState() Then Return ' remove this when implementing resend feature
 
@@ -190,70 +194,25 @@ Public Class ServerQuery
 
         With state
             If Not .HasBasic AndAlso allowMoreRequests Then
-                request.Add("basic", "")
-                If Not .HasValidated Then
-                    challenge = generateChallenge()
-                    request.Add("secure", challenge)
-                End If
-                If Not .HasProbed Then
-                    request.Add("echo", generateChallenge())
-                    request.Add("game_property", "NumPlayers")
-                End If
-
-                .RequestingBasic = True
+                RequestBasic(request)
                 allowMoreRequests = False
             End If
             If Not .HasInfo AndAlso allowMoreRequests Then
-                If dto.Capabilities.HasCp437Info Then
-                    packetCharset = Encoding.GetEncoding(437)
-                End If
-                .RequestingInfo = True
-                sync.InvalidateInfo()
-                dto.InfoRequestTime = Date.UtcNow
-                request.Add("info", IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
+                RequestInfo(request)
 
                 ' disallow when querying properties due to collision of `numplayers` field
                 allowMoreRequests = allowCompoundRequest AndAlso Not dto.Capabilities.HasPropertyInterface
             End If
             If Not .HasInfoExtended AndAlso dto.Capabilities.HasPropertyInterface AndAlso allowMoreRequests Then
-                gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(dto)
-                Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
-                If Not IsNothing(gamemodeQuery) Then
-                    gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
-                    dto.Capabilities.GamemodeExtendedInfo = True
-                End If
-                If Not dto.Info.ContainsKey("timelimit") Then
-                    request.Add("\game_property\TimeLimit\")
-                End If
-
-                .RequestingInfoExtended = True
-                dto.PropsRequestTime = Date.UtcNow ' AKA timestamp of sending the extended info request
-                request.Add("\game_property\NumPlayers\")
-                request.Add("\game_property\NumSpectators\")
-                request.Add("\game_property\GameSpeed\")
-                request.Add("\game_property\CurrentID\")
-                request.Add("\game_property\bGameEnded\")
-                request.Add("\game_property\bOvertime\")
-                request.Add("\game_property\ElapsedTime\")
-                request.Add("\game_property\RemainingTime\")
-                request.Add("\level_property\Outer\")
-
-                sync.InvalidateInfo()
+                RequestInfoExtended(request)
                 allowMoreRequests = allowCompoundRequest
             End If
             If Not .HasPlayers AndAlso .HasInfo AndAlso dto.Info("numplayers") <> 0 AndAlso Not dto.Capabilities.FakePlayers AndAlso allowMoreRequests Then
-                If dto.Capabilities.HasUtf8PlayerList Then
-                    packetCharset = Encoding.UTF8
-                End If
-                .RequestingPlayers = True
-                sync.InvalidatePlayers()
-                request.Add("players", IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
+                RequestPlayers(request)
                 allowMoreRequests = allowCompoundRequest
             End If
             If Not .HasVariables AndAlso dto.Capabilities.SupportsVariables AndAlso allowMoreRequests Then
-                .RequestingVariables = True
-                sync.InvalidateVariables()
-                request.Add("rules", "")
+                RequestVariables(request)
                 allowMoreRequests = allowCompoundRequest
             End If
         End With
@@ -269,6 +228,74 @@ Public Class ServerQuery
         dto.LastActivityTime = lastActivity
         networkCapNextSendDeadline = Date.UtcNow.AddSeconds(NETWORKCAP_SECONDS)
     End Sub
+
+    Private Sub RequestVariables(request As ServerRequest)
+        state.RequestingVariables = True
+        sync.InvalidateVariables()
+        request.Add("rules", "")
+    End Sub
+
+    Private Sub RequestPlayers(request As ServerRequest)
+        If dto.Capabilities.HasUtf8PlayerList Then
+            packetCharset = Encoding.UTF8
+        End If
+        state.RequestingPlayers = True
+        sync.InvalidatePlayers()
+        request.Add("players", IIf(dto.Capabilities.HasXsq, XSQ_SUFFIX, ""))
+    End Sub
+
+    Private Sub RequestInfoExtended(request As ServerRequest)
+        gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(dto)
+        Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
+        If Not IsNothing(gamemodeQuery) Then
+            gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
+            dto.Capabilities.GamemodeExtendedInfo = True
+        End If
+        If Not dto.Info.ContainsKey("timelimit") Then
+            request.Add("\game_property\TimeLimit\")
+        End If
+
+        state.RequestingInfoExtended = True
+        dto.PropsRequestTime = Date.UtcNow ' AKA timestamp of sending the extended info request
+        request.Add("\game_property\NumPlayers\")
+        request.Add("\game_property\NumSpectators\")
+        request.Add("\game_property\GameSpeed\")
+        request.Add("\game_property\CurrentID\")
+        request.Add("\game_property\bGameEnded\")
+        request.Add("\game_property\bOvertime\")
+        request.Add("\game_property\ElapsedTime\")
+        request.Add("\game_property\RemainingTime\")
+        request.Add("\level_property\Outer\")
+
+        sync.InvalidateInfo()
+    End Sub
+
+    Private Sub RequestInfo(request As ServerRequest)
+        If dto.Capabilities.HasCp437Info Then
+            packetCharset = Encoding.GetEncoding(437)
+        End If
+        state.RequestingInfo = True
+        sync.InvalidateInfo()
+        dto.InfoRequestTime = Date.UtcNow
+        request.Add("info", IIf(dto.Capabilities.HasXsq, XSQ_SUFFIX, ""))
+    End Sub
+
+    Private Sub RequestBasic(request As ServerRequest)
+        request.Add("basic", "")
+        If Not state.HasValidated Then
+            challenge = generateChallenge()
+            request.Add("secure", challenge)
+        End If
+        If Not state.HasProbed Then
+            request.Add("echo", generateChallenge())
+            request.Add("game_property", "NumPlayers")
+        End If
+
+        state.RequestingBasic = True
+    End Sub
+
+
+#End Region
 
     Private Sub serverSend(packet As String)
         Try
