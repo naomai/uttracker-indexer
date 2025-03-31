@@ -1,4 +1,4 @@
-Imports System.Net
+﻿Imports System.Net
 Imports System.Globalization
 Imports System.Text
 Imports System.Text.RegularExpressions
@@ -24,6 +24,7 @@ Public Class ServerQuery
 
     Public isOnline As Boolean
     Public isActive As Boolean = False
+    Public checkFakePlayers As Boolean = False
     Public addressQuery As String
     Public addressGame As String
     Friend incomingPacket As UTQueryPacket
@@ -107,6 +108,7 @@ Public Class ServerQuery
             nextInfoDeadline = now.AddSeconds(INTERVAL_INFO).AddMilliseconds(jitterMs)
             ' reload DB record (free irrelevant data)
             sync.InvalidateServerRecord()
+            dto.Info = New Dictionary(Of String, String)()
             actionNeeded = True
         End If
         If nextGameStateDeadline <= now Then
@@ -416,6 +418,11 @@ Public Class ServerQuery
         dto.Info("__uttrealplayers") = validated("numplayers") ' might be overwritten later
         state.HasInfo = True
         state.HasNumPlayers = True
+
+        If dto.Capabilities.HasPropertyInterface Then
+            dto.Capabilities.FakePlayers = False
+            checkFakePlayers = True
+        End If
     End Sub
 
     Private Sub parseInfoExtended(packetObj As UTQueryPacket)
@@ -456,7 +463,7 @@ Public Class ServerQuery
 
 
             ' fake players detection
-            If dto.Info("numplayers") > validated("numplayers") + validated("numspectators") Then
+            If checkFakePlayers AndAlso dto.Info("numplayers") > validated("numplayers") + validated("numspectators") Then
                 dto.Capabilities.FakePlayers = True
             End If
 
@@ -554,6 +561,7 @@ Public Class ServerQuery
             ElseIf .RequestingInfoExtended Then
                 .RequestingInfoExtended = False
                 dto.Capabilities.HasPropertyInterface = False
+                dto.Capabilities.QuickNumPlayers = False
                 lastActivity = Date.UtcNow
                 sendRequest()
                 Return True
