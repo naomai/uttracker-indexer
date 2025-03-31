@@ -267,20 +267,23 @@ Class MasterListGSpyFact
 
     Protected Async Function getRawList() As Task(Of String)
         Dim result As String
+        Dim packet As String
+        Dim myResponse As New UTQueryPacket(Flags.UTQP_MasterServer)
+        Dim serverResponse As UTQueryPacket
         Dim builder As New StringBuilder(capacity:=18000)
         Dim connection As New JulkinNet With {
             .timeout = 2500
         }
         connection.Connect(server.address)
 
-        Dim packet As String = Await connection.ReadNextAsync()
+        ' IN: \basic\\secure\...
+        packet = Await connection.ReadNextAsync()
         If Len(packet) = 0 Then
             Throw New Exception("No response from " & server.address)
         End If
+        serverResponse = New UTQueryPacket(packet, Flags.UTQP_MasterServer Or Flags.UTQP_NoFinal)
 
-        Dim myResponse As New UTQueryPacket(Flags.UTQP_MasterServer)
-
-        Dim serverResponse = New UTQueryPacket(packet, Flags.UTQP_MasterServer Or Flags.UTQP_NoFinal)
+        ' OUT: \gamename\...\location\...\validate\...\final\
         If gameInfo.gameName <> "" Then
             myResponse.Add("gamename", gameInfo.gameName)
         End If
@@ -290,10 +293,18 @@ Class MasterListGSpyFact
             Dim challengeResponse = GameSpyProtocol.GenerateValidateResponse(challengeReceived, gameInfo.encKey)
             myResponse.Add("validate", challengeResponse)
         End If
-
-        myResponse.Add("list", "")
         Await connection.WriteAsync(myResponse.ToString())
 
+        ' server does not respond
+        ' OUT: \list\\gamename\...\final\
+        myResponse.Clear()
+        myResponse.Add("list", "")
+        If gameInfo.gameName <> "" Then
+            myResponse.Add("gamename", gameInfo.gameName)
+        End If
+        Await connection.WriteAsync(myResponse.ToString())
+
+        ' IN: \ip\...\ip\......\final\
         Dim waitStart = TickCount()
         packet = ""
         Do
