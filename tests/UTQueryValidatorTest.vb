@@ -1,9 +1,4 @@
-﻿Imports System.ComponentModel.DataAnnotations
-Imports Microsoft.EntityFrameworkCore.DbLoggerCategory
-Imports Mysqlx.Crud
-Imports Naomai.UTT.Indexer.UTQueryPacket
-Imports NUnit.Framework
-Imports NUnit.Framework.Legacy
+﻿Imports NUnit.Framework
 
 Namespace Tests
 

@@ -2,9 +2,6 @@
 Imports System.Globalization
 Imports System.Text
 Imports System.Text.RegularExpressions
-Imports K4os.Compression.LZ4.Internal
-Imports Microsoft.EntityFrameworkCore.Metadata
-Imports Org.BouncyCastle.Bcpg
 
 Public Class ServerQuery
     Dim socket As SocketManager

@@ -2,9 +2,7 @@ Imports System.Net
 Imports System.Text
 Imports System.Data
 Imports Naomai.UTT.Indexer.Utt2Database
-Imports Microsoft.EntityFrameworkCore.Storage
-Imports System.Environment
-Imports Microsoft.SqlServer
+
 
 Public Class Scanner
     Friend scanLastTouchAll As Date
