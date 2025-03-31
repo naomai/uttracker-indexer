@@ -22,12 +22,12 @@ Public Class MasterServerManager
 
     Public Async Sub ThreadLoop()
         Do
-            Refresh()
+            Await RefreshAsync()
             Await Task.Delay(100)
         Loop
     End Sub
 
-    Public Async Sub Refresh()
+    Public Async Function RefreshAsync() As Task
         Dim tasks As New List(Of Task)
         For Each masterServer As MasterServerInfo In masterServers
             If masterServer.ShouldRefresh() Then
@@ -40,7 +40,7 @@ Public Class MasterServerManager
         Next
 
         Await Task.WhenAll(tasks)
-    End Sub
+    End Function
 
     Public Sub New()
         MasterServerManager.gamespyKeys = LoadGSList()

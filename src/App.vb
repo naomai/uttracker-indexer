@@ -103,7 +103,7 @@ Module App
             msIdx += 1
         Loop
 
-        masterManager.Refresh()
+        masterManager.RefreshAsync().Wait()
         masterManager.ThreadLoop()
     End Sub
 
