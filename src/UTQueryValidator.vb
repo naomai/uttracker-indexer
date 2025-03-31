@@ -81,6 +81,10 @@ Public Class UTQueryValidator
                     If Not IsNothing(fieldType) Then
                         field.valueType = fieldType
                     End If
+
+                    If field.valueType = UTQueryValidatorValueType.VOID Then
+                        field.isNullable = True
+                    End If
             End Select
 
         Next
@@ -92,7 +96,8 @@ Public Class UTQueryValidator
             {"string", UTQueryValidatorValueType.STR},
             {"integer", UTQueryValidatorValueType.INT},
             {"float", UTQueryValidatorValueType.FLOAT},
-            {"boolean", UTQueryValidatorValueType.BOOL}
+            {"boolean", UTQueryValidatorValueType.BOOL},
+            {"null", UTQueryValidatorValueType.VOID}
         }
         If Not typeDef.ContainsKey(typeName) Then
             Return Nothing
@@ -151,6 +156,11 @@ Public Class UTQueryValidator
                 Else
                     Throw New UTQueryValidationException($"Not a boolean value: {field.key}")
                 End If
+            Case UTQueryValidatorValueType.VOID
+                If input <> "" Then
+                    Throw New UTQueryValidationException($"Field is expected to be null: {field.key}")
+                End If
+                result = Nothing
         End Select
 
         If Not CheckFieldMinMax(fieldBoundsValue, field) Then
@@ -259,4 +269,5 @@ Public Enum UTQueryValidatorValueType As Integer
     INT = 1
     FLOAT = 2
     BOOL = 3
+    VOID = 4
 End Enum

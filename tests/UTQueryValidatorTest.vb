@@ -1,4 +1,6 @@
 ﻿Imports System.ComponentModel.DataAnnotations
+Imports Microsoft.EntityFrameworkCore.DbLoggerCategory
+Imports Mysqlx.Crud
 Imports Naomai.UTT.Indexer.UTQueryPacket
 Imports NUnit.Framework
 Imports NUnit.Framework.Legacy
@@ -172,6 +174,24 @@ Namespace Tests
             Assert.That(validated, Contains.Key("bgameended"))
             Assert.That(validated("bgameended"), [Is].EqualTo(False))
         End Sub
+        <Test>
+        Public Sub ValidatorGetNull()
+            Dim packet = New UTQueryPacket("\testfield\\queryid\68.1\final\")
+            Dim val
+
+            val = TestFieldAgainstRule(packet, "null")
+            Assert.That(val, [Is].Null)
+
+            packet("testfield") = "123"
+
+            Assert.Throws(Of UTQueryValidationException)(
+                Sub()
+                    val = TestFieldAgainstRule(packet, "null")
+                End Sub
+            )
+        End Sub
+
+
 
         <Test>
         Public Sub ValidatorGetDefaultValue()
