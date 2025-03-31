@@ -411,8 +411,6 @@ Public Class ServerQuery
         If dto.Capabilities.HasXsq Then
             Dim xsqVersion As Integer
             Integer.TryParse(Replace(packetObj("xserverquery"), ".", ""), formatProvider, xsqVersion)
-            ' property interface brought back in XServerQuery 211fix4
-            dto.Capabilities.HasPropertyInterface = xsqVersion >= 211
             dto.Capabilities.XsqVersion = xsqVersion
         End If
 
