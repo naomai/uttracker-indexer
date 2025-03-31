@@ -180,7 +180,7 @@ Public Class MasterServerInfo
             Log("Received {0} servers", serverList.Count)
             lastUpdate = Date.UtcNow
         Catch e As Exception
-            Log("Failure: ", e.Message)
+            Log("Failure: {0}", e.Message)
             QueryFail()
         Finally
             isBusy = False
