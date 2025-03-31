@@ -404,7 +404,7 @@ Public Class ServerQuery
             dto.Info(pair.key) = pair.value
         Next
         If validated.ContainsKey("hostport") Then
-            addressGame = JulkinNet.GetHost(addressQuery) & ": " & validated("hostport")
+            addressGame = JulkinNet.GetHost(addressQuery) & ":" & validated("hostport")
         End If
         dto.Capabilities.HasXsq = packetObj.ContainsKey("xserverquery")
         If dto.Capabilities.HasXsq Then
