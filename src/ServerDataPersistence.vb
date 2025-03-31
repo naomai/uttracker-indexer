@@ -105,7 +105,7 @@ Public Class ServerDataPersistence
 
 
     Private Sub TryUpdateInfo()
-        Dim scannerState = serverWorker.getState()
+        Dim scannerState = serverWorker.GetState()
 
         If Not (state.HasDbRecord AndAlso scannerState.HasBasic AndAlso scannerState.HasInfo) Then
             Return
@@ -150,7 +150,7 @@ Public Class ServerDataPersistence
     Private Sub TryUpdateVariables()
         Dim variablesMerged As Hashtable
         Dim variablesJson As String
-        Dim scannerState = serverWorker.getState()
+        Dim scannerState = serverWorker.GetState()
 
         If Not serverDto.Capabilities.SupportsVariables Then
             state.SavedVariables = True
@@ -185,7 +185,7 @@ Public Class ServerDataPersistence
 
     Private Sub TryUpdateMatchInfo() ' serverhistory
         Dim previousMatchRecord As ServerMatch
-        Dim scannerState = serverWorker.getState()
+        Dim scannerState = serverWorker.GetState()
         Dim timeMatchStart As DateTime? = Nothing
 
         state.IsNewMatch = False
@@ -332,7 +332,7 @@ Public Class ServerDataPersistence
 
 
     Private Sub TryUpdatePlayerInfo()
-        Dim scannerState = serverWorker.getState()
+        Dim scannerState = serverWorker.GetState()
         If scannerState.HasInfo AndAlso (serverDto.Info("__uttrealplayers") = 0 OrElse serverDto.Capabilities.FakePlayers) Then
             state.SavedPlayers = True
             Return

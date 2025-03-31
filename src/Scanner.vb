@@ -110,7 +110,7 @@ Public Class Scanner
                 If Not serverWorkers.ContainsKey(server) Then
                     worker = New ServerQuery(Me, server)
                     serverWorkers(server) = worker
-                    worker.setSocket(sockets)
+                    worker.SetSocket(sockets)
                 Else
                     ' resurrect
                     worker = serverWorkers(server)
@@ -133,7 +133,7 @@ Public Class Scanner
         End If
         target = serverWorkers(ipString)
 
-        If target.getState().done Then
+        If target.GetState().done Then
             ' no more packets are expected from this server, because:
             ' we might have assumed the target is not a game server, or is misbehaving
             packetBuffer.Clear()
@@ -180,7 +180,7 @@ Public Class Scanner
         Dim st As ServerQueryState
         SyncLock serverWorkersLock
             For Each t As ServerQuery In serverWorkers.Values
-                st = t.getState
+                st = t.GetState
                 sta += IIf(st.IsStarted, 1, 0)
                 bas += IIf(st.HasBasic, 1, 0)
                 inf += IIf(st.HasInfo, 1, 0)

@@ -64,7 +64,7 @@ Public Class ServerQuery
         state.IsStarting = False
         state.IsStarted = False
 
-        networkCapNextSendDeadline = Date.UtcNow.AddMilliseconds(rand(0, 15000))
+        networkCapNextSendDeadline = Date.UtcNow.AddMilliseconds(Rand(0, 15000))
     End Sub
 
     Public Sub Update()
@@ -73,7 +73,7 @@ Public Class ServerQuery
             Tick()
             sync.Tick()
         Catch e As Exception
-            abortScan(e.Message)
+            AbortScan(e.Message)
         End Try
     End Sub
 
@@ -84,7 +84,7 @@ Public Class ServerQuery
             protocolFailures = 0
         End If
 
-        If state.IsStarting OrElse isInRequestState() OrElse protocolFailures >= 3 Then
+        If state.IsStarting OrElse IsInRequestState() OrElse protocolFailures >= 3 Then
             Return
         End If
 
@@ -102,7 +102,7 @@ Public Class ServerQuery
                 .HasInfoExtended = False
                 .HasVariables = False
             End With
-            jitterMs = 2000 - rand(0, 4000)
+            jitterMs = 2000 - Rand(0, 4000)
             nextInfoDeadline = now.AddSeconds(INTERVAL_INFO).AddMilliseconds(jitterMs)
             ' reload DB record (free irrelevant data)
             sync.InvalidateServerRecord()
@@ -118,7 +118,7 @@ Public Class ServerQuery
                     .HasPlayers = False
                 End If
             End With
-            jitterMs = 2000 - rand(0, 4000)
+            jitterMs = 2000 - Rand(0, 4000)
             nextGameStateDeadline = now.AddSeconds(INTERVAL_STATE).AddMilliseconds(jitterMs)
             actionNeeded = True
         End If
@@ -127,7 +127,7 @@ Public Class ServerQuery
             state.IsStarted = False
             state.done = False
             state.IsStarting = True
-            resetRequestFlags()
+            ResetRequestFlags()
         End If
     End Sub
 
@@ -139,14 +139,14 @@ Public Class ServerQuery
         If state.IsStarting Then
             state.IsStarted = True
             state.IsStarting = False
-            sendRequest()
+            SendRequest()
             Return
         End If
 
         If Not IsNothing(incomingPacket) Then ' we received a full response from server
             Dim packet = incomingPacket
             incomingPacket = Nothing
-            packetReceived(packet)
+            ReceivePacket(packet)
             Return
         End If
 
@@ -155,31 +155,31 @@ Public Class ServerQuery
                 AndAlso (Date.UtcNow - scannerMaster.scanLastTouchAll).TotalSeconds < 10
 
         If isTimedOut Then
-            If Not skipStepIfOptional() Then
-                abortScan("No response for required data", dumpCommLog:=True)
+            If Not SkipStepIfOptional() Then
+                AbortScan("No response for required data", dumpCommLog:=True)
             End If
             Return
         End If
 
-        sendRequest()
+        SendRequest()
 
     End Sub
 
-    Public Function getState() As ServerQueryState
+    Public Function GetState() As ServerQueryState
         Return state
     End Function
 
-    Public Sub setSocket(ByRef master As SocketManager)
+    Public Sub SetSocket(ByRef master As SocketManager)
         socket = master
     End Sub
 
 #Region "Request"
 
 
-    Private Sub sendRequest()
+    Private Sub SendRequest()
 
 
-        If isInRequestState() Then Return ' remove this when implementing resend feature
+        If IsInRequestState() Then Return ' remove this when implementing resend feature
 
         If Date.UtcNow < networkCapNextSendDeadline Then
             Return
@@ -217,7 +217,7 @@ Public Class ServerQuery
             End If
         End With
         If request.Count > 0 Then
-            serverSend(request.ToString())
+            SendPacket(request.ToString())
         Else
             state.done = True
             protocolFailures = 0
@@ -283,11 +283,11 @@ Public Class ServerQuery
     Private Sub RequestBasic(request As ServerRequest)
         request.Add("basic", "")
         If Not state.HasValidated Then
-            challenge = generateChallenge()
+            challenge = GenerateChallenge()
             request.Add("secure", challenge)
         End If
         If Not state.HasProbed Then
-            request.Add("echo", generateChallenge())
+            request.Add("echo", GenerateChallenge())
             request.Add("game_property", "NumPlayers")
         End If
 
@@ -297,45 +297,45 @@ Public Class ServerQuery
 
 #End Region
 
-    Private Sub serverSend(packet As String)
+    Private Sub SendPacket(packet As String)
         Try
             socket.SendTo(addressQuery, packet)
             scannerMaster.commLogWrite(addressQuery, "UUU", packet)
             networkTimeoutDeadline = Date.UtcNow.AddSeconds(NETWORK_TIMEOUT_SECONDS)
 
         Catch e As Sockets.SocketException
-            abortScan("ServerSendException: " & e.Message)
+            AbortScan("ServerSendException: " & e.Message)
         End Try
     End Sub
 
-    Private Sub packetReceived(packet As UTQueryPacket)
+    Private Sub ReceivePacket(packet As UTQueryPacket)
         Try
             With state
                 If .RequestingBasic Then
-                    parseBasic(packet)
+                    ProcessResponseBasic(packet)
                 End If
                 If .RequestingInfo Then
-                    parseInfo(packet)
+                    ProcessResponseInfo(packet)
                 End If
                 If .RequestingInfoExtended Then
-                    parseInfoExtended(packet)
+                    ProcessResponseInfoExtended(packet)
                 End If
                 If .RequestingPlayers Then
-                    parsePlayers(packet)
+                    ProcessResponsePlayers(packet)
                 End If
                 If .RequestingVariables Then
-                    parseVariables(packet)
+                    ProcessResponseVariables(packet)
                 End If
             End With
         Catch e As UTQueryValidationException
-            abortScan("Invalid data received from server: " & e.Message)
+            AbortScan("Invalid data received from server: " & e.Message)
         End Try
         lastActivity = Date.UtcNow
         networkTimeoutDeadline = Nothing
-        resetRequestFlags()
+        ResetRequestFlags()
     End Sub
 
-    Private Sub parseBasic(packetObj As UTQueryPacket)
+    Private Sub ProcessResponseBasic(packetObj As UTQueryPacket)
         Dim packet As Hashtable
         Try
             packet = ServerQueryValidators.basic.Validate(packetObj)
@@ -346,7 +346,7 @@ Public Class ServerQuery
                 dto.Capabilities.SupportsVariables = False
                 Return
             End If
-            abortScan("Server did not provide basic information")
+            AbortScan("Server did not provide basic information")
             Return
         End Try
 
@@ -357,7 +357,7 @@ Public Class ServerQuery
         validServer = ValidateServer(packetObj, gameName)
 
         If Not validServer Then
-            abortScan("Challenge validation failed")
+            AbortScan("Challenge validation failed")
         End If
 
         If Not state.HasValidated Then
@@ -422,7 +422,7 @@ Public Class ServerQuery
         Return validServer
     End Function
 
-    Private Sub parseInfo(packetObj As UTQueryPacket)
+    Private Sub ProcessResponseInfo(packetObj As UTQueryPacket)
         Dim validated = ServerQueryValidators.info.Validate(packetObj)
 
         For Each pair In packetObj
@@ -451,7 +451,7 @@ Public Class ServerQuery
         End If
     End Sub
 
-    Private Sub parseInfoExtended(packetObj As UTQueryPacket)
+    Private Sub ProcessResponseInfoExtended(packetObj As UTQueryPacket)
         Try
             Dim validated = ServerQueryValidators.infoExtended.Validate(packetObj)
 
@@ -503,7 +503,7 @@ Public Class ServerQuery
         End Try
     End Sub
 
-    Private Sub parsePlayers(packetObj As UTQueryPacket)
+    Private Sub ProcessResponsePlayers(packetObj As UTQueryPacket)
         Dim playerid As Integer = 0, playerinfo As Dictionary(Of String, String)
         Dim buggedPingCount As Integer = 0 ' 2016-03-18: skip scanning of broken servers (all players with ping 9999)
         Dim validated = ServerQueryValidators.players.Validate(packetObj)
@@ -559,15 +559,15 @@ Public Class ServerQuery
                 playerid += 1
             Next
             If buggedPingCount > dto.Players.Count / 2 Then
-                abortScan("Frozen/glitched server")
+                AbortScan("Frozen/glitched server")
             End If
         Catch e As Exception
-            logDbg("ParsePlayersExc: " & e.Message)
+            LogDbg("ParsePlayersExc: " & e.Message)
         End Try
         state.HasPlayers = True
     End Sub
 
-    Private Sub parseVariables(packetObj As UTQueryPacket)
+    Private Sub ProcessResponseVariables(packetObj As UTQueryPacket)
         dto.Variables = packetObj.ConvertToDictionary()
 
         dto.Info("__utthaspropertyinterface") = dto.Capabilities.HasPropertyInterface
@@ -575,40 +575,40 @@ Public Class ServerQuery
         state.HasVariables = True
     End Sub
 
-    Private Function skipStepIfOptional()
+    Private Function SkipStepIfOptional()
         With state
             If .RequestingBasic AndAlso Not .HasProbed Then
                 .HasProbed = True
                 dto.Capabilities.CompoundRequest = False
                 dto.Capabilities.SupportsVariables = False
                 lastActivity = Date.UtcNow
-                sendRequest()
+                SendRequest()
                 Return True
             ElseIf .RequestingInfoExtended Then
                 .RequestingInfoExtended = False
                 dto.Capabilities.HasPropertyInterface = False
                 dto.Capabilities.QuickNumPlayers = False
                 lastActivity = Date.UtcNow
-                sendRequest()
+                SendRequest()
                 Return True
             ElseIf .RequestingTimeTest Then
                 .RequestingTimeTest = False
                 lastActivity = Date.UtcNow
-                sendRequest()
+                SendRequest()
                 Return True
 
             ElseIf .RequestingInfo AndAlso dto.Capabilities.HasXsq Then
                 ' workaround: XServerQuery not responding
                 .RequestingInfo = False
                 dto.Capabilities.HasXsq = False
-                sendRequest()
+                SendRequest()
                 Return True
 
             ElseIf .RequestingVariables Then
                 .RequestingVariables = False
                 dto.Capabilities.SupportsVariables = False
                 .HasVariables = False
-                sendRequest()
+                SendRequest()
                 Return True
             End If
         End With
@@ -616,7 +616,7 @@ Public Class ServerQuery
         Return False
     End Function
 
-    Private Sub resetRequestFlags()
+    Private Sub ResetRequestFlags()
         With state
             .RequestingBasic = False
             .RequestingInfo = False
@@ -627,7 +627,7 @@ Public Class ServerQuery
         End With
     End Sub
 
-    Private Function isInRequestState()
+    Private Function IsInRequestState()
         With state
             Return Not .done AndAlso (
                 .RequestingBasic OrElse
@@ -640,14 +640,14 @@ Public Class ServerQuery
         End With
     End Function
 
-    Friend Sub abortScan(Optional reason As String = "?", Optional dumpCommLog As Boolean = False)
+    Friend Sub AbortScan(Optional reason As String = "?", Optional dumpCommLog As Boolean = False)
         If Not state.done Then
             state.done = True
             sync.FinishSync()
             isOnline = False
             If Not state.RequestingBasic Then
                 protocolFailures += 1
-                logDbg("#" & protocolFailures & " Aborting scan (" & reason & ") - " & state.ToString)
+                LogDbg("#" & protocolFailures & " Aborting scan (" & reason & ") - " & state.ToString)
                 If dumpCommLog Then
                     'logDbg("CommLog: " & System.Environment.NewLine &
                     '   scannerMaster._targetCommLog(addressQuery))
@@ -706,19 +706,19 @@ Public Class ServerQuery
         Return "ServerQuery#" & addressQuery & "#"
     End Function
 
-    Private Shared Function generateChallenge() As String
+    Private Shared Function GenerateChallenge() As String
         Static allowedChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         Static allowedCharsLen = Len(allowedChars)
-        Return allowedChars(rand(1, allowedCharsLen)) & allowedChars(rand(1, allowedCharsLen)) & allowedChars(rand(1, allowedCharsLen)) &
-            allowedChars(rand(1, allowedCharsLen)) & allowedChars(rand(1, allowedCharsLen)) & allowedChars(rand(1, allowedCharsLen))
+        Return allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen)) &
+            allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen)) & allowedChars(Rand(1, allowedCharsLen))
     End Function
 
-    Private Shared Function rand(min As UInt32, max As UInt32) As UInt32
+    Private Shared Function Rand(min As UInt32, max As UInt32) As UInt32
         Static randomGen = New Random()
         Return randomGen.next(min, max)
     End Function
 
-    Protected Friend Sub logDbg(msg As String)
+    Protected Friend Sub LogDbg(msg As String)
         scannerMaster.log.DebugWriteLine("ServerQuery[{0}]: {1}", addressQuery, msg)
     End Sub
 
