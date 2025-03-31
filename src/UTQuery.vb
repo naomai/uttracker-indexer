@@ -384,8 +384,6 @@ Public Class UTQueryPacket
             Throw New UTQueryInvalidResponseException("Unexpected Final field")
         ElseIf expectsFinal AndAlso finalCount = 0 Then
             Throw New UTQueryResponseIncompleteException("Missing packets in response")
-        ElseIf expectsFinal AndAlso finalCount > 1 Then
-            Throw New UTQueryInvalidResponseException($"Expected one Final field, got {finalCount}")
         End If
 
         If Not expectsQueryId AndAlso queryIdCount <> 0 Then
