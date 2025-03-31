@@ -200,7 +200,7 @@ Public Class ServerQuery
                 End If
                 If Not .HasProbed Then
                     request.Add("echo", generateChallenge())
-                    request.Add("level_property", "outer")
+                    request.Add("game_property", "NumPlayers")
                 End If
 
                 .RequestingBasic = True
@@ -362,8 +362,9 @@ Public Class ServerQuery
         End If
 
         If Not state.HasProbed Then
-            dto.Capabilities.CompoundRequest = packetObj.ContainsKey("echo_replay")
-            dto.Capabilities.HasPropertyInterface = packetObj.ContainsKey("outer")
+            Dim tmp As Integer
+            dto.Capabilities.CompoundRequest = packetObj.ContainsKey("echo_replay") OrElse packetObj.ContainsKey("echo")
+            dto.Capabilities.HasPropertyInterface = packetObj.ContainsKey("numplayers") AndAlso Integer.TryParse(packetObj("numplayers"), tmp)
 
             state.HasProbed = True
         End If
