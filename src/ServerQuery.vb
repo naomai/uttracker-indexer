@@ -187,12 +187,12 @@ Public Class ServerQuery
         Dim serverRecord = sync.GetServerRecord()
 
         Dim allowCompoundRequest As Boolean = dto.Capabilities.CompoundRequest AndAlso state.HasProbed
-        Dim allowMoreRequests As Boolean = allowCompoundRequest
+        Dim allowMoreRequests As Boolean = True
 
         Dim request As New ServerRequest()
 
         With state
-            If Not .HasBasic Then
+            If Not .HasBasic AndAlso allowMoreRequests Then
                 request.Add("basic", "")
                 If Not .HasValidated Then
                     challenge = generateChallenge()
@@ -204,7 +204,9 @@ Public Class ServerQuery
                 End If
 
                 .RequestingBasic = True
-            ElseIf Not .HasInfo Then
+                allowMoreRequests = False
+            End If
+            If Not .HasInfo AndAlso allowMoreRequests Then
                 Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 If dto.Capabilities.HasCp437Info Then
                     packetCharset = Encoding.GetEncoding(437)
@@ -215,7 +217,10 @@ Public Class ServerQuery
                 packet.Add("info", IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
                 request.Add(packet)
 
-            ElseIf Not .HasInfoExtended AndAlso dto.Capabilities.HasPropertyInterface Then
+                ' disallow when querying properties due to collision of `numplayers` field
+                allowMoreRequests = allowCompoundRequest AndAlso Not dto.Capabilities.HasPropertyInterface
+            End If
+            If Not .HasInfoExtended AndAlso dto.Capabilities.HasPropertyInterface AndAlso allowMoreRequests Then
                 gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(dto)
                 Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
                 If Not IsNothing(gamemodeQuery) Then
@@ -239,7 +244,9 @@ Public Class ServerQuery
                 request.Add("\level_property\Outer\")
 
                 sync.InvalidateInfo()
-            ElseIf Not .HasPlayers AndAlso dto.Info("numplayers") <> 0 AndAlso Not dto.Capabilities.FakePlayers Then
+                allowMoreRequests = allowCompoundRequest
+            End If
+            If Not .HasPlayers AndAlso .HasInfo AndAlso dto.Info("numplayers") <> 0 AndAlso Not dto.Capabilities.FakePlayers AndAlso allowMoreRequests Then
                 Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 If dto.Capabilities.HasUtf8PlayerList Then
                     packetCharset = Encoding.UTF8
@@ -248,21 +255,23 @@ Public Class ServerQuery
                 sync.InvalidatePlayers()
                 packet("players") = IIf(dto.Capabilities.HasXsq, xsqSuffix, "")
                 request.Add(packet)
-
-            ElseIf Not .HasVariables AndAlso dto.Capabilities.SupportsVariables Then
+                allowMoreRequests = allowCompoundRequest
+            End If
+            If Not .HasVariables AndAlso dto.Capabilities.SupportsVariables AndAlso allowMoreRequests Then
                 Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 .RequestingVariables = True
                 sync.InvalidateVariables()
                 packet("rules") = ""
                 request.Add(packet)
-            Else
-                .done = True
-            protocolFailures = 0
-            networkTimeoutDeadline = Nothing
+                allowMoreRequests = allowCompoundRequest
             End If
         End With
         If request.Count > 0 Then
             serverSend(request.ToString())
+        Else
+            state.done = True
+            protocolFailures = 0
+            networkTimeoutDeadline = Nothing
         End If
 
         lastActivity = Date.UtcNow
@@ -399,7 +408,7 @@ Public Class ServerQuery
         Dim validated = ServerQueryValidators.info.Validate(packetObj)
 
         For Each pair In packetObj
-            If pair.key.Length >2 AndAlso pair.key.Substring(0, 2) = "__" Then
+            If pair.key.Length > 2 AndAlso pair.key.Substring(0, 2) = "__" Then
                 Continue For
             End If
             dto.Info(pair.key) = pair.value
