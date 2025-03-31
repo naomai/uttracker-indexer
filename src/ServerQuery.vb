@@ -204,15 +204,13 @@ Public Class ServerQuery
                 allowMoreRequests = False
             End If
             If Not .HasInfo AndAlso allowMoreRequests Then
-                Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 If dto.Capabilities.HasCp437Info Then
                     packetCharset = Encoding.GetEncoding(437)
                 End If
                 .RequestingInfo = True
                 sync.InvalidateInfo()
                 dto.InfoRequestTime = Date.UtcNow
-                packet.Add("info", IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
-                request.Add(packet)
+                request.Add("info", IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
 
                 ' disallow when querying properties due to collision of `numplayers` field
                 allowMoreRequests = allowCompoundRequest AndAlso Not dto.Capabilities.HasPropertyInterface
@@ -244,22 +242,18 @@ Public Class ServerQuery
                 allowMoreRequests = allowCompoundRequest
             End If
             If Not .HasPlayers AndAlso .HasInfo AndAlso dto.Info("numplayers") <> 0 AndAlso Not dto.Capabilities.FakePlayers AndAlso allowMoreRequests Then
-                Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 If dto.Capabilities.HasUtf8PlayerList Then
                     packetCharset = Encoding.UTF8
                 End If
                 .RequestingPlayers = True
                 sync.InvalidatePlayers()
-                packet("players") = IIf(dto.Capabilities.HasXsq, xsqSuffix, "")
-                request.Add(packet)
+                request.Add("players", IIf(dto.Capabilities.HasXsq, xsqSuffix, ""))
                 allowMoreRequests = allowCompoundRequest
             End If
             If Not .HasVariables AndAlso dto.Capabilities.SupportsVariables AndAlso allowMoreRequests Then
-                Dim packet As New UTQueryPacket(flags:=UTQueryPacket.Flags.UTQP_SimpleRequest)
                 .RequestingVariables = True
                 sync.InvalidateVariables()
-                packet("rules") = ""
-                request.Add(packet)
+                request.Add("rules", "")
                 allowMoreRequests = allowCompoundRequest
             End If
         End With
