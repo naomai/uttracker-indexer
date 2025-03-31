@@ -243,6 +243,11 @@ Class MasterListGSpyFact
     Public gameInfo As GamespyGameInfo
     Protected region As Integer = 0
 
+    Shared ReadOnly greetingValidator As UTQueryValidator =
+            UTQueryValidator.FromRuleDict(New Dictionary(Of String, String) From {
+                             {"basic", "required|null"},
+                             {"secure", "required|string|gte:6|lte:8"}
+                            })
 
     Public Sub New(serverInfo As MasterServerInfo, gInfo As GamespyGameInfo)
         MyBase.New(serverInfo)
@@ -282,6 +287,7 @@ Class MasterListGSpyFact
             Throw New Exception("No response from " & server.address)
         End If
         serverResponse = New UTQueryPacket(packet, Flags.UTQP_MasterServer Or Flags.UTQP_NoFinal)
+        greetingValidator.Validate(serverResponse)
 
         ' OUT: \gamename\...\location\...\validate\...\final\
         If gameInfo.gameName <> "" Then
