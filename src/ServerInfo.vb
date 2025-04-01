@@ -13,6 +13,8 @@ Public Class ServerInfo
 
     Public AddressQuery As String
     Public AddressGame As String
+    Public GameVersion As String
+    Public GameName As String
 
     Public State As ServerInfoState
 
@@ -36,13 +38,10 @@ Public Structure ServerInfoState
 End Structure
 
 Public Structure ServerCapabilities
-    Dim GameVersion As String
-    Dim GameName As String
+
     Dim HasXsq As Boolean
     Dim XsqVersion As Integer
     Dim HasPropertyInterface As Boolean
-    Dim TimeTestPassed As Boolean
-    Dim GameSpeed As Single
     Dim SupportsVariables As Boolean
     Dim GamemodeExtendedInfo As Boolean
     Dim FakePlayers As Boolean
@@ -53,7 +52,6 @@ Public Structure ServerCapabilities
 
     Public Overrides Function ToString() As String
         ToString = "ServerCapabilities{ "
-        If GameName <> "" Then ToString &= "isOnline gameName=" & GameName & " version=" & GameVersion & " "
         If HasXsq Then ToString &= "hasXSQ=" & XsqVersion & " "
         If HasPropertyInterface Then ToString &= "hasPropertyInterface "
         ToString &= "}"

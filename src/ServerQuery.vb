@@ -409,12 +409,12 @@ Public Class ServerQuery
         dto.Info("location") = packet("location")
         dto.State.HasBasic = True
         isOnline = True
-        dto.Capabilities.GameVersion = dto.Info("gamever")
-        dto.Capabilities.GameName = dto.Info("gamename")
+        dto.GameVersion = dto.Info("gamever")
+        dto.GameName = dto.Info("gamename")
 
         If gameName = "ut" Then
             dto.Capabilities.HasXsq = True ' set this flag for initial polling with XSQ suffix
-            dto.Capabilities.HasUtf8PlayerList = Integer.Parse(dto.Capabilities.GameVersion) >= 469
+            dto.Capabilities.HasUtf8PlayerList = Integer.Parse(dto.GameVersion) >= 469
         ElseIf gameName = "unreal" Then
             dto.Capabilities.HasCp437Info = True
             dto.Capabilities.HasPropertyInterface = False
