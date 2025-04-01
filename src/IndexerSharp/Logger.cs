@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -43,7 +43,7 @@ public sealed class UTTLegacyFormatter : ConsoleFormatter, IDisposable
         }
 
         string tag = logEntry.Category;
-
+        
         string dateFormatted = GetFormattedTimestamp();
         string colorCode = "", levelChar = "";
         LogLevel level = logEntry.LogLevel;
@@ -68,8 +68,9 @@ public sealed class UTTLegacyFormatter : ConsoleFormatter, IDisposable
                 colorCode = "\x1B[35m";
                 break;
         }
+        string scopeString = MakeScopeString(scopeProvider);
 
-        textWriter.WriteLine("[{1}] {0}{2} {3}: {4}\u001b[0m", colorCode, dateFormatted, levelChar, tag, message);
+        textWriter.WriteLine("[{1}] {0}{2} {3}{5}: {4}\u001b[0m", colorCode, dateFormatted, levelChar, tag, message, scopeString);
     }
 
     private static string GetFormattedTimestamp()
@@ -90,6 +91,27 @@ public sealed class UTTLegacyFormatter : ConsoleFormatter, IDisposable
         return dateFormatted;
     }
 
+    private static string MakeScopeString(IExternalScopeProvider? scopeProvider)
+    {
+        var scopes = new List<string>();
+        var scopeString = "";
+
+        scopeProvider.ForEachScope((scope, scopes) =>
+        {
+            if (scope is null)
+            {
+                return;
+            }
+            scopes.Add(scope.ToString());
+        }, scopes);
+
+        if (scopes.Count > 0)
+        {
+            scopeString = "(" + string.Join("|", scopes) + ")";
+        }
+
+        return scopeString;
+    }
 
     public void Dispose()
     {
