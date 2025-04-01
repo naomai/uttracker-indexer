@@ -10,13 +10,13 @@ Module App
     Dim gsServerProvider As GSMasterServerListProvider
     Dim masterManager As MasterServerManager
     Dim ini As IniPropsProvider
-    Dim log As Logger
+    Dim log As LoggingAdapter
     Dim dbCtx As Utt2Context
     Dim dyncfg As IPropsProvider
 
     Sub Main()
         ini = GetAppIniProvider()
-        log = CreateLogger(ini)
+        log = CreateLoggingAdapter(ini)
 
         log.ErrorWriteLine("UTTracker Scanner")
         log.ErrorWriteLine("2009-24 naomai")
@@ -37,8 +37,8 @@ Module App
         scanner.ScannerThread()
     End Sub
 
-    Private Function CreateLogger(configSource As IniPropsProvider) As Logger
-        Dim log = New Logger()
+    Private Function CreateLoggingAdapter(configSource As IniPropsProvider) As LoggingAdapter
+        Dim log = New LoggingAdapter()
         log.consoleLoggingLevel = (LoggerLevel.err Or LoggerLevel.out Or LoggerLevel.debug)
         If configSource.GetProperty("General.LogToFile", 0) Then
             log.fileLoggingLevel = (LoggerLevel.err Or LoggerLevel.out Or LoggerLevel.debug)
@@ -74,14 +74,14 @@ Module App
         Return dbconfig
     End Function
 
-    Private Sub InitScanner(logger As Logger, dbCtx As Utt2Context, master As MasterServerManager)
+    Private Sub InitScanner(logger As LoggingAdapter, dbCtx As Utt2Context, master As MasterServerManager)
         scanner = New Scanner(dbCtx, master)
-        scanner.logger = logger
+        scanner.logger = logger.CreateLogger("ServerScanner")
     End Sub
 
-    Private Sub InitMasterServerManager(logger As Logger, config As IniPropsProvider)
+    Private Sub InitMasterServerManager(logger As LoggingAdapter, config As IniPropsProvider)
         masterManager = New MasterServerManager()
-        masterManager.log = logger
+        masterManager.log = logger.CreateLogger("MasterServerManager")
         masterManager.UpdateInterval = config.GetProperty("MasterServer.RefreshIntervalMins", "120") * 60
 
         Dim msIdx As Integer = 0

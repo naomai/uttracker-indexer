@@ -6,6 +6,7 @@ Imports System.Net.Http
 Imports Naomai.UTT.Indexer.UTQueryPacket
 Imports System.Text
 Imports System.Diagnostics.Metrics
+Imports Microsoft.Extensions.Logging
 
 Public Class MasterServerManager
     Dim masterServers As New List(Of MasterServerInfo)
@@ -14,7 +15,7 @@ Public Class MasterServerManager
     Public UpdateInterval As Integer = 3600
     Public PingInterval As Integer = 600
 
-    Protected Friend log As Logger
+    Protected Friend log As ILogger
 
     Shared metric As New Meter("MasterServerManager")
     Friend Shared mtServerListLength As Histogram(Of Integer) = metric.CreateHistogram(Of Integer)("mtServerListLength")
@@ -103,11 +104,18 @@ Public Class MasterServerManager
 
     End Function
 
-    Friend Sub logWriteLine(ByVal format As String, ByVal ParamArray arg As Object())
+    Friend Sub LogDebug(ByVal format As String, ByVal ParamArray arg As Object())
         If IsNothing(log) Then
             Return
         End If
-        log.WriteLine("MasterServer: " & format, arg)
+        log.LogDebug(format, arg)
+    End Sub
+
+    Friend Sub LogError(ByVal format As String, ByVal ParamArray arg As Object())
+        If IsNothing(log) Then
+            Return
+        End If
+        log.LogError(format, arg)
     End Sub
 End Class
 
@@ -180,7 +188,7 @@ Public Class MasterServerInfo
             Log("Received {0} servers", serverList.Count)
             lastUpdate = Date.UtcNow
         Catch e As Exception
-            Log("Failure: {0}", e.Message)
+            LogError("Failure: {0}", e.Message)
             QueryFail()
         Finally
             isBusy = False
@@ -200,12 +208,16 @@ Public Class MasterServerInfo
 
     Protected Sub QueryFail()
         retryDeadline = Date.UtcNow.AddMinutes(10)
-        Log("Query failed")
     End Sub
 
     Protected Sub Log(ByVal format As String, ByVal ParamArray arg As Object())
-        manager.logWriteLine($"[{address}|{iniVariables("GameName")}]: " & format, arg)
+        manager.LogDebug($"[{address}|{iniVariables("GameName")}]: " & format, arg)
     End Sub
+
+    Protected Sub LogError(ByVal format As String, ByVal ParamArray arg As Object())
+        manager.LogError($"[{address}|{iniVariables("GameName")}]: " & format, arg)
+    End Sub
+
 
     Public Overrides Function ToString() As String
         Return address

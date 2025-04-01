@@ -2,6 +2,7 @@
 Imports System.Globalization
 Imports System.Text
 Imports System.Text.RegularExpressions
+Imports Microsoft.Extensions.Logging
 
 Public Class ServerQuery
     Dim socket As SocketManager
@@ -719,7 +720,7 @@ Public Class ServerQuery
     End Function
 
     Protected Friend Sub LogDbg(msg As String)
-        scannerMaster.logger.DebugWriteLine("ServerQuery[{0}]: {1}", addressQuery, msg)
+        scannerMaster.logger.LogDebug("ServerQuery[{0}]: {1}", addressQuery, msg)
     End Sub
 
 

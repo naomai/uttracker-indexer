@@ -454,6 +454,8 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "[8.0.13, )",
           "Microsoft.Extensions.Configuration.Ini": "[9.0.2, )",
+          "Microsoft.Extensions.Logging": "[9.0.3, )",
+          "Microsoft.Extensions.Logging.Console": "[9.0.3, )",
           "MySql.EntityFrameworkCore": "[8.0.11, )"
         }
       }

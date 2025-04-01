@@ -2,13 +2,14 @@ Imports System.Net
 Imports System.Text
 Imports System.Data
 Imports Naomai.UTT.Indexer.Utt2Database
+Imports Microsoft.Extensions.Logging
 
 
 Public Class Scanner
     Friend scanLastTouchAll As Date
 
 
-    Protected Friend logger As Logger
+    Protected Friend logger As ILogger
     Protected Friend ini As IniPropsProvider
     Protected Friend dbCtx As Utt2Context
     Protected Friend dyncfg As IPropsProvider
@@ -26,7 +27,6 @@ Public Class Scanner
     Protected Friend _targetCommLog As New Hashtable
 
     Public Sub New(context As Utt2Context, masterServerManager As MasterServerManager)
-        Me.logger = log
         Me.dbCtx = context
         Me.masterServerQuery = masterServerManager
         Me.serverRepo = New ServerRepository(dbCtx)
@@ -224,20 +224,20 @@ Public Class Scanner
 
     Private Sub LogInfo(ByVal message As String)
         If IsNothing(logger) Then Return
-        logger.WriteLine("ServerScanner: " & message)
+        logger.LogInformation(message)
     End Sub
 
     Private Sub LogInfo(ByVal format As String, ByVal ParamArray arg As Object())
-        LogInfo("ServerScanner: " & format, arg)
+        logger.LogInformation(format, arg)
     End Sub
 
     Private Sub LogDebug(ByVal message As String)
         If IsNothing(logger) Then Return
-        logger.DebugWriteLine("ServerScanner: " & message)
+        logger.LogDebug(message)
     End Sub
 
     Private Sub LogDebug(ByVal format As String, ByVal ParamArray arg As Object())
-        LogDebug("ServerScanner: " & format, arg)
+        logger.LogDebug(format, arg)
     End Sub
 
     Protected Sub taskSleep()

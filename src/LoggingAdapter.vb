@@ -2,6 +2,14 @@
 ' 2014 Namonaki14
 Imports System.IO
 Imports System.Environment
+Imports Microsoft.Extensions.Logging
+Imports Microsoft.Extensions.Options
+Imports Google.Protobuf.Reflection
+Imports Microsoft.Extensions.Logging.Console
+Imports Microsoft.Extensions.Logging.Abstractions
+Imports Google.Protobuf.WellKnownTypes
+Imports System.Runtime.Intrinsics
+Imports System.Runtime.InteropServices
 
 Public Enum LoggerLevel
     out = 1
@@ -9,21 +17,25 @@ Public Enum LoggerLevel
     debug = 4
 End Enum
 
-Public Class Logger
+Public Class LoggingAdapter
     Implements IDisposable
 
     Private progName As String = System.Reflection.Assembly.GetEntryAssembly.GetName.Name
     Protected fileHandle As FileStream
-    Public errorStream As TextWriter = Console.Error
-    Public coutStream As TextWriter = Console.Out
+    Public errorStream As TextWriter = System.Console.Error
+    Public coutStream As TextWriter = System.Console.Out
     Protected disposed As Boolean = False
     Private benchStartTime As DateTime
-    Protected lastLogItemTime As DateTime
 
     Public printToFile As Boolean = True
     Public autoFlush As Boolean = True
     Public fileLoggingLevel As Integer = (LoggerLevel.out Or LoggerLevel.err)
     Public consoleLoggingLevel As Integer = (LoggerLevel.out Or LoggerLevel.err)
+
+    Private _loggerLegacy As ILogger
+
+    Private _logFactory As ILoggerFactory
+
 
 #Region "constructor"
 
@@ -31,7 +43,21 @@ Public Class Logger
         If (logname = "") Then logname = progName & ".log"
         fileHandle = File.Open(logname, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read)
         fileHandle.SetLength(0)
+
+        _logFactory =
+            LoggerFactory.Create(Function(builder)
+                                     Return builder.AddConsole(Sub(options)
+                                                                   options.FormatterName = "UTT1LogFormatter"
+                                                               End Sub
+                                      ).AddConsoleFormatter(Of UTTLegacyFormatter, ConsoleFormatterOptions)() _
+                                     .SetMinimumLevel(LogLevel.Debug)
+                                 End Function)
+        _loggerLegacy = _logFactory.CreateLogger("Program")
     End Sub
+
+    Public Function CreateLogger(loggerName As String) As ILogger
+        Return _logFactory.CreateLogger(loggerName)
+    End Function
 
     Protected Overridable Sub Dispose(ByVal disposing As Boolean)
         If Not Me.disposed Then
@@ -48,39 +74,27 @@ Public Class Logger
 #End Region
 
 #Region "writing functions"
-    Public Sub Write(ByVal value As String)
-        ProcessLogMessage(value, LoggerLevel.out)
-    End Sub
-
-    Public Sub Write(ByVal format As String, ByVal ParamArray arg As Object())
-        ProcessLogMessage(String.Format(format, arg), LoggerLevel.out)
-    End Sub
-
-    Public Sub Write(ByVal value As String, ByVal level As LoggerLevel)
-        ProcessLogMessage(value, level)
-    End Sub
-
     Public Sub ErrorWriteLine(ByVal value As String)
-        ProcessLogMessage(value & NewLine, LoggerLevel.err)
+        _loggerLegacy.LogError(value)
     End Sub
 
     Public Sub ErrorWriteLine(ByVal format As String, ByVal ParamArray arg As Object())
-        ProcessLogMessage(String.Format(format, arg) & NewLine, LoggerLevel.err)
+        _loggerLegacy.LogError(format, arg)
     End Sub
 
     Public Sub DebugWriteLine(ByVal value As String)
-        ProcessLogMessage(value & NewLine, LoggerLevel.debug)
+        _loggerLegacy.LogDebug(value)
     End Sub
 
     Public Sub DebugWriteLine(ByVal format As String, ByVal ParamArray arg As Object())
-        ProcessLogMessage(String.Format(format, arg) & NewLine, LoggerLevel.debug)
+        _loggerLegacy.LogDebug(format, arg)
     End Sub
     Public Sub WriteLine(ByVal value As String)
-        ProcessLogMessage(value & NewLine, LoggerLevel.out)
+        _loggerLegacy.LogInformation(value)
     End Sub
 
     Public Sub WriteLine(ByVal format As String, ByVal ParamArray arg As Object())
-        ProcessLogMessage(String.Format(format, arg) & NewLine, LoggerLevel.out)
+        _loggerLegacy.LogInformation(format, arg)
     End Sub
 
     Public Sub Flush()
@@ -90,20 +104,9 @@ Public Class Logger
 
 #Region "private functions"
     Private Sub ProcessLogMessage(ByVal value As String, ByVal level As LoggerLevel)
-        Static beginning As DateTime = DateTime.Parse("1.01.1990 00:00:00")
-        Dim logLastDay = Math.Floor((lastLogItemTime - beginning).TotalDays)
 
-        Dim dateNow As String
-        If logLastDay = Math.Floor((Date.Now - beginning).TotalDays) Then
-            dateNow = Now.ToString("HH:mm:ss")
-        Else
-            dateNow = Now.ToString("MM-dd-yyyy HH:mm:ss")
-        End If
-        lastLogItemTime = Date.Now
-
-        Dim logmessage As String = String.Format("[{0}] {1}", dateNow, value)
         If (fileLoggingLevel And level) <> 0 Then
-            fileHandle.Write(System.Text.Encoding.ASCII.GetBytes(logmessage), 0, Len(logmessage))
+            fileHandle.Write(System.Text.Encoding.ASCII.GetBytes(value), 0, Len(value))
             If autoFlush Then
                 fileHandle.Flush()
             End If
@@ -112,9 +115,9 @@ Public Class Logger
         If con_m <> 0 Then
             Select Case con_m
                 Case LoggerLevel.debug, LoggerLevel.out
-                    coutStream.Write(logmessage)
+                    coutStream.Write(value)
                 Case LoggerLevel.err
-                    errorStream.Write(logmessage)
+                    errorStream.Write(value)
             End Select
         End If
     End Sub
@@ -144,3 +147,5 @@ Public Class Logger
 #End Region
 
 End Class
+
+
