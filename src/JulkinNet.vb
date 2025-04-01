@@ -55,7 +55,17 @@ Public Class JulkinNet
 
         socketObj = New Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
         socketObj.ReceiveTimeout = timeout
-        socketObj.Connect(ip, port)
+        Dim asyncResult = socketObj.BeginConnect(ip, port, Nothing, Nothing)
+
+        asyncResult.AsyncWaitHandle.WaitOne(timeout, True)
+
+        If socketObj.Connected Then
+            socketObj.EndConnect(asyncResult)
+        Else
+            socketObj.Close()
+            Throw New Exception($"Connection timed out: {ip}:{port}")
+        End If
+
     End Sub
 
     ''' <summary>Close the socket if it's connected</summary>
