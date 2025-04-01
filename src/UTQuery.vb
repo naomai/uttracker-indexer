@@ -380,16 +380,16 @@ Public Class UTQueryPacket
         Dim expectsQueryId = Not CBool(flags And Flags.UTQP_NoQueryId)
         Dim expectsFinal = Not CBool(flags And Flags.UTQP_NoFinal)
 
-        If Not expectsFinal AndAlso finalCount <> 0 Then
-            Throw New UTQueryInvalidResponseException("Unexpected Final field")
-        ElseIf expectsFinal AndAlso finalCount = 0 Then
-            Throw New UTQueryResponseIncompleteException("Missing packets in response")
-        End If
-
         If Not expectsQueryId AndAlso queryIdCount <> 0 Then
             Throw New UTQueryInvalidResponseException("Unexpected QueryId field")
         ElseIf expectsQueryId AndAlso queryIdCount = 0 Then
             Throw New UTQueryInvalidResponseException("No QueryId field present")
+        End If
+
+        If Not expectsFinal AndAlso finalCount <> 0 Then
+            Throw New UTQueryInvalidResponseException("Unexpected Final field")
+        ElseIf expectsFinal AndAlso finalCount = 0 Then
+            Throw New UTQueryResponseIncompleteException("Missing packets in response")
         End If
     End Sub
 
