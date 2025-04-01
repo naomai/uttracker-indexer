@@ -25,7 +25,7 @@ Public Class Scanner
 
     Protected Friend _targetCommLog As New Hashtable
 
-    Public Sub New(log As Logger, context As Utt2Context, masterServerManager As MasterServerManager)
+    Public Sub New(context As Utt2Context, masterServerManager As MasterServerManager)
         Me.logger = log
         Me.dbCtx = context
         Me.masterServerQuery = masterServerManager
