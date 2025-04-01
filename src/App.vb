@@ -75,7 +75,8 @@ Module App
     End Function
 
     Private Sub InitScanner(logger As Logger, dbCtx As Utt2Context, master As MasterServerManager)
-        scanner = New Scanner(logger, dbCtx, master)
+        scanner = New Scanner(dbCtx, master)
+        scanner.logger = logger
     End Sub
 
     Private Sub InitMasterServerManager(logger As Logger, config As IniPropsProvider)

@@ -8,7 +8,7 @@ Public Class Scanner
     Friend scanLastTouchAll As Date
 
 
-    Protected Friend log As Logger
+    Protected Friend logger As Logger
     Protected Friend ini As IniPropsProvider
     Protected Friend dbCtx As Utt2Context
     Protected Friend dyncfg As IPropsProvider
@@ -26,14 +26,14 @@ Public Class Scanner
     Protected Friend _targetCommLog As New Hashtable
 
     Public Sub New(log As Logger, context As Utt2Context, masterServerManager As MasterServerManager)
-        Me.log = log
+        Me.logger = log
         Me.dbCtx = context
         Me.masterServerQuery = masterServerManager
         Me.serverRepo = New ServerRepository(dbCtx)
 
         initSockets()
 
-        debugWriteLine("ServerScanner ready")
+        LogDebug("ServerScanner ready")
     End Sub
 
     Public Sub ScannerThread()
@@ -149,7 +149,7 @@ Public Class Scanner
             target.incomingPacket = New UTQueryPacket(packetString)
 
             ' successfully parsed
-            commLogWrite(target.addressQuery, "DDD", packetString)
+            LogComm(target.addressQuery, "DDD", packetString)
             packetBuffer.Clear()
 
             ' process response
@@ -157,16 +157,16 @@ Public Class Scanner
 
         Catch ex As UTQueryResponseIncompleteException
             ' let's try another time, maybe the missing pieces will join us
-            commLogWrite(target.addressQuery, "Dxx", packetString)
+            LogComm(target.addressQuery, "Dxx", packetString)
 
         Catch ex As UTQueryInvalidResponseException
             ' we found a port that belongs to other service, so we're not going to bother it anymore
-            commLogWrite(target.addressQuery, "Dxx", packetString)
-            target.abortScan("Unknown service", dumpCommLog:=True)
+            LogComm(target.addressQuery, "Dxx", packetString)
+            target.AbortScan("Unknown service", dumpCommLog:=True)
             sockets.AddIgnoredIp(target.addressQuery)
 
         Catch ex As Exception
-            target.abortScan($"Unhandled error: {ex.Message}", dumpCommLog:=True)
+            target.AbortScan($"Unhandled error: {ex.Message}", dumpCommLog:=True)
         End Try
 
     End Sub
@@ -191,7 +191,7 @@ Public Class Scanner
                 onl += IIf(t.isOnline, 1, 0)
             Next
         End SyncLock
-        debugWriteLine("States: STA {7} BAS {0} INF {1} INFEX {2} PL {3} RU {4} DO {5} ON {6}", bas, inf, infex, pl, ru, don, onl, sta)
+        LogDebug("States: STA {7} BAS {0} INF {1} INFEX {2} PL {3} RU {4} DO {5} ON {6}", bas, inf, infex, pl, ru, don, onl, sta)
     End Sub
 
 
@@ -222,27 +222,29 @@ Public Class Scanner
         Return queueServers
     End Function
 
-    Friend Sub logWriteLine(ByVal message As String)
-        log.WriteLine("ServerScanner: " & message)
+    Private Sub LogInfo(ByVal message As String)
+        If IsNothing(logger) Then Return
+        logger.WriteLine("ServerScanner: " & message)
     End Sub
 
-    Friend Sub logWriteLine(ByVal format As String, ByVal ParamArray arg As Object())
-        log.WriteLine("ServerScanner: " & format, arg)
+    Private Sub LogInfo(ByVal format As String, ByVal ParamArray arg As Object())
+        LogInfo("ServerScanner: " & format, arg)
     End Sub
 
-    Friend Sub debugWriteLine(ByVal message As String)
-        log.DebugWriteLine("ServerScanner: " & message)
+    Private Sub LogDebug(ByVal message As String)
+        If IsNothing(logger) Then Return
+        logger.DebugWriteLine("ServerScanner: " & message)
     End Sub
 
-    Friend Sub debugWriteLine(ByVal format As String, ByVal ParamArray arg As Object())
-        log.DebugWriteLine("ServerScanner: " & format, arg)
+    Private Sub LogDebug(ByVal format As String, ByVal ParamArray arg As Object())
+        LogDebug("ServerScanner: " & format, arg)
     End Sub
 
     Protected Sub taskSleep()
         System.Threading.Thread.CurrentThread.Join(1000)
     End Sub
 
-    Protected Friend Sub commLogWrite(targetHost As String, tag As String, packet As String)
+    Protected Friend Sub LogComm(targetHost As String, tag As String, packet As String)
         Dim dateNow = Now.ToString("HH:mm:ss")
         '_targetCommLog(targetHost) &= $"[{dateNow}] {tag}: {packet}" & NewLine
     End Sub

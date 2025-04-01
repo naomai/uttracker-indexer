@@ -300,7 +300,7 @@ Public Class ServerQuery
     Private Sub SendPacket(packet As String)
         Try
             socket.SendTo(addressQuery, packet)
-            scannerMaster.commLogWrite(addressQuery, "UUU", packet)
+            scannerMaster.LogComm(addressQuery, "UUU", packet)
             networkTimeoutDeadline = Date.UtcNow.AddSeconds(NETWORK_TIMEOUT_SECONDS)
 
         Catch e As Sockets.SocketException
@@ -719,7 +719,7 @@ Public Class ServerQuery
     End Function
 
     Protected Friend Sub LogDbg(msg As String)
-        scannerMaster.log.DebugWriteLine("ServerQuery[{0}]: {1}", addressQuery, msg)
+        scannerMaster.logger.DebugWriteLine("ServerQuery[{0}]: {1}", addressQuery, msg)
     End Sub
 
 
