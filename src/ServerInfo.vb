@@ -7,8 +7,14 @@ Public Class ServerInfo
 
     Public LastActivityTime As DateTime?
     Public LastValidationTime As DateTime?
+    Public EstimatedMatchStart As DateTime?
 
     Public PropsRequestTime, InfoRequestTime As DateTime
+
+    Public AddressQuery As String
+    Public AddressGame As String
+
+    Public State As ServerInfoState
 
 
     Public Sub New()
@@ -17,6 +23,17 @@ Public Class ServerInfo
 
 End Class
 
+Public Structure ServerInfoState
+
+    Dim HasBasic As Boolean
+    Dim HasInfo As Boolean
+    Dim HasNumPlayers As Boolean
+    Dim HasTeams As Boolean
+    Dim HasInfoExtended As Boolean
+
+    Dim HasPlayers As Boolean
+    Dim HasVariables As Boolean
+End Structure
 
 Public Structure ServerCapabilities
     Dim GameVersion As String

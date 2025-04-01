@@ -23,15 +23,15 @@ Public Class ServerQuery
     Public isOnline As Boolean
     Public isActive As Boolean = False
     Public checkFakePlayers As Boolean = False
-    Public addressQuery As String
-    Public addressGame As String
+
+
     Friend incomingPacket As UTQueryPacket
     Private resendAttempts As Integer = 0
 
     Protected protocolFailures As Integer = 0
     Friend lastActivity As Date
 
-    Protected dto As ServerInfo
+    Friend dto As ServerInfo
     Protected sync As ServerDataPersistence
     Protected gamemodeQuery As GamemodeSpecificQuery
     Protected logger As ILogger
@@ -39,6 +39,24 @@ Public Class ServerQuery
     Private formatProvider = CultureInfo.InvariantCulture
 
     Protected packetCharset As Encoding = Encoding.GetEncoding(1252)
+
+    Public Property AddressQuery As String
+        Get
+            Return dto.AddressQuery
+        End Get
+        Set(value As String)
+            dto.AddressQuery = value
+        End Set
+    End Property
+    Public Property AddressGame As String
+        Get
+            Return dto.AddressGame
+        End Get
+        Set(value As String)
+            dto.AddressGame = value
+        End Set
+    End Property
+
     Const INTERVAL_INFO As Integer = 10 * 60
     Const INTERVAL_STATE As Integer = 2 * 60
     Const INTERVAL_VERIFY As Integer = 24 * 60 * 60
@@ -49,13 +67,14 @@ Public Class ServerQuery
 
 
     Public Sub New(master As Scanner, serverAddress As String)
-        addressQuery = serverAddress
-        addressGame = JulkinNet.GetHost(serverAddress) & ":" &
+        dto = New ServerInfo()
+
+        AddressQuery = serverAddress
+        AddressGame = JulkinNet.GetHost(serverAddress) & ":" &
             (JulkinNet.GetPort(serverAddress) - 1)
 
         scannerMaster = master
-        dto = New ServerInfo()
-        sync = New ServerDataPersistence(dto, Me)
+        sync = New ServerDataPersistence(dto, master.dbCtx, master.serverRepo)
 
         With dto.Capabilities
             .HasPropertyInterface = True
@@ -80,6 +99,11 @@ Public Class ServerQuery
             CheckScanDeadlines()
             Tick()
             sync.Tick()
+        Catch e As ScanException
+            If e.Fatal Then
+                isActive = False
+            End If
+            AbortScan(e.Message)
         Catch e As Exception
             AbortScan(e.Message)
         End Try
@@ -99,12 +123,12 @@ Public Class ServerQuery
         Dim jitterMs As Integer
         Dim actionNeeded = False
         If nextVerifyDeadline <= now Then
-            state.HasValidated = False
+            state.IsValidated = False
             nextVerifyDeadline = Date.UtcNow.AddSeconds(INTERVAL_VERIFY)
             actionNeeded = True
         End If
         If nextInfoDeadline <= now Then
-            With state
+            With dto.State
                 .HasBasic = False
                 .HasInfo = False
                 .HasInfoExtended = False
@@ -118,7 +142,7 @@ Public Class ServerQuery
             actionNeeded = True
         End If
         If nextGameStateDeadline <= now Then
-            With state
+            With dto.State
                 If dto.Capabilities.QuickNumPlayers Then
                     .HasInfoExtended = False
                 Else
@@ -133,14 +157,14 @@ Public Class ServerQuery
 
         If actionNeeded Then
             state.IsStarted = False
-            state.done = False
+            state.Done = False
             state.IsStarting = True
             ResetRequestFlags()
         End If
     End Sub
 
     Public Sub Tick()
-        If state.done Then
+        If state.Done Then
             Return
         End If
 
@@ -195,12 +219,12 @@ Public Class ServerQuery
 
         Dim serverRecord = sync.GetServerRecord()
 
-        Dim allowCompoundRequest As Boolean = dto.Capabilities.CompoundRequest AndAlso state.HasProbed
+        Dim allowCompoundRequest As Boolean = dto.Capabilities.CompoundRequest AndAlso state.IsProbed
         Dim allowMoreRequests As Boolean = True
 
         Dim request As New ServerRequest()
 
-        With state
+        With dto.State
             If Not .HasBasic AndAlso allowMoreRequests Then
                 RequestBasic(request)
                 allowMoreRequests = False
@@ -227,7 +251,7 @@ Public Class ServerQuery
         If request.Count > 0 Then
             SendPacket(request.ToString())
         Else
-            state.done = True
+            state.Done = True
             protocolFailures = 0
             networkTimeoutDeadline = Nothing
         End If
@@ -290,11 +314,11 @@ Public Class ServerQuery
 
     Private Sub RequestBasic(request As ServerRequest)
         request.Add("basic", "")
-        If Not state.HasValidated Then
+        If Not state.IsValidated Then
             challenge = GenerateChallenge()
             request.Add("secure", challenge)
         End If
-        If Not state.HasProbed Then
+        If Not state.IsProbed Then
             request.Add("echo", GenerateChallenge())
             request.Add("game_property", "NumPlayers")
         End If
@@ -307,8 +331,8 @@ Public Class ServerQuery
 
     Private Sub SendPacket(packet As String)
         Try
-            socket.SendTo(addressQuery, packet)
-            scannerMaster.LogComm(addressQuery, "UUU", packet)
+            socket.SendTo(AddressQuery, packet)
+            scannerMaster.LogComm(AddressQuery, "UUU", packet)
             networkTimeoutDeadline = Date.UtcNow.AddSeconds(NETWORK_TIMEOUT_SECONDS)
 
         Catch e As Sockets.SocketException
@@ -348,8 +372,8 @@ Public Class ServerQuery
         Try
             packet = ServerQueryValidators.basic.Validate(packetObj)
         Catch ex As UTQueryValidationException
-            If Not state.HasProbed Then
-                state.HasProbed = True
+            If Not state.IsProbed Then
+                state.IsProbed = True
                 dto.Capabilities.CompoundRequest = False
                 dto.Capabilities.SupportsVariables = False
                 Return
@@ -368,9 +392,9 @@ Public Class ServerQuery
             AbortScan("Challenge validation failed")
         End If
 
-        If Not state.HasValidated Then
+        If Not state.IsValidated Then
             dto.LastValidationTime = Date.UtcNow
-            state.HasValidated = True
+            state.IsValidated = True
 
         End If
 
@@ -383,7 +407,7 @@ Public Class ServerQuery
             dto.Info("minnetver") = packet("mingamever")
         End If
         dto.Info("location") = packet("location")
-        state.HasBasic = True
+        dto.State.HasBasic = True
         isOnline = True
         dto.Capabilities.GameVersion = dto.Info("gamever")
         dto.Capabilities.GameName = dto.Info("gamename")
@@ -396,18 +420,18 @@ Public Class ServerQuery
             dto.Capabilities.HasPropertyInterface = False
         End If
 
-        If Not state.HasProbed Then
+        If Not state.IsProbed Then
             Dim tmp As Integer
             dto.Capabilities.CompoundRequest = packetObj.ContainsKey("echo_replay") OrElse packetObj.ContainsKey("echo")
             dto.Capabilities.HasPropertyInterface = packetObj.ContainsKey("numplayers") AndAlso Integer.TryParse(packetObj("numplayers"), tmp)
 
-            state.HasProbed = True
+            state.IsProbed = True
         End If
 
     End Sub
 
     Private Function ValidateServer(packetObj As UTQueryPacket, gameName As String) As Boolean
-        If state.HasValidated Then
+        If state.IsValidated Then
             Return True
         End If
 
@@ -440,7 +464,7 @@ Public Class ServerQuery
             dto.Info(pair.key) = pair.value
         Next
         If validated.ContainsKey("hostport") Then
-            addressGame = JulkinNet.GetHost(addressQuery) & ":" & validated("hostport")
+            AddressGame = JulkinNet.GetHost(AddressQuery) & ":" & validated("hostport")
         End If
         dto.Capabilities.HasXsq = packetObj.ContainsKey("xserverquery")
         If dto.Capabilities.HasXsq Then
@@ -450,8 +474,8 @@ Public Class ServerQuery
         End If
 
         dto.Info("__uttrealplayers") = validated("numplayers") ' might be overwritten later
-        state.HasInfo = True
-        state.HasNumPlayers = True
+        dto.State.HasInfo = True
+        dto.State.HasNumPlayers = True
 
         If dto.Capabilities.HasPropertyInterface Then
             dto.Capabilities.FakePlayers = False
@@ -469,7 +493,7 @@ Public Class ServerQuery
                 validated("numspectators") > 0
 
             If needsUpdatingPlayerList Then
-                state.HasPlayers = False
+                dto.State.HasPlayers = False
             End If
 
             dto.Info("__uttrealplayers") = validated("numplayers")
@@ -485,12 +509,12 @@ Public Class ServerQuery
             End If
 
             'state.hasInfo = True
-            state.HasInfoExtended = True
+            dto.State.HasInfoExtended = True
             sync.InvalidateVariables()
 
             Dim mapName = Regex.Match(validated("outer"), "^Package'(.+)'$").Groups(1).ToString()
             If mapName <> dto.Info("mapname") Then
-                state.HasInfo = False
+                dto.State.HasInfo = False
             End If
 
 
@@ -505,7 +529,9 @@ Public Class ServerQuery
                 gamemodeQuery.ParseInfoPacket(packetObj.ConvertToHashtablePacket())
             End If
 
-            state.HasNumPlayers = True
+            dto.EstimatedMatchStart = GetEstimatedMatchStartTime()
+
+            dto.State.HasNumPlayers = True
         Catch e As Exception
             dto.Capabilities.HasPropertyInterface = False
         End Try
@@ -572,7 +598,7 @@ Public Class ServerQuery
         Catch e As Exception
             LogError("ParsePlayersExc: " & e.Message)
         End Try
-        state.HasPlayers = True
+        dto.State.HasPlayers = True
     End Sub
 
     Private Sub ProcessResponseVariables(packetObj As UTQueryPacket)
@@ -580,13 +606,13 @@ Public Class ServerQuery
 
         dto.Info("__utthaspropertyinterface") = dto.Capabilities.HasPropertyInterface
 
-        state.HasVariables = True
+        dto.State.HasVariables = True
     End Sub
 
     Private Function SkipStepIfOptional()
         With state
-            If .RequestingBasic AndAlso Not .HasProbed Then
-                .HasProbed = True
+            If .RequestingBasic AndAlso Not .IsProbed Then
+                .IsProbed = True
                 dto.Capabilities.CompoundRequest = False
                 dto.Capabilities.SupportsVariables = False
                 lastActivity = Date.UtcNow
@@ -615,7 +641,7 @@ Public Class ServerQuery
             ElseIf .RequestingVariables Then
                 .RequestingVariables = False
                 dto.Capabilities.SupportsVariables = False
-                .HasVariables = False
+                dto.State.HasVariables = False
                 SendRequest()
                 Return True
             End If
@@ -637,7 +663,7 @@ Public Class ServerQuery
 
     Private Function IsInRequestState()
         With state
-            Return Not .done AndAlso (
+            Return Not .Done AndAlso (
                 .RequestingBasic OrElse
                 .RequestingInfo OrElse
                 .RequestingInfoExtended OrElse
@@ -649,8 +675,8 @@ Public Class ServerQuery
     End Function
 
     Friend Sub AbortScan(Optional reason As String = "?", Optional dumpCommLog As Boolean = False)
-        If Not state.done Then
-            state.done = True
+        If Not state.Done Then
+            state.Done = True
             sync.FinishSync()
             isOnline = False
             If Not state.RequestingBasic Then
@@ -711,7 +737,7 @@ Public Class ServerQuery
     End Function
 
     Public Overrides Function ToString() As String
-        Return "ServerQuery#" & addressQuery & "#"
+        Return "ServerQuery#" & AddressQuery & "#"
     End Function
 
     Private Shared Function GenerateChallenge() As String
@@ -728,14 +754,14 @@ Public Class ServerQuery
 
     Protected Friend Sub LogDbg(msg As String)
         If IsNothing(logger) Then Return
-        Using logger.BeginScope($"ServerQuery#{addressQuery}")
+        Using logger.BeginScope($"ServerQuery#{AddressQuery}")
             logger.LogDebug(msg)
         End Using
     End Sub
 
     Protected Friend Sub LogError(msg As String)
         If IsNothing(logger) Then Return
-        Using logger.BeginScope($"ServerQuery#{addressQuery}")
+        Using logger.BeginScope($"ServerQuery#{AddressQuery}")
             logger.LogError(msg)
         End Using
     End Sub
@@ -798,16 +824,9 @@ End Class
 Public Structure ServerQueryState
     Dim IsStarted As Boolean
     Dim IsStarting As Boolean
-    Dim HasValidated As Boolean
-    Dim HasProbed As Boolean
-    Dim HasBasic As Boolean
-    Dim HasInfo As Boolean
-    Dim HasNumPlayers As Boolean
-    Dim HasTeams As Boolean
-    Dim HasInfoExtended As Boolean
-    Dim HasTimeTest As Boolean
-    Dim HasPlayers As Boolean
-    Dim HasVariables As Boolean
+
+    Dim IsValidated As Boolean
+    Dim IsProbed As Boolean
 
     Dim RequestingBasic As Boolean
     Dim RequestingInfo As Boolean
@@ -817,7 +836,7 @@ Public Structure ServerQueryState
     Dim RequestingPlayers As Boolean
     Dim RequestingVariables As Boolean
 
-    Dim done As Boolean
+    Dim Done As Boolean
 
     Public Overrides Function ToString() As String
         ToString = "ServerQueryState#"
@@ -835,7 +854,7 @@ Public Structure ServerQueryState
             ToString &= "requestingInfo"
         ElseIf RequestingBasic Then
             ToString &= "requestingBasic"
-        ElseIf done Then
+        ElseIf Done Then
             ToString &= "done"
         ElseIf IsStarting Then
             ToString &= "starting"
@@ -892,11 +911,13 @@ End Class
 
 Public Class ScanException
     Inherits Exception
+    Public ReadOnly Fatal As Boolean = False
     Public Sub New()
     End Sub
 
-    Public Sub New(message As String)
+    Public Sub New(message As String, Optional isFatal As Boolean = False)
         MyBase.New(message)
+        Fatal = isFatal
     End Sub
 
     Public Sub New(message As String, inner As Exception)

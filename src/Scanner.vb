@@ -133,7 +133,7 @@ Public Class Scanner
         End If
         target = serverWorkers(ipString)
 
-        If target.GetState().done Then
+        If target.GetState().Done Then
             ' no more packets are expected from this server, because:
             ' we might have assumed the target is not a game server, or is misbehaving
             packetBuffer.Clear()
@@ -149,7 +149,7 @@ Public Class Scanner
             target.incomingPacket = New UTQueryPacket(packetString)
 
             ' successfully parsed
-            LogComm(target.addressQuery, "DDD", packetString)
+            LogComm(target.AddressQuery, "DDD", packetString)
             packetBuffer.Clear()
 
             ' process response
@@ -157,13 +157,13 @@ Public Class Scanner
 
         Catch ex As UTQueryResponseIncompleteException
             ' let's try another time, maybe the missing pieces will join us
-            LogComm(target.addressQuery, "Dxx", packetString)
+            LogComm(target.AddressQuery, "Dxx", packetString)
 
         Catch ex As UTQueryInvalidResponseException
             ' we found a port that belongs to other service, so we're not going to bother it anymore
-            LogComm(target.addressQuery, "Dxx", packetString)
+            LogComm(target.AddressQuery, "Dxx", packetString)
             target.AbortScan("Unknown service", dumpCommLog:=True)
-            sockets.AddIgnoredIp(target.addressQuery)
+            sockets.AddIgnoredIp(target.AddressQuery)
 
         Catch ex As Exception
             target.AbortScan($"Unhandled error: {ex.Message}", dumpCommLog:=True)
@@ -177,17 +177,18 @@ Public Class Scanner
 
     Private Sub debugShowStates()
         Dim sta, bas, inf, infex, pl, ru, don, onl As Integer
-        Dim st As ServerQueryState
+        Dim workerState As ServerQueryState, dtoState As ServerInfoState
         SyncLock serverWorkersLock
             For Each t As ServerQuery In serverWorkers.Values
-                st = t.GetState
-                sta += IIf(st.IsStarted, 1, 0)
-                bas += IIf(st.HasBasic, 1, 0)
-                inf += IIf(st.HasInfo, 1, 0)
-                infex += IIf(st.HasInfoExtended, 1, 0)
-                pl += IIf(st.HasPlayers, 1, 0)
-                ru += IIf(st.HasVariables, 1, 0)
-                don += IIf(st.done, 1, 0)
+                workerState = t.GetState()
+                dtoState = t.dto.State
+                sta += IIf(workerState.IsStarted, 1, 0)
+                bas += IIf(dtoState.HasBasic, 1, 0)
+                inf += IIf(dtoState.HasInfo, 1, 0)
+                infex += IIf(dtoState.HasInfoExtended, 1, 0)
+                pl += IIf(dtoState.HasPlayers, 1, 0)
+                ru += IIf(dtoState.HasVariables, 1, 0)
+                don += IIf(workerState.Done, 1, 0)
                 onl += IIf(t.isOnline, 1, 0)
             Next
         End SyncLock

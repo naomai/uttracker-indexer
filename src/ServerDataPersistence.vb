@@ -6,7 +6,6 @@ Public Class ServerDataPersistence
     ''' <summary>
     ''' Transfers obtained server info into database entities
     ''' </summary>
-    Protected serverWorker As ServerQuery
     Private dbCtx As Utt2Context
     Private serverRepo As ServerRepository
     Private serverDto As ServerInfo
@@ -17,11 +16,10 @@ Public Class ServerDataPersistence
     Private serverRecord As Server
     Private matchRecord As ServerMatch
 
-    Public Sub New(serverData As ServerInfo, serverWorker As ServerQuery)
+    Public Sub New(serverData As ServerInfo, context As Utt2Context, repo As ServerRepository)
         Me.serverDto = serverData
-        Me.serverWorker = serverWorker
-        dbCtx = serverWorker.scannerMaster.dbCtx
-        serverRepo = serverWorker.scannerMaster.serverRepo
+        dbCtx = context
+        serverRepo = repo
         GetServerRecord()
         serverRecord.LastCheck = Date.UtcNow
     End Sub
@@ -51,12 +49,12 @@ Public Class ServerDataPersistence
             Return serverRecord
         End If
 
-        serverRecord = serverRepo.GetServerByQueryAddress(serverWorker.addressQuery)
+        serverRecord = serverRepo.GetServerByQueryAddress(serverDto.AddressQuery)
 
         If IsNothing(serverRecord) Then
             serverRecord = New Server() With {
-                .AddressQuery = serverWorker.addressQuery,
-                .AddressGame = serverWorker.addressGame
+                .AddressQuery = serverDto.AddressQuery,
+                .AddressGame = serverDto.AddressGame
             }
             serverRepo.AddServer(serverRecord)
         End If
@@ -105,16 +103,16 @@ Public Class ServerDataPersistence
 
 
     Private Sub TryUpdateInfo()
-        Dim scannerState = serverWorker.GetState()
+        Dim dataState = serverDto.State
 
-        If Not (state.HasDbRecord AndAlso scannerState.HasBasic AndAlso scannerState.HasInfo) Then
+        If Not (state.HasDbRecord AndAlso dataState.HasBasic AndAlso dataState.HasInfo) Then
             Return
         End If
 
         With serverRecord
             .Name = serverDto.Info("hostname")
             .GameName = serverDto.Info("gamename")
-            .AddressGame = serverWorker.addressGame
+            .AddressGame = serverDto.AddressGame
             .LastValidation = serverDto.LastValidationTime
             .LastCheck = serverDto.LastActivityTime
         End With
@@ -127,16 +125,17 @@ Public Class ServerDataPersistence
         Catch e As DbUpdateException
             ' conflict of AddressGame - one server, many QueryPorts
             Dim reason As String = "Database update failed - " & e.Message
+            Dim fatal As Boolean = False
 
             If e.InnerException.GetType() = GetType(MySqlException) Then
                 Dim dbEx As MySqlException = e.InnerException
                 If dbEx.Number = 1062 AndAlso dbEx.Message.Contains("address_game") Then
                     reason = "One server-multiple query ports: " & dbEx.Message
-                    serverWorker.isActive = False
+                    fatal = True
                 End If
             End If
             dbCtx.Entry(serverRecord).State = EntityState.Detached
-            Throw New ScanException(reason)
+            Throw New ScanException(reason, fatal)
             Return
         End Try
 
@@ -150,14 +149,14 @@ Public Class ServerDataPersistence
     Private Sub TryUpdateVariables()
         Dim variablesMerged As Hashtable
         Dim variablesJson As String
-        Dim scannerState = serverWorker.GetState()
+        Dim dataState = serverDto.State
 
         If Not serverDto.Capabilities.SupportsVariables Then
             state.SavedVariables = True
             Return
         End If
 
-        If Not (state.HasServerId AndAlso scannerState.HasVariables) Then
+        If Not (state.HasServerId AndAlso dataState.HasVariables) Then
             Return
         End If
 
@@ -168,7 +167,7 @@ Public Class ServerDataPersistence
 
         'utt haxes:
         variablesMerged("__uttlastupdate") = UnixTime(uttServerScanTime)
-        variablesMerged("queryport") = Split(serverWorker.addressQuery, ":").Last
+        variablesMerged("queryport") = Split(serverDto.AddressQuery, ":").Last
         If serverDto.Capabilities.HasXsq Then
             variablesMerged("__uttxserverquery") = "true"
         End If
@@ -185,14 +184,14 @@ Public Class ServerDataPersistence
 
     Private Sub TryUpdateMatchInfo() ' serverhistory
         Dim previousMatchRecord As ServerMatch
-        Dim scannerState = serverWorker.GetState()
+        Dim dataState = serverDto.State
         Dim timeMatchStart As DateTime? = Nothing
 
         state.IsNewMatch = False
         state.IsPreMatch = False
 
-        If Not (state.HasServerId AndAlso scannerState.HasInfo) OrElse
-            (serverDto.Capabilities.HasPropertyInterface AndAlso Not scannerState.HasInfoExtended) Then
+        If Not (state.HasServerId AndAlso dataState.HasInfo) OrElse
+            (serverDto.Capabilities.HasPropertyInterface AndAlso Not dataState.HasInfoExtended) Then
             Return
         End If
 
@@ -212,7 +211,7 @@ Public Class ServerDataPersistence
         Dim changedMapName = False
         Dim hasPlayers = serverDto.Info("__uttrealplayers") > 0
 
-        If scannerState.HasInfoExtended Then
+        If dataState.HasInfoExtended Then
             thisMatchCurrentID = Integer.Parse(serverDto.Info("__uttgamecurrentid"))
         End If
 
@@ -221,7 +220,7 @@ Public Class ServerDataPersistence
         Else
             lastMatchCurrentID = previousMatchRecord.ServerPlayeridCounter
             changedMapName = previousMatchRecord.MapName <> serverDto.Info("mapname")
-            If scannerState.HasInfoExtended Then
+            If dataState.HasInfoExtended Then
                 newMatchByCurrentIDChange =
                     Not IsNothing(lastMatchCurrentID) AndAlso
                     Not IsNothing(thisMatchCurrentID) AndAlso
@@ -239,7 +238,7 @@ Public Class ServerDataPersistence
 
 
         If trustingPlayerList Then
-            timeMatchStart = serverWorker.GetEstimatedMatchStartTime()
+            timeMatchStart = serverDto.EstimatedMatchStart
 
             state.IsPreMatch = timeMatchStart.HasValue AndAlso timeMatchStart.Value > Date.UtcNow
 
@@ -332,13 +331,13 @@ Public Class ServerDataPersistence
 
 
     Private Sub TryUpdatePlayerInfo()
-        Dim scannerState = serverWorker.GetState()
-        If scannerState.HasInfo AndAlso (serverDto.Info("__uttrealplayers") = 0 OrElse serverDto.Capabilities.FakePlayers) Then
+        Dim dataState = serverDto.State
+        If dataState.HasInfo AndAlso (serverDto.Info("__uttrealplayers") = 0 OrElse serverDto.Capabilities.FakePlayers) Then
             state.SavedPlayers = True
             Return
         End If
 
-        If scannerState.HasPlayers AndAlso state.SavedMatchInfo Then
+        If dataState.HasPlayers AndAlso state.SavedMatchInfo Then
             For Each player In serverDto.Players
                 Dim uttPlayerSlug As String = GetPlayerSlug(player)
                 Dim playerRecord As Player
