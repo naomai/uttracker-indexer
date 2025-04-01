@@ -106,16 +106,12 @@ Public Class MasterServerManager
     End Function
 
     Friend Sub LogDebug(ByVal format As String, ByVal ParamArray arg As Object())
-        If IsNothing(log) Then
-            Return
-        End If
+        If IsNothing(log) Then Return
         log.LogDebug(format, arg)
     End Sub
 
     Friend Sub LogError(ByVal format As String, ByVal ParamArray arg As Object())
-        If IsNothing(log) Then
-            Return
-        End If
+        If IsNothing(log) Then Return
         log.LogError(format, arg)
     End Sub
 End Class
