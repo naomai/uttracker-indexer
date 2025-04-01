@@ -570,7 +570,7 @@ Public Class ServerQuery
                 AbortScan("Frozen/glitched server")
             End If
         Catch e As Exception
-            LogDbg("ParsePlayersExc: " & e.Message)
+            LogError("ParsePlayersExc: " & e.Message)
         End Try
         state.HasPlayers = True
     End Sub
@@ -733,6 +733,12 @@ Public Class ServerQuery
         End Using
     End Sub
 
+    Protected Friend Sub LogError(msg As String)
+        If IsNothing(logger) Then Return
+        Using logger.BeginScope($"ServerQuery#{addressQuery}")
+            logger.LogError(msg)
+        End Using
+    End Sub
 
 
     Private Class ServerQueryValidators
