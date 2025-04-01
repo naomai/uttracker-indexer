@@ -192,7 +192,8 @@ Public Class Scanner
                 onl += IIf(t.isOnline, 1, 0)
             Next
         End SyncLock
-        LogDebug("States: STA {7} BAS {0} INF {1} INFEX {2} PL {3} RU {4} DO {5} ON {6}", bas, inf, infex, pl, ru, don, onl, sta)
+        LogDebug("States: STA {started} BAS {basic} INF {info} INFEX {infoExtended} " &
+            "PL {players} RU {rules} DO {done} ON {online}", sta, bas, inf, infex, pl, ru, don, onl)
     End Sub
 
 
