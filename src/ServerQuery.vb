@@ -1,4 +1,4 @@
-﻿Imports System.Net
+Imports System.Net
 Imports System.Globalization
 Imports System.Text
 Imports System.Text.RegularExpressions
@@ -34,6 +34,7 @@ Public Class ServerQuery
     Protected dto As ServerInfo
     Protected sync As ServerDataPersistence
     Protected gamemodeQuery As GamemodeSpecificQuery
+    Protected logger As ILogger
 
     Private formatProvider = CultureInfo.InvariantCulture
 
@@ -66,6 +67,12 @@ Public Class ServerQuery
         state.IsStarted = False
 
         networkCapNextSendDeadline = Date.UtcNow.AddMilliseconds(Rand(0, 15000))
+
+        If Not IsNothing(scannerMaster.logger) Then
+            logger = scannerMaster.logger
+        End If
+
+
     End Sub
 
     Public Sub Update()
@@ -720,7 +727,10 @@ Public Class ServerQuery
     End Function
 
     Protected Friend Sub LogDbg(msg As String)
-        scannerMaster.logger.LogDebug("ServerQuery[{0}]: {1}", addressQuery, msg)
+        If IsNothing(logger) Then Return
+        Using logger.BeginScope($"ServerQuery#{addressQuery}")
+            logger.LogDebug(msg)
+        End Using
     End Sub
 
 

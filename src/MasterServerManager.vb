@@ -1,4 +1,4 @@
-﻿Imports System.Text.RegularExpressions
+Imports System.Text.RegularExpressions
 Imports System.IO
 Imports Microsoft.Extensions.FileProviders
 Imports System.Reflection
@@ -51,6 +51,7 @@ Public Class MasterServerManager
         Dim masterServer As New MasterServerInfo(configString)
         masterServer.updateInterval = UpdateInterval
         masterServer.manager = Me
+        masterServer.logger = log
 
         masterServers.Add(masterServer)
     End Sub
@@ -132,6 +133,7 @@ Public Class MasterServerInfo
     Friend serverId As Integer
     Friend updateInterval As Integer = 3600
     Friend manager As MasterServerManager
+    Friend logger As ILogger
 
     ReadOnly Property address As String
         Get
@@ -211,11 +213,17 @@ Public Class MasterServerInfo
     End Sub
 
     Protected Sub Log(ByVal format As String, ByVal ParamArray arg As Object())
-        manager.LogDebug($"[{address}|{iniVariables("GameName")}]: " & format, arg)
+        If IsNothing(logger) Then Return
+        Using logger.BeginScope($"{address}#{iniVariables("GameName")}")
+            logger.LogDebug(format, arg)
+        End Using
     End Sub
 
     Protected Sub LogError(ByVal format As String, ByVal ParamArray arg As Object())
-        manager.LogError($"[{address}|{iniVariables("GameName")}]: " & format, arg)
+        If IsNothing(logger) Then Return
+        Using logger.BeginScope($"{address}#{iniVariables("GameName")}")
+            logger.LogError(format, arg)
+        End Using
     End Sub
 
 
