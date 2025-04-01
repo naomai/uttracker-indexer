@@ -69,6 +69,27 @@ Namespace Tests
                 )
         End Sub
 
+
+        ' QueryId and Final presence according to packet flags
+        <Test>
+        Public Sub ServerResponseParseFlagsMismatch()
+            Assert.Throws(Of UTQueryInvalidResponseException)(
+                Function()
+                    Return New UTQueryPacket("\ip\201.137.1.56:5534\ip\201.137.1.56:7778")
+                End Function
+                )
+            Assert.Throws(Of UTQueryInvalidResponseException)(
+                Function()
+                    Return New UTQueryPacket("\gamename\ut\gamever\451\minnetver\432\location\0\validate\XnaNeH9u\queryid\10.1\final\", Flags.UTQP_NoQueryId)
+                End Function
+            )
+            Assert.Throws(Of UTQueryInvalidResponseException)(
+                Function()
+                    Return New UTQueryPacket("\gamename\ut\gamever\451\minnetver\432\location\0\validate\XnaNeH9u\queryid\10.1\final\", Flags.UTQP_NoFinal)
+                End Function
+            )
+        End Sub
+
         <Test>
         Public Sub QueryCreatePacket()
             Dim packet As UTQueryPacket
