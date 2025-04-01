@@ -1,7 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Options;
 
 namespace Naomai.UTT.Indexer;
@@ -45,20 +44,7 @@ public sealed class UTTLegacyFormatter : ConsoleFormatter, IDisposable
 
         string tag = logEntry.Category;
 
-        int logLastDay = (int)Math.Floor((lastLogItemTime - beginning).TotalDays);
-
-        string dateFormatted;
-        if (logLastDay == Math.Floor((DateTime.UtcNow - beginning).TotalDays))
-        {
-
-            dateFormatted = DateTime.UtcNow.ToString("HH:mm:ss");
-        }
-        else
-        {
-            dateFormatted = DateTime.UtcNow.ToString("MM-dd-yyyy HH:mm:ss");
-        }
-        lastLogItemTime = DateTime.UtcNow;
-
+        string dateFormatted = GetFormattedTimestamp();
         string colorCode = "", levelChar = "";
         LogLevel level = logEntry.LogLevel;
 
@@ -84,6 +70,24 @@ public sealed class UTTLegacyFormatter : ConsoleFormatter, IDisposable
         }
 
         textWriter.WriteLine("[{1}] {0}{2} {3}: {4}\u001b[0m", colorCode, dateFormatted, levelChar, tag, message);
+    }
+
+    private static string GetFormattedTimestamp()
+    {
+        int logLastDay = (int)Math.Floor((lastLogItemTime - beginning).TotalDays);
+
+        string dateFormatted;
+        if (logLastDay == Math.Floor((DateTime.UtcNow - beginning).TotalDays))
+        {
+
+            dateFormatted = DateTime.UtcNow.ToString("HH:mm:ss");
+        }
+        else
+        {
+            dateFormatted = DateTime.UtcNow.ToString("MM-dd-yyyy HH:mm:ss");
+        }
+        lastLogItemTime = DateTime.UtcNow;
+        return dateFormatted;
     }
 
 
