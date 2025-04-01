@@ -18,10 +18,9 @@ Module App
         ini = GetAppIniProvider()
         log = CreateLoggingAdapter(ini)
 
-        log.ErrorWriteLine("UTTracker Scanner")
-        log.ErrorWriteLine("2009-24 naomai")
-        log.ErrorWriteLine("")
-        log.ErrorWriteLine("Loading config file from: {0}", ini.IniName)
+        log.WriteLine("UTTracker Scanner")
+        log.WriteLine("2009-24 naomai")
+        log.DebugWriteLine("Loading config file from: {0}", ini.IniName)
 
         Dim dbconfig As MySQLDBConfig = GetDbConfig(ini)
         dbCtx = New Utt2Context(dbconfig)

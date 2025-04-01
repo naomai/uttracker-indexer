@@ -33,7 +33,7 @@ Public Class Scanner
 
         initSockets()
 
-        LogDebug("ServerScanner ready")
+        LogInfo("ServerScanner ready")
     End Sub
 
     Public Sub ScannerThread()
