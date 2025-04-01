@@ -16,9 +16,9 @@ public partial class Server
     public string? Country { get; set; } = null!;
     public string GameName { get; set; } = null!;
 
-    public ICollection<PlayerLog> PlayerLogs { get; } = new List<PlayerLog>();
-    public ICollection<PlayerStat> PlayerStats { get;  } = new List<PlayerStat>();
-    public ICollection<ServerMatch> ServerMatches { get;  } = new List<ServerMatch>();
+    public virtual ICollection<PlayerLog> PlayerLogs { get; } = new List<PlayerLog>();
+    public virtual ICollection<PlayerStat> PlayerStats { get;  } = new List<PlayerStat>();
+    public virtual ICollection<ServerMatch> ServerMatches { get;  } = new List<ServerMatch>();
 
     public override string ToString()
     {

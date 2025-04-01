@@ -8,9 +8,9 @@ public class PlayerStat
     public long Score { get; set; }
     public int Deaths { get; set; }
     public long LastMatchId { get; set; }
-    public ServerMatch LastMatch { get; set; }
-    public Player Player { get; set; }
-    public Server Server { get; set; }
+    public virtual ServerMatch LastMatch { get; set; } = null!;
+    public virtual Player Player { get; set; } = null!;
+    public virtual Server Server { get; set; } = null!;
 
     public override string ToString()
     {

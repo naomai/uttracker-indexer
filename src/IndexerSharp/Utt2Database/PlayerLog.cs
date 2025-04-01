@@ -15,9 +15,9 @@ public partial class PlayerLog
     public int PingSum { get; set; }
     public int Team { get; set; }
     public bool Finished { get; set; }
-    public ServerMatch Match { get; set; } = null!;
-    public Player Player { get; set; } = null!;
-    public Server Server { get; set; } = null!;
+    public virtual ServerMatch Match { get; set; } = null!;
+    public virtual Player Player { get; set; } = null!;
+    public virtual Server Server { get; set; } = null!;
 
     public override string ToString()
     {

@@ -9,8 +9,8 @@ public partial class ServerMatch
     public string MapName { get; set; } = null!;
     public int? ServerPlayeridCounter { get; set; }
 
-    public ICollection<PlayerLog> PlayerLogs { get; set; } = new List<PlayerLog>();
-    public ICollection<PlayerStat> PlayerStats { get; set; } = new List<PlayerStat>();
+    public virtual ICollection<PlayerLog> PlayerLogs { get; set; } = new List<PlayerLog>();
+    public virtual ICollection<PlayerStat> PlayerStats { get; set; } = new List<PlayerStat>();
     public Server Server = null!;
 
     public override string ToString()
