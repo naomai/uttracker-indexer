@@ -96,7 +96,7 @@ Public Class ServerDataPersistence
     End Sub
 
     Public Function IsSyncInProgress()
-        Return state.Done
+        Return Not state.Done
     End Function
 
 #Region "Sync logic"
