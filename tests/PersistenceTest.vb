@@ -111,7 +111,47 @@ Namespace Tests
             Assert.That(playerLog.SeenCount, [Is].EqualTo(2))
         End Sub
 
+        <Test>
+        Public Sub NewMatchByMapName()
+            Dim env = CreateTestServer()
 
+            Dim dto = env.Dto
+            Dim sync = env.PersistenceService
+            FakePlayersForServer(dto)
+
+            sync.Tick()
+            env.DatabaseContext.SaveChanges()
+            Dim server = sync.GetServerRecord()
+
+            Dim mapRecordInitial = server.ServerMatches.Where(
+                        Function(l) l.MapName = dto.Info("mapname")
+                    ).First()
+
+            dto.Info("mapname") = "CTF-Face"
+            sync.InvalidateInfo()
+            sync.InvalidatePlayers()
+            sync.Tick()
+
+
+            Assert.That(server.ServerMatches, Has.Exactly(2).Items)
+            Dim mapRecordsMatchingMapname = server.ServerMatches.Where(
+                        Function(l) l.MapName = dto.Info("mapname")
+                    )
+            Assert.That(mapRecordsMatchingMapname, Has.Exactly(1).Items)
+
+            Dim mapRecord = mapRecordsMatchingMapname.First()
+            Assert.That(mapRecord, [Is].Not.SameAs(mapRecordInitial))
+
+            ' check if all player logs under initial match are marked as finished
+            Dim logsFinished = mapRecordInitial.PlayerLogs _
+                    .Where(
+                        Function(l) l.Finished = True
+                    )
+            Assert.That(logsFinished, Has.Exactly(5).Items)
+
+
+
+        End Sub
 
         Private Function CreateDbContext() As Utt2Context
             Dim options = New DbContextOptionsBuilder(Of Utt2Context)() _
