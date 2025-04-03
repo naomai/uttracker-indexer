@@ -6,7 +6,7 @@ namespace Naomai.UTT.Indexer.Utt2Database
 {
     public partial class Utt2Context : DbContext
     {
-        private MySQLDBConfig dbConfig;
+        private MySQLDBConfig? dbConfig;
 
         public Utt2Context()
         {
@@ -37,8 +37,13 @@ namespace Naomai.UTT.Indexer.Utt2Database
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            string connString = MySQLDB.makeConnectionStringFromConfigStruct(dbConfig);
+            if (!dbConfig.HasValue)
+            {
+                return;
+            }
+            string connString = MySQLDB.makeConnectionStringFromConfigStruct(dbConfig.Value);
             optionsBuilder.UseMySQL(connString, o=>o.EnableRetryOnFailure());
+            //optionsBuilder.LogTo(Console.WriteLine);
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -62,8 +67,8 @@ namespace Naomai.UTT.Indexer.Utt2Database
 
                 entity.HasIndex(e => e.Slug, "players_slug_unique").IsUnique();
 
-                entity.Property(e => e.Id).HasColumnType("bigint(20) unsigned").HasColumnName("id");
-                entity.Property(e => e.Country).HasMaxLength(3).HasDefaultValueSql("'NULL'").HasColumnName("country");
+                entity.Property(e => e.Id).HasColumnType("integer").HasColumnName("id");
+                entity.Property(e => e.Country).HasMaxLength(3).HasColumnName("country");
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(255).HasColumnName("name");
                 entity.Property(e => e.SkinData).IsRequired().HasMaxLength(255).HasColumnName("skin_data");
                 entity.Property(e => e.Slug).IsRequired().HasMaxLength(80).HasColumnName("slug");
@@ -84,16 +89,16 @@ namespace Naomai.UTT.Indexer.Utt2Database
                 entity.HasIndex(e => new { e.PlayerId, e.MatchId }, "player_logs_player_id_match_id_unique").IsUnique();
 
 
-                entity.Property(e => e.Id).HasColumnType("bigint(20) unsigned").HasColumnName("id");
-                entity.Property(e => e.DeathsThisMatch).HasDefaultValueSql("'NULL'").HasColumnType("int(11)").HasColumnName("deaths_this_match");
+                entity.Property(e => e.Id).HasColumnType("integer").HasColumnName("id");
+                entity.Property(e => e.DeathsThisMatch).HasColumnType("int(11)").HasColumnName("deaths_this_match");
                 entity.Property(e => e.FirstSeenTime).HasDefaultValueSql("'current_timestamp()'").HasColumnType("timestamp").HasColumnName("first_seen_time");
                 entity.Property(e => e.LastSeenTime).HasDefaultValueSql("'current_timestamp()'").HasColumnType("timestamp").HasColumnName("last_seen_time");
-                entity.Property(e => e.MatchId).HasColumnType("bigint(20) unsigned").HasColumnName("match_id");
+                entity.Property(e => e.MatchId).HasColumnType("bigint(20) ").HasColumnName("match_id");
                 entity.Property(e => e.PingSum).HasColumnType("int(11)").HasColumnName("ping_sum");
-                entity.Property(e => e.PlayerId).HasColumnType("bigint(20) unsigned").HasColumnName("player_id");
+                entity.Property(e => e.PlayerId).HasColumnType("integer").HasColumnName("player_id");
                 entity.Property(e => e.ScoreThisMatch).HasColumnType("bigint(20)").HasColumnName("score_this_match");
                 entity.Property(e => e.SeenCount).HasColumnType("int(11)").HasColumnName("seen_count");
-                entity.Property(e => e.ServerId).HasColumnType("bigint(20) unsigned").HasColumnName("server_id");
+                entity.Property(e => e.ServerId).HasColumnType("integer").HasColumnName("server_id");
                 entity.Property(e => e.Team).HasColumnType("int(11)").HasColumnName("team");
                 entity.Property(e => e.Finished).HasColumnType("tinyint(1)").HasColumnName("finished");
 
@@ -116,13 +121,13 @@ namespace Naomai.UTT.Indexer.Utt2Database
 
                 entity.HasIndex(e => e.ServerId, "player_stats_server_id_foreign");
 
-                entity.Property(e => e.Id).HasColumnType("bigint(20) unsigned").HasColumnName("id");
+                entity.Property(e => e.Id).HasColumnType("integer").HasColumnName("id");
                 entity.Property(e => e.Deaths).HasColumnType("int(11)").HasColumnName("deaths");
                 entity.Property(e => e.GameTime).HasColumnType("int(11)").HasColumnName("game_time");
-                entity.Property(e => e.LastMatchId).HasColumnType("bigint(20) unsigned").HasColumnName("last_match_id");
-                entity.Property(e => e.PlayerId).HasColumnType("bigint(20) unsigned").HasColumnName("player_id");
+                entity.Property(e => e.LastMatchId).HasColumnType("integer").HasColumnName("last_match_id");
+                entity.Property(e => e.PlayerId).HasColumnType("integer").HasColumnName("player_id");
                 entity.Property(e => e.Score).HasColumnType("bigint(20)").HasColumnName("score");
-                entity.Property(e => e.ServerId).HasColumnType("bigint(20) unsigned").HasColumnName("server_id");
+                entity.Property(e => e.ServerId).HasColumnType("integer").HasColumnName("server_id");
 
                 entity.HasOne(d => d.LastMatch).WithMany(p => p.PlayerStats).HasForeignKey(d => d.LastMatchId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("player_stats_last_match_id_foreign");
 
@@ -137,7 +142,7 @@ namespace Naomai.UTT.Indexer.Utt2Database
 
                 entity.ToTable("scan_queue_entries");
 
-                entity.Property(e => e.Id).HasColumnType("bigint(20) unsigned").HasColumnName("id");
+                entity.Property(e => e.Id).HasColumnType("integer").HasColumnName("id");
                 entity.Property(e => e.Address).IsRequired().HasMaxLength(40).HasColumnName("address");
                 entity.Property(e => e.Flags).HasColumnType("int(11)").HasColumnName("flags");
             });
@@ -151,15 +156,15 @@ namespace Naomai.UTT.Indexer.Utt2Database
                 entity.HasIndex(e => e.AddressQuery, "servers_address_query_unique").IsUnique();
                 entity.HasIndex(e => e.AddressGame, "servers_address_game_unique").IsUnique();
 
-                entity.Property(e => e.Id).HasColumnType("bigint(20) unsigned").HasColumnName("id");
+                entity.Property(e => e.Id).HasColumnType("integer").HasColumnName("id");
                 entity.Property(e => e.AddressQuery).IsRequired().HasMaxLength(60).HasColumnName("address_query");
                 entity.Property(e => e.AddressGame).IsRequired().HasMaxLength(60).HasColumnName("address_game");
-                entity.Property(e => e.Country).HasMaxLength(3).HasDefaultValueSql("'NULL'").HasColumnName("country");
+                entity.Property(e => e.Country).HasMaxLength(3).HasColumnName("country");
                 entity.Property(e => e.GameName).IsRequired().HasMaxLength(255).HasColumnName("game_name");
-                entity.Property(e => e.LastRatingCalculation).HasDefaultValueSql("'NULL'").HasColumnType("timestamp").HasColumnName("last_rating_calculation");
-                entity.Property(e => e.LastCheck).HasDefaultValueSql("'NULL'").HasColumnType("timestamp").HasColumnName("last_check");
-                entity.Property(e => e.LastSuccess).HasDefaultValueSql("'NULL'").HasColumnType("timestamp").HasColumnName("last_success");
-                entity.Property(e => e.LastValidation).HasDefaultValueSql("'NULL'").HasColumnType("timestamp").HasColumnName("last_validation");
+                entity.Property(e => e.LastRatingCalculation).HasColumnType("timestamp").HasColumnName("last_rating_calculation");
+                entity.Property(e => e.LastCheck).HasColumnType("timestamp").HasColumnName("last_check");
+                entity.Property(e => e.LastSuccess).HasColumnType("timestamp").HasColumnName("last_success");
+                entity.Property(e => e.LastValidation).HasColumnType("timestamp").HasColumnName("last_validation");
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(255).HasColumnName("name");
                 entity.Property(e => e.RatingMonth).HasColumnType("int(11)").HasColumnName("rating_month");
                 entity.Property(e => e.RatingMinute).HasColumnType("int(11)").HasColumnName("rating_minute");
@@ -174,10 +179,10 @@ namespace Naomai.UTT.Indexer.Utt2Database
 
                 entity.HasIndex(e => e.ServerId, "server_matches_server_id_foreign");
 
-                entity.Property(e => e.Id).HasColumnType("bigint(20) unsigned").HasColumnName("id");
-                entity.Property(e => e.ServerPlayeridCounter).HasDefaultValueSql("'NULL'").HasColumnType("int(11)").HasColumnName("server_playerid_counter");
+                entity.Property(e => e.Id).HasColumnType("integer").HasColumnName("id");
+                entity.Property(e => e.ServerPlayeridCounter).HasColumnType("int(11)").HasColumnName("server_playerid_counter");
                 entity.Property(e => e.MapName).IsRequired().HasMaxLength(255).HasColumnName("map_name");
-                entity.Property(e => e.ServerId).HasColumnType("bigint(20) unsigned").HasColumnName("server_id");
+                entity.Property(e => e.ServerId).HasColumnType("integer").HasColumnName("server_id");
                 entity.Property(e => e.StartTime).HasColumnType("timestamp").HasColumnName("start_time");
 
                 entity.HasOne(d => d.Server).WithMany(p => p.ServerMatches).HasForeignKey(d => d.ServerId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("server_matches_server_id_foreign");
