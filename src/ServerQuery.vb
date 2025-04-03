@@ -915,9 +915,10 @@ Public Class ScanException
     Public Sub New()
     End Sub
 
-    Public Sub New(message As String, Optional isFatal As Boolean = False)
-        MyBase.New(message)
+    Public Sub New(message As String, Optional isFatal As Boolean = False, Optional inner As Exception = Nothing)
+        MyBase.New(message:=message, innerException:=inner)
         Fatal = isFatal
+
     End Sub
 
     Public Sub New(message As String, inner As Exception)

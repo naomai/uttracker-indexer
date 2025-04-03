@@ -135,7 +135,7 @@ Public Class ServerDataPersistence
                 End If
             End If
             dbCtx.Entry(serverRecord).State = EntityState.Detached
-            Throw New ScanException(reason, fatal)
+            Throw New ScanException(reason, fatal, inner:=e)
             Return
         End Try
 
