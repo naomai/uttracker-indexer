@@ -417,7 +417,6 @@ Public Class ServerQuery
             dto.Capabilities.HasUtf8PlayerList = Integer.Parse(dto.GameVersion) >= 469
         ElseIf gameName = "unreal" Then
             dto.Capabilities.HasCp437Info = True
-            dto.Capabilities.HasPropertyInterface = False
         End If
 
         If Not state.IsProbed Then
