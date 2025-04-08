@@ -273,7 +273,7 @@ Public Class ServerQuery
         End If
         state.RequestingPlayers = True
         sync.InvalidatePlayers()
-        request.Add("players", IIf(dto.Capabilities.HasXsq, XSQ_SUFFIX, ""))
+        request.Add("players", GetQueryExtensionSuffix())
     End Sub
 
     Private Sub RequestInfoExtended(request As ServerRequest)
@@ -309,7 +309,7 @@ Public Class ServerQuery
         state.RequestingInfo = True
         sync.InvalidateInfo()
         dto.InfoRequestTime = Date.UtcNow
-        request.Add("info", IIf(dto.Capabilities.HasXsq, XSQ_SUFFIX, ""))
+        request.Add("info", GetQueryExtensionSuffix())
     End Sub
 
     Private Sub RequestBasic(request As ServerRequest)
@@ -733,6 +733,21 @@ Public Class ServerQuery
 
     Public Function GetPacketCharset() As Encoding
         Return packetCharset
+    End Function
+
+    ''' <summary>
+    ''' Get request suffix activating extended responses from the server, if they're supported.
+    ''' Allows creating queries targetting XServerQuery in the form: \info\XServerQuery\
+    ''' </summary>
+    ''' <returns>
+    ''' - XSQ_SUFFIX ("XServerQuery") if server is known to support XServerQuery
+    ''' - "" otherwise
+    ''' </returns>
+    Private Function GetQueryExtensionSuffix() As String
+        If dto.Capabilities.HasXsq Then
+            Return XSQ_SUFFIX
+        End If
+        Return ""
     End Function
 
     Public Overrides Function ToString() As String
