@@ -261,19 +261,28 @@ Public Class ServerQuery
         networkCapNextSendDeadline = Date.UtcNow.AddSeconds(NETWORKCAP_SECONDS)
     End Sub
 
-    Private Sub RequestVariables(request As ServerRequest)
-        state.RequestingVariables = True
-        sync.InvalidateVariables()
-        request.Add("rules", "")
+    Private Sub RequestBasic(request As ServerRequest)
+        request.Add("basic", "")
+        If Not state.IsValidated Then
+            challenge = GenerateChallenge()
+            request.Add("secure", challenge)
+        End If
+        If Not state.IsProbed Then
+            request.Add("echo", GenerateChallenge())
+            request.Add("game_property", "NumPlayers")
+        End If
+
+        state.RequestingBasic = True
     End Sub
 
-    Private Sub RequestPlayers(request As ServerRequest)
-        If dto.Capabilities.HasUtf8PlayerList Then
-            packetCharset = Encoding.UTF8
+    Private Sub RequestInfo(request As ServerRequest)
+        If dto.Capabilities.HasCp437Info Then
+            packetCharset = Encoding.GetEncoding(437)
         End If
-        state.RequestingPlayers = True
-        sync.InvalidatePlayers()
-        request.Add("players", GetQueryExtensionSuffix())
+        state.RequestingInfo = True
+        sync.InvalidateInfo()
+        dto.InfoRequestTime = Date.UtcNow
+        request.Add("info", GetQueryExtensionSuffix())
     End Sub
 
     Private Sub RequestInfoExtended(request As ServerRequest)
@@ -302,30 +311,20 @@ Public Class ServerQuery
         sync.InvalidateInfo()
     End Sub
 
-    Private Sub RequestInfo(request As ServerRequest)
-        If dto.Capabilities.HasCp437Info Then
-            packetCharset = Encoding.GetEncoding(437)
+    Private Sub RequestPlayers(request As ServerRequest)
+        If dto.Capabilities.HasUtf8PlayerList Then
+            packetCharset = Encoding.UTF8
         End If
-        state.RequestingInfo = True
-        sync.InvalidateInfo()
-        dto.InfoRequestTime = Date.UtcNow
-        request.Add("info", GetQueryExtensionSuffix())
+        state.RequestingPlayers = True
+        sync.InvalidatePlayers()
+        request.Add("players", GetQueryExtensionSuffix())
     End Sub
 
-    Private Sub RequestBasic(request As ServerRequest)
-        request.Add("basic", "")
-        If Not state.IsValidated Then
-            challenge = GenerateChallenge()
-            request.Add("secure", challenge)
-        End If
-        If Not state.IsProbed Then
-            request.Add("echo", GenerateChallenge())
-            request.Add("game_property", "NumPlayers")
-        End If
-
-        state.RequestingBasic = True
+    Private Sub RequestVariables(request As ServerRequest)
+        state.RequestingVariables = True
+        sync.InvalidateVariables()
+        request.Add("rules", "")
     End Sub
-
 
 #End Region
 
