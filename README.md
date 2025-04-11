@@ -1,12 +1,13 @@
 # UTTracker Indexer
 Server data collector for [Unreal Tournament Stats Tracker](https://github.com/naomai/uttracker-web).
 
-Periodically grabs statistics from all game servers online.
+Periodically queries all servers online for their game statuses. Creates statistics for each server-players: total score, play time and death count. Links statistics for each player between multiple servers, in dedicated player profile.
 
 ## Features
 - Get server info, players list and match stats
 - Fetch server lists from other master servers
-- Verify servers for fake players
+- Verify servers for fake players: servers that mislead by spoofing their player count in server browser
+- Sophisticated detection of match start and finish, for accurate tracking of scores
 - [XServerQuery](https://ut99.org/ut99.org/viewtopic.php?t=6061) support
 - Optional: Hosting a UT master server, providing list of all online servers
 
@@ -15,7 +16,7 @@ Periodically grabs statistics from all game servers online.
         [Linux](https://learn.microsoft.com/en-us/dotnet/core/install/linux) 
         / [Windows](https://learn.microsoft.com/en-us/dotnet/core/install/windows)
     )
-- MySQL/MariaDB database - same, as for [Web component](https://github.com/naomai/uttracker-web)
+- MySQL/MariaDB database - shared with [Web component](https://github.com/naomai/uttracker-web)
 
 ## Build
 
