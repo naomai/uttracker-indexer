@@ -1,7 +1,7 @@
 # This workflow will build a .NET project
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
 
-name: .NET
+name: Test
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -24,9 +24,3 @@ jobs:
       run: dotnet restore
     - name: Test
       run: dotnet test --verbosity minimal
-    - name: Build
-      run: |-
-        for t in "win-x64" "linux-x64" "linux-arm64"; do
-          dotnet build src/Indexer.vbproj --configuration Release --no-restore --runtime $t --no-self-contained;
-        done;
-
