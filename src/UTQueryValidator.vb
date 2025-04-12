@@ -170,7 +170,7 @@ Public Class UTQueryValidator
         Return result
     End Function
 
-    Protected Shared Function ParseArray(packet As UTQueryPacket, field As UTQueryValidatorField)
+    Protected Shared Function ParseArray(packet As UTQueryPacket, field As UTQueryValidatorField) As UTQueryValidatorArray
         Dim result As New UTQueryValidatorArray(field)
         For Each entry In packet
             If Not entry.key.StartsWith(field.key & "_") Then
