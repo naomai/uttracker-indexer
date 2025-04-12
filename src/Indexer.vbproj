@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>Naomai.UTT.Indexer</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>
-    <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;linux-musl-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;linux-x64;linux-musl-x64;linux-arm64;linux-musl-arm64</RuntimeIdentifiers>
     <ImportedNamespaces>Microsoft.EntityFrameworkCore=False,Microsoft.EntityFrameworkCore.Design=False,MySql.Data.MySqlClient=False,MySql.Data.Types=False,Naomai.UTT.ScannerV2=False,Naomai.UTT.ScannerV2.My=False,System.Text.Json.Serialization=False,Microsoft.VisualBasic=True,System=True,System.Collections=True,System.Collections.Generic=True,System.Diagnostics=True,System.Linq=True,System.Xml.Linq=True,System.Threading.Tasks=True,ScannerV2=True</ImportedNamespaces>
     <Title>Unreal Tournament Tracker Indexer</Title>
     <UseApplicationFramework>False</UseApplicationFramework>
