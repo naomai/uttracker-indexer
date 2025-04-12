@@ -16,6 +16,8 @@ Public Class ServerDataPersistence
     Private serverRecord As Server
     Private matchRecord As ServerMatch
 
+    Public Event OnSyncComplete()
+
     Public Sub New(serverData As ServerInfo, context As Utt2Context, repo As ServerRepository)
         Me.serverDto = serverData
         dbCtx = context
@@ -93,6 +95,7 @@ Public Class ServerDataPersistence
     End Sub
     Public Sub FinishSync()
         state.Done = True
+        RaiseEvent OnSyncComplete()
     End Sub
 
     Public Function IsSyncInProgress()
@@ -318,10 +321,15 @@ Public Class ServerDataPersistence
                 matchRecord.ServerPlayeridCounter = thisMatchCurrentID
             End If
 
-            If Math.Abs((matchRecord.StartTime - timeMatchStart.Value).TotalMinutes) > 10 Then
+            If timeMatchStart.HasValue AndAlso
+                Math.Abs((matchRecord.StartTime - timeMatchStart.Value).TotalMinutes) > 10 Then
                 ' update match start time if changed significantly (pre-match ended)
                 matchRecord.StartTime = timeMatchStart.Value
             End If
+        End If
+
+        If Not serverDto.EstimatedMatchStart.HasValue Then
+            serverDto.EstimatedMatchStart = matchRecord.StartTime
         End If
 
         state.SavedMatchInfo = True

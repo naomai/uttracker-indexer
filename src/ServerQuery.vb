@@ -23,6 +23,7 @@ Public Class ServerQuery
     Public isOnline As Boolean
     Public isActive As Boolean = False
     Public checkFakePlayers As Boolean = False
+    Private nearingMatchEnd As Boolean = False
 
 
     Friend incomingPacket As UTQueryPacket
@@ -32,7 +33,7 @@ Public Class ServerQuery
     Friend lastActivity As Date
 
     Friend dto As ServerInfo
-    Protected sync As ServerDataPersistence
+    Protected WithEvents sync As ServerDataPersistence
     Protected gamemodeQuery As GamemodeSpecificQuery
     Protected logger As ILogger
 
@@ -145,6 +146,9 @@ Public Class ServerQuery
             With dto.State
                 If dto.Capabilities.QuickNumPlayers Then
                     .HasInfoExtended = False
+                    If nearingMatchEnd Then
+                        .HasPlayers = False
+                    End If
                 Else
                     .HasInfo = False
                     .HasPlayers = False
@@ -323,6 +327,9 @@ Public Class ServerQuery
         state.RequestingVariables = True
         sync.InvalidateVariables()
         request.Add("rules", "")
+        If dto.Capabilities.HasXsq Then
+            request.Add("teams", GetQueryExtensionSuffix())
+        End If
     End Sub
 
 #End Region
@@ -527,7 +534,6 @@ Public Class ServerQuery
             End If
 
             dto.EstimatedMatchStart = GetEstimatedMatchStartTime(dto)
-
             dto.State.HasNumPlayers = True
         Catch e As Exception
             dto.Capabilities.HasPropertyInterface = False
@@ -684,7 +690,15 @@ Public Class ServerQuery
                     '   scannerMaster._targetCommLog(addressQuery))
                 End If
             End If
+        End If
+    End Sub
 
+    Public Sub EstimateNextScanTime() Handles sync.OnSyncComplete
+        Dim prematureStateCheckDeadline = GetEstimatedMatchEndTime(dto)
+        nearingMatchEnd = prematureStateCheckDeadline.HasValue AndAlso prematureStateCheckDeadline < nextGameStateDeadline
+        If nearingMatchEnd Then
+            logger.LogDebug("premature={0} in={1}", dto.AddressGame, (prematureStateCheckDeadline.Value - Date.UtcNow).TotalSeconds)
+            nextGameStateDeadline = prematureStateCheckDeadline
         End If
     End Sub
 
