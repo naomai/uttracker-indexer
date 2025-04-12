@@ -26,6 +26,10 @@ Public Class UTQueryPacket
         ReplaceContentFromHashtable(packetHashtable)
     End Sub
 
+    Public Sub New(packet As Dictionary(Of String, String), Optional flags As Flags = 0)
+        Me.New(New Hashtable(packet), flags)
+    End Sub
+
     Public Sub New(Optional flags As Flags = 0)
         Me.packetFlags = flags
     End Sub
@@ -172,6 +176,10 @@ Public Class UTQueryPacket
 
     Public Shared Narrowing Operator CType(packetHT As Hashtable) As UTQueryPacket
         Return New UTQueryPacket(packetHT)
+    End Operator
+
+    Public Shared Narrowing Operator CType(packet As Dictionary(Of String, String)) As UTQueryPacket
+        Return New UTQueryPacket(packet)
     End Operator
 
     Public Shared Widening Operator CType(packet As UTQueryPacket) As Hashtable
