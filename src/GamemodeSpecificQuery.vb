@@ -1,6 +1,6 @@
 ﻿Public MustInherit Class GamemodeSpecificQuery
     Friend serverDto As ServerInfo
-    Public MustOverride Function GetInfoRequestString() As String
+    Public MustOverride Sub Request(request As ServerRequest)
     Public MustOverride Sub ParseInfoPacket(incomingPacket As Hashtable)
 
     Protected Property info(key As String) As String
@@ -20,7 +20,7 @@
         Me.serverDto = serverInfo
     End Sub
 
-    Public Shared Function GetQueryObjectForContext(server As ServerInfo)
+    Public Shared Function GetQueryObjectForContext(server As ServerInfo) As GamemodeSpecificQuery
         Dim queryObject As GamemodeSpecificQuery = Nothing
         If server.Capabilities.HasPropertyInterface = True Then
             Select Case server.Info("gametype")
@@ -37,9 +37,9 @@ End Class
 Public Class MonsterHuntQuery
     Inherits GamemodeSpecificQuery
 
-    Public Overrides Function GetInfoRequestString() As String
-        Return "\game_property\MonstersTotal\"
-    End Function
+    Public Overrides Sub Request(request As ServerRequest)
+        request.Add("game_property", "MonstersTotal")
+    End Sub
 
     Public Overrides Sub ParseInfoPacket(incomingPacket As System.Collections.Hashtable)
         info("monsterstotal") = incomingPacket("monsterstotal")

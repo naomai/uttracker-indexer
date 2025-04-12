@@ -287,9 +287,8 @@ Public Class ServerQuery
 
     Private Sub RequestInfoExtended(request As ServerRequest)
         gamemodeQuery = GamemodeSpecificQuery.GetQueryObjectForContext(dto)
-        Dim gamemodeAdditionalRequests As String = "", otherAdditionalRequests As String = ""
         If Not IsNothing(gamemodeQuery) Then
-            gamemodeAdditionalRequests = gamemodeQuery.GetInfoRequestString()
+            gamemodeQuery.Request(request)
             dto.Capabilities.GamemodeExtendedInfo = True
         End If
         If Not dto.Info.ContainsKey("timelimit") Then
