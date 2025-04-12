@@ -527,7 +527,7 @@ Public Class ServerQuery
                 gamemodeQuery.ParseInfoPacket(packetObj.ConvertToHashtablePacket())
             End If
 
-            dto.EstimatedMatchStart = GetEstimatedMatchStartTime()
+            dto.EstimatedMatchStart = GetEstimatedMatchStartTime(dto)
 
             dto.State.HasNumPlayers = True
         Catch e As Exception
@@ -688,47 +688,6 @@ Public Class ServerQuery
 
         End If
     End Sub
-
-
-    ''' <summary>
-    ''' Estimate match start time from server data 
-    ''' </summary>
-    ''' <returns>
-    ''' On success: Date object in the past representing beginning of the match
-    ''' When match is not yet started: Date object one year into the future
-    ''' When beginning cannot be estimated: null
-    ''' </returns>
-    Public Function GetEstimatedMatchStartTime() As Date?
-        Dim correctElapsedTime = IsNumeric(dto.Info("elapsedtime")) AndAlso
-               dto.Info("elapsedtime") > 0
-
-        Dim correctTimeLimit = IsNumeric(dto.Info("timelimit")) AndAlso
-            dto.Info("timelimit") > 0 AndAlso
-            (dto.Info("timelimit") * 60) - dto.Info("remainingtime") > 0
-
-        Dim secondsElapsed As Integer = Nothing
-
-
-        If correctElapsedTime Then
-            secondsElapsed = dto.Info("elapsedtime")
-        ElseIf correctTimeLimit Then
-            secondsElapsed = (dto.Info("timelimit") * 60) - dto.Info("remainingtime")
-        Else
-            secondsElapsed = Nothing
-        End If
-
-        Dim isNotStarted = (secondsElapsed = 0)
-        If isNotStarted Then
-            Return Date.UtcNow.AddYears(1)
-        End If
-
-        If Not IsNothing(secondsElapsed) Then
-            Return dto.PropsRequestTime.AddSeconds(-secondsElapsed)
-        End If
-
-        Return Nothing
-
-    End Function
 
     Public Function GetPacketCharset() As Encoding
         Return packetCharset
